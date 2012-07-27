@@ -2,6 +2,8 @@
 package main
 
 import (
+	"database/sql"
+	_ "github.com/jbarham/gopgsqldriver"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,11 +11,59 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 )
 
 var indexBackends *string = flag.String("index_backends", "localhost:28081", "Index backends")
+var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)
+var db sql.DB
+var rankQuery *sql.Stmt
+
+// The regular expression trigram index provides us a path to a potential
+// result. This data structure represents such a path and allows for ranking
+// and sorting each path.
+type ResultPath struct {
+	Path string
+	Ranking float32
+}
+
+func (rp *ResultPath) Rank() {
+	m := packageLocation.FindStringSubmatch(rp.Path)
+	if len(m) != 2 {
+		log.Fatal("Invalid path in result: %s", rp.Path)
+	}
+
+	log.Printf("should rank source package %s", m[1])
+	rows, err := rankQuery.Query(m[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	rows.Next()
+	var ranking float32
+	if err = rows.Scan(&ranking); err != nil {
+		log.Fatal(err)
+	}
+	rp.Ranking = ranking
+	log.Printf("ranking = %f", ranking)
+}
+
+type ResultPaths []ResultPath
+
+func (r ResultPaths) Len() int {
+	return len(r)
+}
+
+func (r ResultPaths) Less(i, j int) bool {
+	return r[i].Ranking > r[j].Ranking
+}
+
+func (r ResultPaths) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
+
 
 type Match struct {
 	Path    string
@@ -76,14 +126,14 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan string, don
 }
 
 // TODO: refactor this with sendIndexQuery.
-func sendSourceQuery(query url.URL, filenames []string, matches chan Match, done chan bool) {
+func sendSourceQuery(query url.URL, filenames []ResultPath, matches chan Match, done chan bool) {
 	query.Scheme = "http"
 	// TODO: make this configurable
 	query.Host = "localhost:28082"
 	query.Path = "/source"
 	v := url.Values{}
 	for _, filename := range filenames {
-		v.Add("filename", filename)
+		v.Add("filename", filename.Path)
 	}
 	log.Printf("(source) asking %s\n", query.String())
 	resp, err := http.PostForm(query.String(), v)
@@ -135,12 +185,14 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		go sendIndexQuery(*query, backend, indexResults, done)
 	}
 
-	var files []string
+	var files ResultPaths
 	fmt.Fprintf(w, `<html>Results:<ul>`)
 	for i := 0; i < len(backends); {
 		select {
-		case result := <-indexResults:
-			fmt.Printf("Got a result: %s\n", result)
+		case path := <-indexResults:
+			fmt.Printf("Got a result: %s\n", path)
+			result := ResultPath{path, 0}
+			result.Rank()
 			files = append(files, result)
 			// TODO: we need a sorted data structure in which we can insert the filename
 
@@ -148,6 +200,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			i++
 		}
 	}
+
+	sort.Sort(files)
 
 	// TODO: Essentially, this follows the MapReduce pattern. Our input is the
 	// filename list, we map that onto matches in the first step (remote), then
@@ -187,6 +241,16 @@ func Search(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search webapp")
+
+	db, err := sql.Open("postgres", "dbname=dcs")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rankQuery, err = db.Prepare("SELECT popcon FROM pkg_ranking WHERE package = $1")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/search", Search)
