@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 var indexBackends *string = flag.String("index_backends", "localhost:28081", "Index backends")
@@ -35,7 +36,7 @@ func (rp *ResultPath) Rank() {
 		log.Fatal("Invalid path in result: %s", rp.Path)
 	}
 
-	log.Printf("should rank source package %s", m[1])
+	//log.Printf("should rank source package %s", m[1])
 	rows, err := rankQuery.Query(m[1])
 	if err != nil {
 		log.Fatal(err)
@@ -47,7 +48,7 @@ func (rp *ResultPath) Rank() {
 		log.Fatal(err)
 	}
 	rp.Ranking = ranking
-	log.Printf("ranking = %f", ranking)
+	//log.Printf("ranking = %f", ranking)
 }
 
 type ResultPaths []ResultPath
@@ -117,8 +118,6 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan string, don
 		return
 	}
 
-	log.Printf("files = %s\n", files)
-
 	for _, filename := range files {
 		indexResults <- filename
 	}
@@ -131,6 +130,9 @@ func sendSourceQuery(query url.URL, filenames []ResultPath, matches chan Match, 
 	// TODO: make this configurable
 	query.Host = "localhost:28082"
 	query.Path = "/source"
+	q := query.Query()
+	q.Set("limit", "40")
+	query.RawQuery = q.Encode()
 	v := url.Values{}
 	for _, filename := range filenames {
 		v.Add("filename", filename.Path)
@@ -169,6 +171,7 @@ func (m *Match) Rank() {
 }
 
 func Search(w http.ResponseWriter, r *http.Request) {
+	var t0, t1, t2, t3 time.Time
 	query := r.URL
 	log.Printf(`Search query for "` + query.String() + `"`)
 
@@ -180,6 +183,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	backends := strings.Split(*indexBackends, ",")
 	done := make(chan bool)
 	indexResults := make(chan string)
+	t0 = time.Now()
 	for _, backend := range backends {
 		log.Printf("Sending query to " + backend)
 		go sendIndexQuery(*query, backend, indexResults, done)
@@ -190,7 +194,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < len(backends); {
 		select {
 		case path := <-indexResults:
-			fmt.Printf("Got a result: %s\n", path)
+			// Time to the first result (≈ time to query the regexp index)
+			t1 = time.Now()
 			result := ResultPath{path, 0}
 			result.Rank()
 			files = append(files, result)
@@ -202,6 +207,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Sort(files)
+
+	// Time to rank and sort the results
+	t2 = time.Now()
 
 	// TODO: Essentially, this follows the MapReduce pattern. Our input is the
 	// filename list, we map that onto matches in the first step (remote), then
@@ -223,12 +231,20 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < 1; {
 		select {
 		case match := <-matches:
+			// Time to the first index result
+			t3 = time.Now()
 			match.Rank()
 			results = append(results, match)
 		case <-done:
 			i++
 		}
 	}
+
+	fmt.Fprintf(w, `(time to first regexp result: %v)<br>`, t1.Sub(t0))
+	fmt.Fprintf(w, `(time to rank and sort: %v)<br>`, t2.Sub(t1))
+	fmt.Fprintf(w, `(time to first index result: %v)<br>`, t3.Sub(t2))
+	fmt.Fprintf(w, `(amount of regexp results: %d)<br>`, len(files))
+	fmt.Fprintf(w, `(amount of source results: %d)<br>`, len(results))
 
 	sort.Sort(results)
 	for _, result := range results {

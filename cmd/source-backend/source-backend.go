@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"flag"
+	"strconv"
 )
 
 var grep regexp.Grep = regexp.Grep{
@@ -23,6 +24,11 @@ var grep regexp.Grep = regexp.Grep{
 func Source(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
+	limit, err := strconv.ParseInt(r.Form.Get("limit"), 10, 0)
+	if err != nil {
+		log.Printf("%s\n", err)
+		return
+	}
 	filenames := r.Form["filename"]
 	log.Printf("query for %s\n", textQuery)
 	re, err := regexp.Compile(textQuery)
@@ -39,8 +45,17 @@ func Source(w http.ResponseWriter, r *http.Request) {
 	for _, filename := range filenames {
 		log.Printf("…in %s\n", filename)
 		matches := grep.File(filename)
-		for _, match := range matches {
+		for idx, match := range matches {
+			if idx == 5 {
+				// TODO: we somehow need to signal that there are more results
+				// (if there are more), so that the user can expand this.
+				break
+			}
+			log.Printf("match: %s", match)
 			allMatches = append(allMatches, match)
+		}
+		if int64(len(allMatches)) >= limit {
+			break
 		}
 	}
 	jsonFiles, err := json.Marshal(allMatches)
