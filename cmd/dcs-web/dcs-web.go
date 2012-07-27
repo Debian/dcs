@@ -76,16 +76,17 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan string, don
 }
 
 // TODO: refactor this with sendIndexQuery.
-func sendSourceQuery(query url.URL, filename string, matches chan Match, done chan bool) {
+func sendSourceQuery(query url.URL, filenames []string, matches chan Match, done chan bool) {
 	query.Scheme = "http"
 	// TODO: make this configurable
 	query.Host = "localhost:28082"
 	query.Path = "/source"
-	q := query.Query()
-	q.Set("filename", filename)
-	query.RawQuery = q.Encode()
+	v := url.Values{}
+	for _, filename := range filenames {
+		v.Add("filename", filename)
+	}
 	log.Printf("(source) asking %s\n", query.String())
-	resp, err := http.Get(query.String())
+	resp, err := http.PostForm(query.String(), v)
 	if err != nil {
 		done <- true
 		return
@@ -156,13 +157,16 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// TODO: We got all the results, now rank them, keep the top 10, then query
 	// all the source code files. The problem here is that, depending on how we
 	// do the ranking, we need all the precise matches first :-/.
+
+	// NB: At this point we could implement some kind of scheduler in the
+	// future to split the load between multiple source servers (that might
+	// even be multiple instances on the same machine just serving from
+	// different disks).
 	matches := make(chan Match)
-	for _, filename := range files {
-		go sendSourceQuery(*query, filename, matches, done)
-	}
+	go sendSourceQuery(*query, files, matches, done)
 
 	var results SearchResults
-	for i := 0; i < len(files); {
+	for i := 0; i < 1; {
 		select {
 		case match := <-matches:
 			match.Rank()

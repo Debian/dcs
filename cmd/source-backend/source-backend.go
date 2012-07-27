@@ -23,8 +23,8 @@ var grep regexp.Grep = regexp.Grep{
 func Source(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
-	filename := r.Form.Get("filename")
-	log.Printf("query for %s in %s\n", textQuery, filename)
+	filenames := r.Form["filename"]
+	log.Printf("query for %s\n", textQuery)
 	re, err := regexp.Compile(textQuery)
 	if err != nil {
 		log.Printf("%s\n", err)
@@ -34,8 +34,16 @@ func Source(w http.ResponseWriter, r *http.Request) {
 	log.Printf("query = %s\n", re)
 
 	grep.Regexp = re
-	matches := grep.File(filename)
-	jsonFiles, err := json.Marshal(matches)
+
+	var allMatches []regexp.Match
+	for _, filename := range filenames {
+		log.Printf("…in %s\n", filename)
+		matches := grep.File(filename)
+		for _, match := range matches {
+			allMatches = append(allMatches, match)
+		}
+	}
+	jsonFiles, err := json.Marshal(allMatches)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
