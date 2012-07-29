@@ -13,8 +13,10 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -70,10 +72,16 @@ func (r ResultPaths) Swap(i, j int) {
 
 
 type Match struct {
+	// These members are filled in by the source backend.
 	Path    string
 	Line    int
-	Ranking int
 	Context string
+
+	Ranking int
+
+	// These are filled in by Prettify()
+	SourcePackage string
+	RelativePath string
 }
 
 // This type implements sort.Interface so that we can sort it by rank.
@@ -173,6 +181,16 @@ func (m *Match) Rank() {
 	m.Ranking = 3
 }
 
+func (m *Match) Prettify() {
+	index := packageLocation.FindStringSubmatchIndex(m.Path)
+	if index == nil {
+		log.Fatal("Invalid path in result: %s", m.Path)
+	}
+
+	m.SourcePackage = m.Path[index[2]:index[3]]
+	m.RelativePath = m.Path[index[3]:]
+}
+
 func Search(w http.ResponseWriter, r *http.Request) {
 	var t0, t1, t2, t3 time.Time
 	query := r.URL
@@ -237,6 +255,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			// Time to the first index result
 			t3 = time.Now()
 			match.Rank()
+			match.Prettify()
 			results = append(results, match)
 		case <-done:
 			i++
@@ -252,6 +271,38 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"t2": t3.Sub(t2),
 		"numfiles": len(files),
 		"numresults": len(results),
+	})
+}
+
+func Show(w http.ResponseWriter, r *http.Request) {
+	query := r.URL
+	filename := query.Query().Get("file")
+	line, err := strconv.ParseInt(query.Query().Get("line"), 10, 0)
+	if err != nil {
+		log.Printf("%v\n", err)
+		return
+	}
+	log.Printf("Showing file %s, line %d\n", filename, line)
+
+	// TODO: path configuration
+	file, err := os.Open(`/media/sdg/debian-source-mirror/unpacked/` + filename)
+	if err != nil {
+		log.Printf("%v\n", err)
+		return
+	}
+	defer file.Close()
+
+	contents, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Printf("%v\n", err)
+		return
+	}
+
+	t, _ := template.ParseFiles("templates/show.html")
+	t.Execute(w, map[string]interface{} {
+		// XXX: Has string(contents) any problems when the file is not valid UTF-8?
+		// (while the indexer only cares for UTF-8, an attacker could send us any file path)
+		"contents": string(contents),
 	})
 }
 
@@ -271,5 +322,6 @@ func main() {
 
 	http.HandleFunc("/", Index)
 	http.HandleFunc("/search", Search)
+	http.HandleFunc("/show", Show)
 	log.Fatal(http.ListenAndServe(":28080", nil))
 }

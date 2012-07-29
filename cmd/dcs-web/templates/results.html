@@ -11,7 +11,7 @@ amount of source results: {{.numresults}}
 
 <ul>
 {{range .results}}
-<li><code>{{.Path}}</code>:{{.Line}}<br>
+<li><a href="/show?file={{.SourcePackage}}{{.RelativePath}}&line={{.Line}}&numfiles={{$.numfiles}}"><code><strong>{{.SourcePackage}}</strong>{{.RelativePath}}</code>:{{.Line}}</a><br>
 <code>{{.Context}}</code></li>
 {{end}}
 </ul>
