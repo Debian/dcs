@@ -82,6 +82,9 @@ type Match struct {
 	// These are filled in by Prettify()
 	SourcePackage string
 	RelativePath string
+
+	// The ranking of the ResultPath corresponding to Path
+	PathRanking float32
 }
 
 // This type implements sort.Interface so that we can sort it by rank.
@@ -212,15 +215,19 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var files ResultPaths
+	// We also keep the files in a map with their path as the key so that we
+	// can correlate a match to a (ranked!) filename later on.
+	fileMap := make(map[string]ResultPath)
 	for i := 0; i < len(backends); {
 		select {
 		case path := <-indexResults:
-			// Time to the first result (≈ time to query the regexp index)
+			// Time to the first result (≈ time to query the regexp index in
+			// case len(backends) == 1)
 			t1 = time.Now()
 			result := ResultPath{path, 0}
 			result.Rank(&querystr)
 			files = append(files, result)
-			// TODO: we need a sorted data structure in which we can insert the filename
+			fileMap[path] = result
 
 		case <-done:
 			i++
@@ -237,10 +244,6 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// we map rankings onto it and then we need it sorted. Maybe there is some
 	// Go package already which can help us here?
 
-	// TODO: We got all the results, now rank them, keep the top 10, then query
-	// all the source code files. The problem here is that, depending on how we
-	// do the ranking, we need all the precise matches first :-/.
-
 	// NB: At this point we could implement some kind of scheduler in the
 	// future to split the load between multiple source servers (that might
 	// even be multiple instances on the same machine just serving from
@@ -256,6 +259,12 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			t3 = time.Now()
 			match.Rank()
 			match.Prettify()
+			fileResult, ok := fileMap[match.Path]
+			if !ok {
+				log.Printf("Could not find %s in fileMap?!\n", match.Path)
+			} else {
+				match.PathRanking = fileResult.Ranking
+			}
 			results = append(results, match)
 		case <-done:
 			i++
