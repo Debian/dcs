@@ -4,6 +4,7 @@ package main
 import (
 	"database/sql"
 	_ "github.com/jbarham/gopgsqldriver"
+	"dcs/ranking"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -30,7 +31,7 @@ type ResultPath struct {
 	Ranking float32
 }
 
-func (rp *ResultPath) Rank() {
+func (rp *ResultPath) Rank(query *ranking.QueryStr) {
 	m := packageLocation.FindStringSubmatch(rp.Path)
 	if len(m) != 2 {
 		log.Fatal("Invalid path in result: %s", rp.Path)
@@ -43,11 +44,11 @@ func (rp *ResultPath) Rank() {
 	}
 	defer rows.Close()
 	rows.Next()
-	var ranking float32
-	if err = rows.Scan(&ranking); err != nil {
+	var inst, rdep float32
+	if err = rows.Scan(&inst, &rdep); err != nil {
 		log.Fatal(err)
 	}
-	rp.Ranking = ranking
+	rp.Ranking = inst * rdep * query.Match(&rp.Path)
 	//log.Printf("ranking = %f", ranking)
 }
 
@@ -173,6 +174,7 @@ func (m *Match) Rank() {
 func Search(w http.ResponseWriter, r *http.Request) {
 	var t0, t1, t2, t3 time.Time
 	query := r.URL
+	querystr := ranking.NewQueryStr(query.Query().Get("q"))
 	log.Printf(`Search query for "` + query.String() + `"`)
 
 	// TODO: compile the regular expression right here so that we don’t do it N
@@ -197,7 +199,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			// Time to the first result (≈ time to query the regexp index)
 			t1 = time.Now()
 			result := ResultPath{path, 0}
-			result.Rank()
+			result.Rank(&querystr)
 			files = append(files, result)
 			// TODO: we need a sorted data structure in which we can insert the filename
 
@@ -263,7 +265,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rankQuery, err = db.Prepare("SELECT popcon FROM pkg_ranking WHERE package = $1")
+	rankQuery, err = db.Prepare("SELECT popcon, rdepends FROM pkg_ranking WHERE package = $1")
 	if err != nil {
 		log.Fatal(err)
 	}
