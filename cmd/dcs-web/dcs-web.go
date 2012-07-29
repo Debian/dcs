@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -193,7 +194,6 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var files ResultPaths
-	fmt.Fprintf(w, `<html>Results:<ul>`)
 	for i := 0; i < len(backends); {
 		select {
 		case path := <-indexResults:
@@ -243,18 +243,16 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fmt.Fprintf(w, `(time to first regexp result: %v)<br>`, t1.Sub(t0))
-	fmt.Fprintf(w, `(time to rank and sort: %v)<br>`, t2.Sub(t1))
-	fmt.Fprintf(w, `(time to first index result: %v)<br>`, t3.Sub(t2))
-	fmt.Fprintf(w, `(amount of regexp results: %d)<br>`, len(files))
-	fmt.Fprintf(w, `(amount of source results: %d)<br>`, len(results))
-
 	sort.Sort(results)
-	for _, result := range results {
-		fmt.Fprintf(w, `<li><code>%s</code>:%d<br><code>%s</code></li>`, result.Path, result.Line, result.Context)
-	}
-
-	fmt.Fprintf(w, `</ul>`)
+	t, _ := template.ParseFiles("templates/results.html")
+	t.Execute(w, map[string]interface{} {
+		"results": results,
+		"t0": t1.Sub(t0),
+		"t1": t2.Sub(t1),
+		"t2": t3.Sub(t2),
+		"numfiles": len(files),
+		"numresults": len(results),
+	})
 }
 
 func main() {

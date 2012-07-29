@@ -1,0 +1,17 @@
+<html>
+<h2>Results</h2>
+
+<div id="expertbox" style="background: #000; color: #eee; opacity: 0.75; float: right; border-radius: 5px; padding: 1em">
+Time to first regexp result: {{.t0}}<br>
+Time to rank and sort: {{.t1}}<br>
+Time to first index result: {{.t2}}<br>
+amount of regexp results: {{.numfiles}}<br>
+amount of source results: {{.numresults}}
+</div>
+
+<ul>
+{{range .results}}
+<li><code>{{.Path}}</code>:{{.Line}}<br>
+<code>{{.Context}}</code></li>
+{{end}}
+</ul>
