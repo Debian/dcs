@@ -20,17 +20,22 @@ func NewQueryStr(query string) QueryStr {
 	// XXX: This only works for very simple (one-word) queries.
 	quotedQuery := regexp.QuoteMeta(query)
 	fmt.Printf("quoted query: %s\n", quotedQuery)
-	result.boundaryRegexp = regexp.MustCompile(`\b` + quotedQuery + `\b`)
-	result.anywhereRegexp = regexp.MustCompile(quotedQuery)
+	result.boundaryRegexp = regexp.MustCompile(`(?i)\b` + quotedQuery + `\b`)
+	result.anywhereRegexp = regexp.MustCompile(`(?i)` + quotedQuery)
 	return result
 }
 
 func (qs *QueryStr) Match(path *string) float32 {
 	// XXX: These values might need to be tweaked.
-	if qs.boundaryRegexp.MatchString(*path) {
-		return 1.0
-	} else if qs.anywhereRegexp.MatchString(*path) {
-		return 0.75
+
+	index := qs.boundaryRegexp.FindStringIndex(*path)
+	if index != nil {
+		return 0.75 + (0.25 * (1.0 - float32(index[0]) / float32(len(*path))))
+	}
+
+	index = qs.anywhereRegexp.FindStringIndex(*path)
+	if index != nil {
+		return 0.5 + (0.25 * (1.0 - float32(index[0]) / float32(len(*path))))
 	}
 
 	return 0.5

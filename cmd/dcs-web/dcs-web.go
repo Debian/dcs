@@ -38,7 +38,8 @@ func (rp *ResultPath) Rank(query *ranking.QueryStr) {
 	}
 
 	//log.Printf("should rank source package %s", m[1])
-	rows, err := rankQuery.Query(m[1])
+	sourcePackage := m[1]
+	rows, err := rankQuery.Query(sourcePackage)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,7 +49,7 @@ func (rp *ResultPath) Rank(query *ranking.QueryStr) {
 	if err = rows.Scan(&inst, &rdep); err != nil {
 		log.Fatal(err)
 	}
-	rp.Ranking = inst * rdep * query.Match(&rp.Path)
+	rp.Ranking = inst * rdep * query.Match(&rp.Path) * query.Match(&sourcePackage)
 	//log.Printf("ranking = %f", ranking)
 }
 
