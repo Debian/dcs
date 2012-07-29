@@ -2,19 +2,22 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
-	_ "github.com/jbarham/gopgsqldriver"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	_ "github.com/jbarham/gopgsqldriver"
+	"github.com/mstap/godebiancontrol"
 	"log"
 	"os"
-	"strings"
+	"os/exec"
 	"regexp"
+	"strings"
 )
 
 var packageLine *regexp.Regexp = regexp.MustCompile(`^Package: (.+)`)
 var binaryLine *regexp.Regexp = regexp.MustCompile(`^Binary: (.+)`)
+var udeb *regexp.Regexp = regexp.MustCompile(`\budeb\b`)
 var numShards *int = flag.Int("shards", 1, "Number of index shards (the index will be split into 'shard' different files)")
 var popconInst map[string]float32 = make(map[string]float32)
 
@@ -27,6 +30,8 @@ func fillPopconInst() {
 		log.Fatal(err)
 	}
 
+	// XXX: Using popcon_src would make this code a lot easier. See if
+	// refactoring it is useful in the future.
 	rows, err := db.Query("SELECT SUM(insts) FROM popcon")
 	if err != nil {
 		log.Fatal(err)
@@ -60,6 +65,20 @@ func fillPopconInst() {
 	}
 }
 
+func countReverseDepends(out string) int {
+	packages := make(map[string]bool)
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "  ") {
+			continue
+		}
+
+		parts := strings.Split(line, ":")
+		packages[parts[0]] = true
+	}
+
+	return len(packages)
+}
+
 func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search ranking tool")
@@ -74,13 +93,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	insert, err := db.Prepare("INSERT INTO pkg_ranking (package, popcon) VALUES ($1, $2)")
+	insert, err := db.Prepare("INSERT INTO pkg_ranking (package, popcon, rdepends) VALUES ($1, $2, $3)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer insert.Close()
 
-	update, err := db.Prepare("UPDATE pkg_ranking SET popcon = $2 WHERE package = $1")
+	update, err := db.Prepare("UPDATE pkg_ranking SET popcon = $2, rdepends = $3 WHERE package = $1")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,34 +112,56 @@ func main() {
 	}
 	defer file.Close()
 
-	content, err := ioutil.ReadAll(file)
+	sourcePackages, err := godebiancontrol.Parse(file)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	lastSourceName := ""
-	for _, line := range strings.Split(string(content), "\n") {
-		if m := packageLine.FindStringSubmatch(line); len(m) == 2 {
-			lastSourceName = m[1]
-			continue
+	udebs := make(map[string]bool)
+	for _, pkg := range sourcePackages {
+		// Fill our map of udebs. Used later on to avoid running apt-cache
+		// rdepends on udebs.
+		packageList := strings.Split(pkg["Package-List"], "\n")
+		for _, pkg := range packageList {
+			pkg = strings.TrimSpace(pkg)
+			parts := strings.Split(pkg, " ")
+			if (len(parts) > 1 && parts[1] == "udeb") ||
+			   (len(parts) > 2 && parts[2] == "debian-installer") ||
+			   (len(parts) > 0 && strings.HasSuffix(parts[0], "-udeb")) {
+				udebs[parts[0]] = true
+				fmt.Printf("%s is an UDEB\n", parts[0])
+			}
 		}
-
-		if m := binaryLine.FindStringSubmatch(line); len(m) == 2 {
-			packageRank := float32(0)
-			binaryPackages := strings.Split(m[1], ",")
-			for _, packageName := range binaryPackages {
-				packageName = strings.TrimSpace(packageName)
-				if popconRank, ok := popconInst[packageName]; ok {
-					if popconRank > packageRank {
-						packageRank = popconRank
-					}
+		packageRank := float32(0)
+		rdepcount := float32(0)
+		binaryPackages := strings.Split(pkg["Binary"], ",")
+		for _, packageName := range binaryPackages {
+			packageName = strings.TrimSpace(packageName)
+			if udebs[packageName] {
+				fmt.Printf("skipping %s because it’s not a deb\n", packageName)
+				continue
+			}
+			if packageName == "" {
+				continue
+			}
+			if popconRank, ok := popconInst[packageName]; ok {
+				if popconRank > packageRank {
+					packageRank = popconRank
 				}
 			}
-			fmt.Printf("%f %s\n", packageRank, lastSourceName)
-			if _, err = insert.Exec(lastSourceName, packageRank); err != nil {
-				if _, err = update.Exec(lastSourceName, packageRank); err != nil {
-					log.Fatal(err)
-				}
+			var out bytes.Buffer
+			cmd := exec.Command("apt-cache", "rdepends", packageName)
+			cmd.Stdout = &out
+			if err = cmd.Run(); err != nil {
+				log.Printf("ERROR: %v\n", err)
+			}
+			rdepcount += float32(countReverseDepends(out.String()))
+		}
+		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
+		fmt.Printf("%f %d %s\n", packageRank, rdepcount, pkg["Package"])
+		if _, err = insert.Exec(pkg["Package"], packageRank, rdepcount); err != nil {
+			if _, err = update.Exec(pkg["Package"], packageRank, rdepcount); err != nil {
+				log.Fatal(err)
 			}
 		}
 	}
