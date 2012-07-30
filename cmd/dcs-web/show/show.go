@@ -2,12 +2,14 @@
 package show
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 )
 
 var templates = template.Must(template.ParseFiles("templates/show.html"))
@@ -37,10 +39,15 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lines := strings.Split(string(contents), "\n")
+	highestLineNr := fmt.Sprintf("%d", len(lines))
+
 	err = templates.ExecuteTemplate(w, "show.html", map[string]interface{} {
 		// XXX: Has string(contents) any problems when the file is not valid UTF-8?
 		// (while the indexer only cares for UTF-8, an attacker could send us any file path)
-		"contents": string(contents),
+		"lines": lines,
+		"lnrwidth": len(highestLineNr),
+		"filename": filename,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

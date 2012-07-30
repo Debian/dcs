@@ -1,6 +1,43 @@
+<!--
+vim:ts=4:sw=4:expandtab
+--><!DOCTYPE html>
 <html>
+<head>
+<title>Debian codesearch: {{.filename}}</title>
+<style type="text/css">
+pre, code {
+    /* We need to make sure that the line numbers and the code itself have
+    no padding/margin so the positions match. The !important is to
+    overwrite the style set by highlight.js’s stylesheet. */
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: {{.lnrwidth}}em;
+}
+</style>
+<link rel="stylesheet" href="http://yandex.st/highlightjs/7.0/styles/default.min.css">
+<script src="http://yandex.st/highlightjs/7.0/highlight.min.js"></script>
+<!-- TODO: javascript with document.getElementById('youridhere').scrollIntoView(); -->
+</head>
+<body>
 <h2>Source</h2>
 
-<pre>
-{{.contents}}
-</pre>
+<!-- Line numbers on the left of the source code -->
+<div class="lnr"><pre>{{range $idx, $line := .lines}}<span id="L{{$idx}}">{{$idx}}</span>
+{{end}}
+</pre></div>
+<!-- The source code itself -->
+<pre><code>{{range $idx, $line := .lines}}{{$line}}
+{{end}}
+</code></pre>
+
+<script>hljs.initHighlightingOnLoad();</script>
+</body>
+</html>
