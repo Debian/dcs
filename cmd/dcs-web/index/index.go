@@ -2,10 +2,15 @@
 package index
 
 import (
-	"fmt"
 	"net/http"
+	"html/template"
 )
 
+var templates = template.Must(template.ParseFiles("templates/index.html"))
+
 func Index(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, `<html><form action="/search" method="get"><input type="text" name="q"><input type="submit">`)
+	err := templates.ExecuteTemplate(w, "index.html", nil)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
