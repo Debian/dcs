@@ -42,10 +42,18 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	lines := strings.Split(string(contents), "\n")
 	highestLineNr := fmt.Sprintf("%d", len(lines))
 
+	// Since Go templates don’t offer any way to use {{$idx+1}}, we need to
+	// pre-calculate line numbers starting from 1 here.
+	lineNumbers := make([]int, len(lines))
+	for idx, _ := range lines {
+		lineNumbers[idx] = idx + 1
+	}
+
 	err = templates.ExecuteTemplate(w, "show.html", map[string]interface{} {
 		// XXX: Has string(contents) any problems when the file is not valid UTF-8?
 		// (while the indexer only cares for UTF-8, an attacker could send us any file path)
 		"lines": lines,
+		"numbers": lineNumbers,
 		"lnrwidth": len(highestLineNr),
 		"filename": filename,
 	})

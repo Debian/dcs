@@ -24,13 +24,12 @@ pre, code {
 </style>
 <link rel="stylesheet" href="http://yandex.st/highlightjs/7.0/styles/default.min.css">
 <script src="http://yandex.st/highlightjs/7.0/highlight.min.js"></script>
-<!-- TODO: javascript with document.getElementById('youridhere').scrollIntoView(); -->
 </head>
 <body>
 <h2>Source</h2>
 
 <!-- Line numbers on the left of the source code -->
-<div class="lnr"><pre>{{range $idx, $line := .lines}}<span id="L{{$idx}}">{{$idx}}</span>
+<div class="lnr"><pre>{{range $idx, $line := .numbers}}<a id="L{{$line}}"><span id="L{{$line}}"></a>{{$line}}</span>
 {{end}}
 </pre></div>
 <!-- The source code itself -->
