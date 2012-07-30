@@ -18,6 +18,7 @@ import (
 
 var indexBackends *string = flag.String("index_backends", "localhost:28081", "Index backends")
 var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)
+var templates = template.Must(template.ParseFiles("templates/results.html"))
 
 // This Match data structure is filled when receiving the match from the source
 // backend. It is then enriched with the ranking of the corresponding path and
@@ -216,8 +217,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Sort(results)
-	t, _ := template.ParseFiles("templates/results.html")
-	t.Execute(w, map[string]interface{} {
+	err := templates.ExecuteTemplate(w, "results.html", map[string]interface{} {
 		"results": results,
 		"t0": t1.Sub(t0),
 		"t1": t2.Sub(t1),
@@ -225,4 +225,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"numfiles": len(files),
 		"numresults": len(results),
 	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }

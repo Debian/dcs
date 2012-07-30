@@ -10,6 +10,8 @@ import (
 	"strconv"
 )
 
+var templates = template.Must(template.ParseFiles("templates/show.html"))
+
 func Show(w http.ResponseWriter, r *http.Request) {
 	query := r.URL
 	filename := query.Query().Get("file")
@@ -35,10 +37,12 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t, _ := template.ParseFiles("templates/show.html")
-	t.Execute(w, map[string]interface{} {
+	err = templates.ExecuteTemplate(w, "show.html", map[string]interface{} {
 		// XXX: Has string(contents) any problems when the file is not valid UTF-8?
 		// (while the indexer only cares for UTF-8, an attacker could send us any file path)
 		"contents": string(contents),
 	})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
