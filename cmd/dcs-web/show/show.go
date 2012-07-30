@@ -39,6 +39,13 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// NB: contents is untrusted as it can containt the contents of any file
+	// within any Debian package. Converting it to string is not a problem,
+	// though, see http://golang.org/ref/spec#Conversions, "Conversions to and
+	// from a string type": "Converting a slice of bytes to a string type
+	// yields a string whose successive bytes are the elements of the slice.".
+	// We don’t iterate over this string, we just pass it directly to the
+	// user’s browser, which can then deal with the bytes :-).
 	lines := strings.Split(string(contents), "\n")
 	highestLineNr := fmt.Sprintf("%d", len(lines))
 
@@ -50,8 +57,6 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = templates.ExecuteTemplate(w, "show.html", map[string]interface{} {
-		// XXX: Has string(contents) any problems when the file is not valid UTF-8?
-		// (while the indexer only cares for UTF-8, an attacker could send us any file path)
 		"lines": lines,
 		"numbers": lineNumbers,
 		"lnrwidth": len(highestLineNr),
