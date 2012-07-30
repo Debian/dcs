@@ -19,8 +19,6 @@ var grep regexp.Grep = regexp.Grep{
 	Stderr: os.Stderr,
 }
 
-// TODO: we want all filenames at once (so we need to compile the regexp once),
-// probably passed via POST to get around GET length limitations?
 func Source(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
@@ -41,6 +39,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 
 	grep.Regexp = re
 
+// TODO: also limit the number of matches per source-package, not only per file
 	var allMatches []regexp.Match
 	for _, filename := range filenames {
 		log.Printf("…in %s\n", filename)

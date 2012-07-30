@@ -402,6 +402,9 @@ type Match struct {
 	// XXX: The following will most likely change after we figure out how
 	// to highlight the found text properly :).
 	Context string
+
+	// This will be filled in by the source backend
+	Ranking float32
 }
 
 func (g *Grep) Reader(r io.Reader, name string) []Match {
