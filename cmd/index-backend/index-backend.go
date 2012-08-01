@@ -9,11 +9,18 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"runtime/pprof"
+	"time"
 )
 
 var ix *index.Index
 
-var indexPath *string = flag.String("indexpath", "", "path to the index to serve")
+var (
+	listenAddress = flag.String("listen", ":28081", "listen address")
+	indexPath = flag.String("indexpath", "", "path to the index to serve")
+	cpuProfile = flag.String("cpuprofile", "", "write cpu profile to this file")
+)
 
 // Handles requests to /index by compiling the q= parameter into a regular
 // expression (codesearch/regexp), searching the index for it and returning the
@@ -21,6 +28,16 @@ var indexPath *string = flag.String("indexpath", "", "path to the index to serve
 // TODO: This doesn’t handle file name regular expressions at all yet.
 // TODO: errors aren’t properly signaled to the requester
 func Index(w http.ResponseWriter, r *http.Request) {
+	if *cpuProfile != "" {
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
 	log.Printf("query for %s\n", textQuery)
@@ -31,21 +48,30 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	}
 	query := index.RegexpQuery(re.Syntax)
 	log.Printf("query: %s\n", query)
+	t0 := time.Now()
 	post := ix.PostingQuery(query)
-	var files []string
-	for _, fileid := range post {
-		files = append(files, ix.Name(fileid))
+	t1 := time.Now()
+	log.Printf("query done in %v, %d results\n", t1.Sub(t0), len(post))
+	files := make([]string, len(post))
+	for idx, fileid := range post {
+		files[idx] = ix.Name(fileid)
 	}
+	t2 := time.Now()
+	log.Printf("filenames collected in %v\n", t2.Sub(t1))
 	jsonFiles, err := json.Marshal(files)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
+	t3 := time.Now()
+	log.Printf("marshaling done in %v\n", t3.Sub(t2))
 	_, err = w.Write(jsonFiles)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
+	t4 := time.Now()
+	log.Printf("written in %v\n", t4.Sub(t3))
 }
 
 func main() {
@@ -58,5 +84,5 @@ func main() {
 	ix = index.Open(*indexPath)
 
 	http.HandleFunc("/index", Index)
-	log.Fatal(http.ListenAndServe(":28081", nil))
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
