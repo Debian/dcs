@@ -170,7 +170,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		go sendIndexQuery(*query, backend, indexResults, done)
 	}
 
-	var files ranking.ResultPaths
+	var files, relevantFiles ranking.ResultPaths
 	// We also keep the files in a map with their path as the key so that we
 	// can correlate a match to a (ranked!) filename later on.
 	fileMap := make(map[string]ranking.ResultPath)
@@ -208,12 +208,12 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// the vast majority of people wouldn’t even notice. Maybe we could expose
 	// a &pedantic=yes parameter for people who care about correct searches
 	// (then again, this offers potential for a DOS attack).
-	relevantFiles := files[:1000]
+	relevantFiles = files[:1000]
 
-	for _, result := range relevantFiles {
+	for idx, result := range relevantFiles {
 		sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
-		result.Ranking *= querystr.Match(&result.Path)
-		result.Ranking *= querystr.Match(&sourcePkgName)
+		relevantFiles[idx].Ranking *= querystr.Match(&result.Path)
+		relevantFiles[idx].Ranking *= querystr.Match(&sourcePkgName)
 		fileMap[result.Path] = result
 	}
 
