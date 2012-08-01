@@ -151,7 +151,7 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 }
 
 func Search(w http.ResponseWriter, r *http.Request) {
-	var t0, t1, t2, t3 time.Time
+	var t0, t1, t2, t3, t4 time.Time
 	query := r.URL
 	querystr := ranking.NewQueryStr(query.Query().Get("q"))
 	log.Printf(`Search query for "` + query.String() + `"`)
@@ -179,7 +179,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		case path := <-indexResults:
 			// Time to the first result (≈ time to query the regexp index in
 			// case len(backends) == 1)
-			t1 = time.Now()
+			if t1.IsZero() {
+				t1 = time.Now()
+			}
 			result := ranking.ResultPath{path, 0}
 			result.Rank(&querystr)
 			files = append(files, result)
@@ -190,10 +192,14 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Time to receive and rank the results
+	t2 = time.Now()
+
 	sort.Sort(files)
 
-	// Time to rank and sort the results
-	t2 = time.Now()
+	// Time to sort the resultus
+	t3 = time.Now()
+
 
 	// TODO: Essentially, this follows the MapReduce pattern. Our input is the
 	// filename list, we map that onto matches in the first step (remote), then
@@ -212,7 +218,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		select {
 		case match := <-matches:
 			// Time to the first index result
-			t3 = time.Now()
+			if t4.IsZero() {
+				t4 = time.Now()
+			}
 			match.Prettify()
 			fileResult, ok := fileMap[match.Path]
 			if !ok {
@@ -232,6 +240,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"t0": t1.Sub(t0),
 		"t1": t2.Sub(t1),
 		"t2": t3.Sub(t2),
+		"t3": t4.Sub(t3),
 		"numfiles": len(files),
 		"numresults": len(results),
 	})
