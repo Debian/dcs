@@ -1,0 +1,95 @@
+// vim:ts=4:sw=4:noexpandtab
+
+// XXX: Unsure whether it actually *should* happen on dcs-web or on the index
+// backends. a pro argument for ranking on dcs-web is that we could batch
+// queries to the database together and maybe have an advantage that way?
+
+// Pre-ranking happens on dcs-web after the index backends provided their
+// results. Without looking at file contents at all, we assign a preliminary
+// ranking to each file based on its database entries and whether the query
+// string matches parts of the filename.
+package ranking
+
+import (
+	"database/sql"
+	_ "github.com/jbarham/gopgsqldriver"
+	"log"
+	"regexp"
+)
+
+var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)
+
+// Represents an entry from our ranking database (determined by using the
+// meta information about source packages).
+type StoredRanking struct {
+	inst float32
+	rdep float32
+}
+var storedRanking = make(map[string]StoredRanking)
+
+// Open a database connection and prepare the ranking query.
+func init() {
+	db, err := sql.Open("postgres", "dbname=dcs")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rankQuery, err := db.Prepare("SELECT package, popcon, rdepends FROM pkg_ranking")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	rows, err := rankQuery.Query()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	var inst, rdep float32
+	var pkg string
+	for rows.Next() {
+		if err = rows.Scan(&pkg, &inst, &rdep); err != nil {
+			log.Fatal(err)
+		}
+		storedRanking[pkg] = StoredRanking{inst, rdep}
+	}
+}
+
+// The regular expression trigram index provides us a path to a potential
+// result. This data structure represents such a path and allows for ranking
+// and sorting each path.
+type ResultPath struct {
+	Path string
+	Ranking float32
+}
+
+func (rp *ResultPath) Rank(query *QueryStr) {
+	// No ranking at all: 807ms
+	// query.Match(&rp.Path): 4.96s
+	// query.Match(&rp.Path) * query.Match(&sourcePackage): 6.7s
+	// full ranking: 24s
+	// lookup table: 6.8s
+	m := packageLocation.FindStringSubmatch(rp.Path)
+	if len(m) != 2 {
+		log.Fatal("Invalid path in result: %s", rp.Path)
+	}
+
+	//log.Printf("should rank source package %s", m[1])
+	sourcePackage := m[1]
+	ranking := storedRanking[sourcePackage]
+	rp.Ranking = ranking.inst * ranking.rdep * query.Match(&rp.Path) * query.Match(&sourcePackage)
+	//log.Printf("ranking = %f", ranking)
+}
+
+type ResultPaths []ResultPath
+
+func (r ResultPaths) Len() int {
+	return len(r)
+}
+
+func (r ResultPaths) Less(i, j int) bool {
+	return r[i].Ranking > r[j].Ranking
+}
+
+func (r ResultPaths) Swap(i, j int) {
+	r[i], r[j] = r[j], r[i]
+}
