@@ -68,6 +68,7 @@ func (s SearchResults) Swap(i, j int) {
 }
 
 func sendIndexQuery(query url.URL, backend string, indexResults chan string, done chan bool) {
+	t0 := time.Now()
 	query.Scheme = "http"
 	query.Host = backend
 	query.Path = "/index"
@@ -93,6 +94,10 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan string, don
 		return
 	}
 
+	t1 := time.Now()
+
+	log.Printf("[%s] %d results in %v\n", backend, len(files), t1.Sub(t0))
+
 	for _, filename := range files {
 		indexResults <- filename
 	}
@@ -109,10 +114,15 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 	q.Set("limit", "40")
 	query.RawQuery = q.Encode()
 	v := url.Values{}
+	cnt := 0
 	for _, filename := range filenames {
+		if cnt > 40 * 10 {
+			break
+		}
+		cnt++
 		v.Add("filename", filename.Path)
 	}
-	log.Printf("(source) asking %s\n", query.String())
+	log.Printf("(source) asking %s (with %d filenames)\n", query.String(), len(filenames))
 	resp, err := http.PostForm(query.String(), v)
 	if err != nil {
 		done <- true
