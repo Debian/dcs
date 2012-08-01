@@ -182,10 +182,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			if t1.IsZero() {
 				t1 = time.Now()
 			}
-			result := ranking.ResultPath{path, 0}
-			result.Rank(&querystr)
+			result := ranking.ResultPath{path, [2]int{0, 0}, 0}
+			result.Rank()
 			files = append(files, result)
-			fileMap[path] = result
 
 		case <-done:
 			i++
@@ -195,11 +194,30 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// Time to receive and rank the results
 	t2 = time.Now()
 
+	// TODO: for the same ranking, this sort needs to be stable over multiple
+	// queries! we could use the filename to ensure this. otherwise pagination
+	// doesn’t work.
 	sort.Sort(files)
 
-	// Time to sort the resultus
+	// Time to sort the results
 	t3 = time.Now()
 
+	// XXX: Here we make an educated guess about how many top-ranked
+	// (currently) search results should be considered for further ranking and
+	// then source-querying. Obviously, this makes the search less correct, but
+	// the vast majority of people wouldn’t even notice. Maybe we could expose
+	// a &pedantic=yes parameter for people who care about correct searches
+	// (then again, this offers potential for a DOS attack).
+	relevantFiles := files[:1000]
+
+	for _, result := range relevantFiles {
+		sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
+		result.Ranking *= querystr.Match(&result.Path)
+		result.Ranking *= querystr.Match(&sourcePkgName)
+		fileMap[result.Path] = result
+	}
+
+	sort.Sort(relevantFiles)
 
 	// TODO: Essentially, this follows the MapReduce pattern. Our input is the
 	// filename list, we map that onto matches in the first step (remote), then
@@ -211,7 +229,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// even be multiple instances on the same machine just serving from
 	// different disks).
 	matches := make(chan Match)
-	go sendSourceQuery(*query, files, matches, done)
+	go sendSourceQuery(*query, relevantFiles, matches, done)
 
 	var results SearchResults
 	for i := 0; i < 1; {

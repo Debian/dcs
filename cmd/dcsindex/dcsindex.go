@@ -13,6 +13,9 @@ import (
 var patchDir *regexp.Regexp = regexp.MustCompile(`/\.pc/`)
 var numShards *int = flag.Int("shards", 1, "Number of index shards (the index will be split into 'shard' different files)")
 
+// TODO: skip "NEWS", "README", *.[0-9] (manpages), *.xml (docs/config), *.html?, *.pod (perldoc)
+// TODO: skip *.patch (a little controversial, but after all we unpacked the debian package, so everything that will be compiled should be applied — UNLESS the package patches stuff at compile-time)
+
 func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search indexing tool")

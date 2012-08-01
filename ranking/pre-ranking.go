@@ -25,9 +25,15 @@ type StoredRanking struct {
 	inst float32
 	rdep float32
 }
+
+// Consumes a few hundred kilobytes of memory
+// ((sizeof(StoredRanking) = 8) * ≈ 17000).
 var storedRanking = make(map[string]StoredRanking)
 
-// Open a database connection and prepare the ranking query.
+// Open a database connection and read in all the rankings. The amount of
+// rankings is in the tens of thousands (currently ≈ 17000) and it saves us
+// *a lot* of time when ranking queries which have many possible results (such
+// as "smart" with 201043 possible results).
 func init() {
 	db, err := sql.Open("postgres", "dbname=dcs")
 	if err != nil {
@@ -59,25 +65,27 @@ func init() {
 // and sorting each path.
 type ResultPath struct {
 	Path string
+	SourcePkgIdx [2]int
 	Ranking float32
 }
 
-func (rp *ResultPath) Rank(query *QueryStr) {
+func (rp *ResultPath) Rank() {
 	// No ranking at all: 807ms
 	// query.Match(&rp.Path): 4.96s
 	// query.Match(&rp.Path) * query.Match(&sourcePackage): 6.7s
 	// full ranking: 24s
 	// lookup table: 6.8s
-	m := packageLocation.FindStringSubmatch(rp.Path)
-	if len(m) != 2 {
+	m := packageLocation.FindStringSubmatchIndex(rp.Path)
+	if len(m) != 4 {
 		log.Fatal("Invalid path in result: %s", rp.Path)
 	}
 
-	//log.Printf("should rank source package %s", m[1])
-	sourcePackage := m[1]
+	sourcePackage := rp.Path[m[2]:m[3]]
+	//log.Printf("should rank source package %s", sourcePackage)
+	rp.SourcePkgIdx[0] = m[2]
+	rp.SourcePkgIdx[1] = m[3]
 	ranking := storedRanking[sourcePackage]
-	rp.Ranking = ranking.inst * ranking.rdep * query.Match(&rp.Path) * query.Match(&sourcePackage)
-	//log.Printf("ranking = %f", ranking)
+	rp.Ranking = ranking.inst * ranking.rdep
 }
 
 type ResultPaths []ResultPath
