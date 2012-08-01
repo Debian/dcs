@@ -1,4 +1,8 @@
 // vim:ts=4:sw=4:noexpandtab
+
+// Indexing tool for Debian Code Search. The tool scans through an unpacked
+// source package mirror and adds relevant files to the regular expression
+// trigram index.
 package main
 
 import (
@@ -7,21 +11,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strings"
 )
 
-var patchDir *regexp.Regexp = regexp.MustCompile(`/\.pc/`)
-var numShards *int = flag.Int("shards", 1, "Number of index shards (the index will be split into 'shard' different files)")
+var numShards = flag.Int("shards", 1,
+	"Number of index shards (the index will be split into 'shard' different files)")
+var mirrorPath = flag.String("mirrorpath",
+	"/media/sdg/debian-source-mirror/unpacked/",
+	"Path to an unpacked Debian source package mirror")
 
-// TODO: skip "NEWS", "README", *.[0-9] (manpages), *.xml (docs/config), *.html?, *.pod (perldoc)
-// TODO: skip *.patch (a little controversial, but after all we unpacked the debian package, so everything that will be compiled should be applied — UNLESS the package patches stuff at compile-time)
+// Returns true when the file matches .[0-9]$ (cheaper than a regular
+// expression).
+func hasManpageSuffix(filename string) bool {
+	return len(filename) > 2 &&
+		filename[len(filename)-2] == '.' &&
+		filename[len(filename)-1] >= '0' &&
+		filename[len(filename)-1] <= '9'
+}
 
 func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search indexing tool")
-
-	// TODO: make the path configurable
-	mirrorPath := "/media/sdg/debian-source-mirror/unpacked/"
 
 	// Walk through all the directories and add files matching our source file
 	// regular expression to the index.
@@ -36,13 +46,29 @@ func main() {
 	//ix.AddPaths([]string{ mirrorPath })
 
 	cnt := 0
-	filepath.Walk(mirrorPath, func(path string, info os.FileInfo, err error) error {
-		//fmt.Printf("Checking path %s\n", path)
-		if patchDir.MatchString(path) {
-			return nil
+	filepath.Walk(*mirrorPath, func(path string, info os.FileInfo, err error) error {
+		if _, filename := filepath.Split(path); filename != "" {
+			// Skip quilt’s .pc directories
+			if filename == ".pc" && info.IsDir() {
+				return filepath.SkipDir
+			}
+
+			// Skip documentation, configuration files and patches.
+			if filename == "README" ||
+				filename == "NEWS" ||
+				strings.HasSuffix(filename, ".man") ||
+				strings.HasSuffix(filename, ".xml") ||
+				strings.HasSuffix(filename, ".html") ||
+				strings.HasSuffix(filename, ".pod") ||
+				strings.HasSuffix(filename, ".patch") ||
+				hasManpageSuffix(filename) {
+				return nil
+			}
 		}
-		ix[cnt % *numShards].AddFile(path)
-		cnt++
+		if info != nil && info.Mode()&os.ModeType == 0 {
+			ix[cnt%*numShards].AddFile(path)
+			cnt++
+		}
 		return nil
 	})
 	for i := 0; i < *numShards; i++ {
