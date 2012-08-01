@@ -10,7 +10,7 @@ import (
 	"regexp"
 )
 
-var sourceFiles *regexp.Regexp = regexp.MustCompile(`\.c$`)
+var patchDir *regexp.Regexp = regexp.MustCompile(`/\.pc/`)
 var numShards *int = flag.Int("shards", 1, "Number of index shards (the index will be split into 'shard' different files)")
 
 func main() {
@@ -35,16 +35,11 @@ func main() {
 	cnt := 0
 	filepath.Walk(mirrorPath, func(path string, info os.FileInfo, err error) error {
 		//fmt.Printf("Checking path %s\n", path)
-		if sourceFiles.MatchString(path) {
-			ix[cnt % *numShards].AddFile(path)
-			cnt++
-			//if cnt > 100 {
-			//	for i := 0; i < *numShards; i++ {
-			//		ix[i].Flush()
-			//	}
-			//	os.Exit(0)
-			//}
+		if patchDir.MatchString(path) {
+			return nil
 		}
+		ix[cnt % *numShards].AddFile(path)
+		cnt++
 		return nil
 	})
 	for i := 0; i < *numShards; i++ {
