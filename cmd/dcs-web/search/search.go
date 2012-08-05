@@ -153,8 +153,10 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 func Search(w http.ResponseWriter, r *http.Request) {
 	var t0, t1, t2, t3, t4 time.Time
 	query := r.URL
+	rankingopts := ranking.RankingOptsFromQuery(query.Query())
 	querystr := ranking.NewQueryStr(query.Query().Get("q"))
 	log.Printf(`Search query for "` + query.String() + `"`)
+	log.Printf("opts: %v\n", rankingopts)
 
 	// TODO: compile the regular expression right here so that we don’t do it N
 	// times and can properly error out.
@@ -183,7 +185,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 				t1 = time.Now()
 			}
 			result := ranking.ResultPath{path, [2]int{0, 0}, 0}
-			result.Rank()
+			result.Rank(rankingopts)
 			files = append(files, result)
 
 		case <-done:
@@ -216,9 +218,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	for idx, result := range relevantFiles {
 		sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
-		relevantFiles[idx].Ranking *= querystr.Match(&result.Path)
-		relevantFiles[idx].Ranking *= querystr.Match(&sourcePkgName)
-		fileMap[result.Path] = result
+		if rankingopts.Pathmatch {
+			relevantFiles[idx].Ranking *= querystr.Match(&result.Path)
+		}
+		if rankingopts.Sourcepkgmatch {
+			relevantFiles[idx].Ranking *= querystr.Match(&sourcePkgName)
+		}
+		fileMap[result.Path] = relevantFiles[idx]
 	}
 
 	sort.Sort(relevantFiles)

@@ -69,7 +69,7 @@ type ResultPath struct {
 	Ranking float32
 }
 
-func (rp *ResultPath) Rank() {
+func (rp *ResultPath) Rank(opts RankingOpts) {
 	// No ranking at all: 807ms
 	// query.Match(&rp.Path): 4.96s
 	// query.Match(&rp.Path) * query.Match(&sourcePackage): 6.7s
@@ -85,7 +85,13 @@ func (rp *ResultPath) Rank() {
 	rp.SourcePkgIdx[0] = m[2]
 	rp.SourcePkgIdx[1] = m[3]
 	ranking := storedRanking[sourcePackage]
-	rp.Ranking = ranking.inst * ranking.rdep
+	rp.Ranking = 1
+	if opts.Inst {
+		rp.Ranking *= ranking.inst
+	}
+	if opts.Rdep {
+		rp.Ranking *= ranking.rdep
+	}
 }
 
 type ResultPaths []ResultPath
