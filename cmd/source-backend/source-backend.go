@@ -45,7 +45,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 		log.Printf("…in %s\n", filename)
 		matches := grep.File(filename)
 		for idx, match := range matches {
-			if idx == 5 {
+			if limit > 0 && idx == 5 {
 				// TODO: we somehow need to signal that there are more results
 				// (if there are more), so that the user can expand this.
 				break
@@ -53,7 +53,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 			log.Printf("match: %s", match)
 			allMatches = append(allMatches, match)
 		}
-		if int64(len(allMatches)) >= limit {
+		if limit > 0 && int64(len(allMatches)) >= limit {
 			break
 		}
 	}

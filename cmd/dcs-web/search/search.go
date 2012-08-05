@@ -2,9 +2,11 @@
 package search
 
 import (
+	"bytes"
 	"dcs/ranking"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
@@ -60,6 +62,12 @@ func (s SearchResults) Len() int {
 }
 
 func (s SearchResults) Less(i, j int) bool {
+	if s[i].Ranking == s[j].Ranking {
+		// On a tie, we use the path to make the order of results stable over
+		// multiple queries (which can have different results depending on
+		// which index backend reacts quicker).
+		return bytes.Compare([]byte(s[i].Path), []byte(s[j].Path)) == -1
+	}
 	return s[i].Ranking < s[j].Ranking
 }
 
@@ -105,24 +113,31 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan string, don
 }
 
 // TODO: refactor this with sendIndexQuery.
-func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan Match, done chan bool) {
+func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan Match, done chan bool, allResults bool) {
+
+	// How many results per page to display tops.
+	limit := 0
+	if !allResults {
+		limit = 40
+	}
+
 	query.Scheme = "http"
 	// TODO: make this configurable
 	query.Host = "localhost:28082"
 	query.Path = "/source"
 	q := query.Query()
-	q.Set("limit", "40")
+	q.Set("limit", fmt.Sprintf("%d", limit))
 	query.RawQuery = q.Encode()
 	v := url.Values{}
 	cnt := 0
 	for _, filename := range filenames {
-		if cnt > 40 * 10 {
+		if limit > 0 && cnt >= limit * 10 {
 			break
 		}
 		cnt++
 		v.Add("filename", filename.Path)
 	}
-	log.Printf("(source) asking %s (with %d filenames)\n", query.String(), len(filenames))
+	log.Printf("(source) asking %s (with %d of %d filenames)\n", query.String(), len(v["filename"]), len(filenames))
 	resp, err := http.PostForm(query.String(), v)
 	if err != nil {
 		done <- true
@@ -152,10 +167,21 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 
 func Search(w http.ResponseWriter, r *http.Request) {
 	var t0, t1, t2, t3, t4 time.Time
-	query := r.URL
-	rankingopts := ranking.RankingOptsFromQuery(query.Query())
-	querystr := ranking.NewQueryStr(query.Query().Get("q"))
-	log.Printf(`Search query for "` + query.String() + `"`)
+	query := r.URL.Query()
+
+	// Usage of this flag should be restricted to local IP addresses or
+	// something like that (it causes a lot of load, but it makes analyzing the
+	// search engine’s ranking easier).
+	allResults := query.Get("all") == "1"
+
+	// Users can configurable which ranking factors (with what weight) they
+	// want to use. rankingopts stores these values, extracted from the query
+	// parameters.
+	rankingopts := ranking.RankingOptsFromQuery(query)
+
+	querystr := ranking.NewQueryStr(query.Get("q"))
+
+	log.Printf(`Search query for "` + r.URL.String() + `"`)
 	log.Printf("opts: %v\n", rankingopts)
 
 	// TODO: compile the regular expression right here so that we don’t do it N
@@ -169,7 +195,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	t0 = time.Now()
 	for _, backend := range backends {
 		log.Printf("Sending query to " + backend)
-		go sendIndexQuery(*query, backend, indexResults, done)
+		go sendIndexQuery(*r.URL, backend, indexResults, done)
 	}
 
 	var files, relevantFiles ranking.ResultPaths
@@ -196,9 +222,6 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// Time to receive and rank the results
 	t2 = time.Now()
 
-	// TODO: for the same ranking, this sort needs to be stable over multiple
-	// queries! we could use the filename to ensure this. otherwise pagination
-	// doesn’t work.
 	sort.Sort(files)
 
 	// Time to sort the results
@@ -211,7 +234,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// a &pedantic=yes parameter for people who care about correct searches
 	// (then again, this offers potential for a DOS attack).
 	numFiles := len(files)
-	if numFiles > 1000 {
+	if numFiles > 1000 && !allResults {
 		numFiles = 1000
 	}
 	relevantFiles = files[:numFiles]
@@ -239,7 +262,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// even be multiple instances on the same machine just serving from
 	// different disks).
 	matches := make(chan Match)
-	go sendSourceQuery(*query, relevantFiles, matches, done)
+	go sendSourceQuery(*r.URL, relevantFiles, matches, done, allResults)
 
 	var results SearchResults
 	for i := 0; i < 1; {
