@@ -208,7 +208,11 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// the vast majority of people wouldn’t even notice. Maybe we could expose
 	// a &pedantic=yes parameter for people who care about correct searches
 	// (then again, this offers potential for a DOS attack).
-	relevantFiles = files[:1000]
+	numFiles := len(files)
+	if numFiles > 1000 {
+		numFiles = 1000
+	}
+	relevantFiles = files[:numFiles]
 
 	for idx, result := range relevantFiles {
 		sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
