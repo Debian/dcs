@@ -2,7 +2,6 @@
 package search
 
 import (
-	"bytes"
 	"dcs/ranking"
 	"encoding/json"
 	"flag"
@@ -62,13 +61,13 @@ func (s SearchResults) Len() int {
 }
 
 func (s SearchResults) Less(i, j int) bool {
-	if s[i].Ranking == s[j].Ranking {
+	if s[i].PathRanking == s[j].PathRanking {
 		// On a tie, we use the path to make the order of results stable over
 		// multiple queries (which can have different results depending on
 		// which index backend reacts quicker).
-		return bytes.Compare([]byte(s[i].Path), []byte(s[j].Path)) == -1
+		return s[i].Path > s[j].Path
 	}
-	return s[i].Ranking < s[j].Ranking
+	return s[i].PathRanking > s[j].PathRanking
 }
 
 func (s SearchResults) Swap(i, j int) {
