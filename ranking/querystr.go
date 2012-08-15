@@ -4,6 +4,7 @@ package ranking
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // Represents a query string with pre-compiled regular expressions for faster
@@ -17,8 +18,11 @@ type QueryStr struct {
 func NewQueryStr(query string) QueryStr {
 	var result QueryStr
 	result.query = query
+	// Remove (?i) at the beginning of the query, which (at least currently)
+	// means case-insensitive.
+	strippedQuery := strings.Replace(query, "(?i)", "", 1)
 	// XXX: This only works for very simple (one-word) queries.
-	quotedQuery := regexp.QuoteMeta(query)
+	quotedQuery := regexp.QuoteMeta(strippedQuery)
 	fmt.Printf("quoted query: %s\n", quotedQuery)
 	result.boundaryRegexp = regexp.MustCompile(`(?i)\b` + quotedQuery + `\b`)
 	result.anywhereRegexp = regexp.MustCompile(`(?i)` + quotedQuery)
