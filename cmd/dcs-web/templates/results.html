@@ -14,6 +14,6 @@ amount of source results: {{.numresults}}
 {{range .results}}
 <li><a href="/show?file={{.SourcePackage}}{{.RelativePath}}&line={{.Line}}&numfiles={{$.numfiles}}#L{{.Line}}"><code><strong>{{.SourcePackage}}</strong>{{.RelativePath}}</code>:{{.Line}}</a><br>
 <code>{{.Context}}</code><br>
-PathRank: {{.PathRanking}}, Rank: {{.Ranking}}</li>
+PathRank: {{.PathRanking}}, Rank: {{.Ranking}}, Final: {{.FinalRanking}}</li>
 {{end}}
 </ul>

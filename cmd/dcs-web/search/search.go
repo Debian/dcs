@@ -40,6 +40,9 @@ type Match struct {
 
 	// The ranking of the ResultPath corresponding to Path
 	PathRanking float32
+
+	// The combined Ranking * PathRanking
+	FinalRanking float32
 }
 
 func (m *Match) Prettify() {
@@ -61,13 +64,13 @@ func (s SearchResults) Len() int {
 }
 
 func (s SearchResults) Less(i, j int) bool {
-	if s[i].PathRanking == s[j].PathRanking {
+	if s[i].FinalRanking == s[j].FinalRanking {
 		// On a tie, we use the path to make the order of results stable over
 		// multiple queries (which can have different results depending on
 		// which index backend reacts quicker).
 		return s[i].Path > s[j].Path
 	}
-	return s[i].PathRanking > s[j].PathRanking
+	return s[i].FinalRanking > s[j].FinalRanking
 }
 
 func (s SearchResults) Swap(i, j int) {
@@ -268,6 +271,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	go sendSourceQuery(*r.URL, relevantFiles, matches, done, allResults)
 
 	var results SearchResults
+	maxPathRanking := float32(0)
 	for i := 0; i < 1; {
 		select {
 		case match := <-matches:
@@ -282,10 +286,21 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			} else {
 				match.PathRanking = fileResult.Ranking
 			}
+			if match.PathRanking > maxPathRanking {
+				maxPathRanking = match.PathRanking
+			}
 			results = append(results, match)
 		case <-done:
 			i++
 		}
+	}
+
+	// Now store the combined ranking of PathRanking (pre) and Ranking (post).
+	// We add the values because they are both percentages.
+	// To make the Ranking (post) less significant, we multiply it with
+	// 1/10 * maxPathRanking
+	for idx, match := range results {
+		results[idx].FinalRanking = match.PathRanking + ((maxPathRanking * 0.1) * match.Ranking)
 	}
 
 	sort.Sort(results)
