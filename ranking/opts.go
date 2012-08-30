@@ -8,7 +8,7 @@ import (
 )
 
 type RankingOpts struct {
-	Rdep, Inst, Pathmatch, Sourcepkgmatch bool
+	Rdep, Inst, Pathmatch, Sourcepkgmatch, Weighted bool
 }
 
 // TODO: parse floats which specify the weight of each ranking
@@ -27,7 +27,6 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 	result.Inst = boolFromQuery(query, "inst")
 	result.Pathmatch = boolFromQuery(query, "pathmatch")
 	result.Sourcepkgmatch = boolFromQuery(query, "sourcepkgmatch")
+	result.Weighted = boolFromQuery(query, "weighted")
 	return result
 }
-
-

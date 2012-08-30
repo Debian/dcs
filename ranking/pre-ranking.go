@@ -92,6 +92,10 @@ func (rp *ResultPath) Rank(opts RankingOpts) {
 	if opts.Rdep {
 		rp.Ranking *= ranking.rdep
 	}
+	if opts.Weighted {
+		rp.Ranking *= 0.4099 * ranking.inst
+		rp.Ranking *= 0.3683 * ranking.rdep
+	}
 }
 
 type ResultPaths []ResultPath

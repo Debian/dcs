@@ -246,6 +246,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		if rankingopts.Sourcepkgmatch {
 			relevantFiles[idx].Ranking *= querystr.Match(&sourcePkgName)
 		}
+		if rankingopts.Weighted {
+			relevantFiles[idx].Ranking *= 0.2205 * querystr.Match(&result.Path)
+			relevantFiles[idx].Ranking *= 0.0011 * querystr.Match(&sourcePkgName)
+		}
 		fileMap[result.Path] = relevantFiles[idx]
 	}
 
