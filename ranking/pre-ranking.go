@@ -101,6 +101,12 @@ func (r ResultPaths) Len() int {
 }
 
 func (r ResultPaths) Less(i, j int) bool {
+	if r[i].Ranking == r[j].Ranking {
+		// On a tie, we use the path to make the order of results stable over
+		// multiple queries (which can have different results depending on
+		// which index backend reacts quicker).
+		return r[i].Path > r[j].Path
+	}
 	return r[i].Ranking > r[j].Ranking
 }
 
