@@ -38,6 +38,8 @@ func Source(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("query = %s\n", re)
 
+	querystr := ranking.NewQueryStr(textQuery)
+
 	grep.Regexp = re
 
 // TODO: also limit the number of matches per source-package, not only per file
@@ -52,7 +54,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			log.Printf("match: %s", match)
-			match.Ranking = ranking.PostRank(&match)
+			match.Ranking = ranking.PostRank(&match, &querystr)
 			allMatches = append(allMatches, match)
 		}
 		if limit > 0 && int64(len(allMatches)) >= limit {

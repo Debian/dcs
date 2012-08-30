@@ -24,10 +24,27 @@ func countSpaces(line string) int32 {
 	return spaces
 }
 
-func PostRank(match *regexp.Match) float32 {
+func PostRank(match *regexp.Match, querystr *QueryStr) float32 {
+	totalRanking := float32(1)
+
+	line := match.Context
+
 	// Ranking: In which scope is the match? The higher the scope, the more
 	// important it is.
-	scopeRanking := 1.0 - (float32(countSpaces(match.Context)) / 100.0)
+	scopeRanking := 1.0 - (float32(countSpaces(line)) / 100.0)
+	totalRanking *= scopeRanking
 
-	return scopeRanking
+	// Ranking: Does the search query (with enforced word boundaries) match the
+	// line? If yes, earlier matches are better (such as function names versus
+	// parameter types).
+	index := querystr.boundaryRegexp.FindStringIndex(line)
+	if index != nil {
+		matchRanking := 0.75 + (0.25 * (1.0 - float32(index[0]) / float32(len(line))))
+		totalRanking *= matchRanking
+	} else {
+		// Punish the lines in which there was no word boundary match.
+		totalRanking *= 0.5
+	}
+
+	return totalRanking
 }
