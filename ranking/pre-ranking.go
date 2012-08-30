@@ -17,7 +17,7 @@ import (
 	"regexp"
 )
 
-var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)
+var packageLocation *regexp.Regexp = regexp.MustCompile(`/unpacked/([^/]+)_`)
 
 // Represents an entry from our ranking database (determined by using the
 // meta information about source packages).

@@ -18,7 +18,7 @@ import (
 )
 
 var indexBackends *string = flag.String("index_backends", "localhost:28081", "Index backends")
-var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)
+var packageLocation *regexp.Regexp = regexp.MustCompile(`/unpacked/([^/]+)_`)
 var templates = template.Must(template.ParseFiles("templates/results.html"))
 
 // This Match data structure is filled when receiving the match from the source
