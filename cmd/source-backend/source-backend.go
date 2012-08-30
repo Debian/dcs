@@ -5,6 +5,7 @@ import (
 	// This is a forked version of codesearch/regexp which returns the results
 	// in a structure instead of printing to stdout/stderr directly.
 	"dcs/regexp"
+	"dcs/ranking"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -51,6 +52,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			log.Printf("match: %s", match)
+			match.Ranking = ranking.PostRank(&match)
 			allMatches = append(allMatches, match)
 		}
 		if limit > 0 && int64(len(allMatches)) >= limit {
