@@ -8,7 +8,32 @@ import (
 )
 
 type RankingOpts struct {
-	Rdep, Inst, Pathmatch, Sourcepkgmatch, Weighted bool
+	// pre-ranking
+
+	// pre-ranking: amount of reverse dependencies
+	Rdep bool
+
+	// pre-ranking: popcon installation count
+	Inst bool
+
+	// pre-ranking: does the search query match the path?
+	Pathmatch bool
+
+	// pre-ranking: does the search query match the source package name?
+	Sourcepkgmatch bool
+
+	// post-ranking
+
+	// post-ranking: in which scope is the match?
+	Scope bool
+
+	// post-ranking: does the search query (with enforced word boundaries)
+	// match the line?
+	Linematch bool
+
+	// meta: turns on all rankings and uses 'optimal' weights (as determined in
+	// the thesis).
+	Weighted bool
 }
 
 // TODO: parse floats which specify the weight of each ranking
@@ -27,6 +52,8 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 	result.Inst = boolFromQuery(query, "inst")
 	result.Pathmatch = boolFromQuery(query, "pathmatch")
 	result.Sourcepkgmatch = boolFromQuery(query, "sourcepkgmatch")
+	result.Scope = boolFromQuery(query, "scope")
+	result.Linematch = boolFromQuery(query, "linematch")
 	result.Weighted = boolFromQuery(query, "weighted")
 	return result
 }

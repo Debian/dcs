@@ -38,6 +38,8 @@ func Source(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("query = %s\n", re)
 
+	rankingopts := ranking.RankingOptsFromQuery(r.URL.Query())
+
 	querystr := ranking.NewQueryStr(textQuery)
 
 	grep.Regexp = re
@@ -54,7 +56,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 				break
 			}
 			log.Printf("match: %s", match)
-			match.Ranking = ranking.PostRank(&match, &querystr)
+			match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
 			allMatches = append(allMatches, match)
 		}
 		if limit > 0 && int64(len(allMatches)) >= limit {
