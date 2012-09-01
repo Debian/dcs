@@ -8,6 +8,10 @@ import (
 )
 
 type RankingOpts struct {
+	// Map of file suffix (e.g. ".c") ranking. This is filled in based on the
+	// lang= parameter (which is extracted from the query string).
+	Suffixes map[string]float32
+
 	// pre-ranking
 
 	// pre-ranking: amount of reverse dependencies
@@ -15,6 +19,9 @@ type RankingOpts struct {
 
 	// pre-ranking: popcon installation count
 	Inst bool
+
+	// pre-ranking: file suffix
+	Suffix bool
 
 	// pre-ranking: does the search query match the path?
 	Pathmatch bool
@@ -48,8 +55,14 @@ func boolFromQuery(query url.Values, name string) bool {
 
 func RankingOptsFromQuery(query url.Values) RankingOpts {
 	var result RankingOpts
+	result.Suffixes = make(map[string]float32)
+	if query.Get("lang") == "c" {
+		result.Suffixes[".c"] = 0.75
+		result.Suffixes[".h"] = 0.75
+	}
 	result.Rdep = boolFromQuery(query, "rdep")
 	result.Inst = boolFromQuery(query, "inst")
+	result.Suffix = boolFromQuery(query, "suffix")
 	result.Pathmatch = boolFromQuery(query, "pathmatch")
 	result.Sourcepkgmatch = boolFromQuery(query, "sourcepkgmatch")
 	result.Scope = boolFromQuery(query, "scope")

@@ -14,6 +14,7 @@ import (
 	"database/sql"
 	_ "github.com/jbarham/gopgsqldriver"
 	"log"
+	"path"
 	"regexp"
 )
 
@@ -91,6 +92,14 @@ func (rp *ResultPath) Rank(opts RankingOpts) {
 	}
 	if opts.Rdep {
 		rp.Ranking *= ranking.rdep
+	}
+	if opts.Suffix || opts.Weighted {
+		suffix := path.Ext(rp.Path)
+		if val, exists := opts.Suffixes[suffix]; exists {
+			rp.Ranking *= val
+		} else {
+			rp.Ranking *= 0.5
+		}
 	}
 	if opts.Weighted {
 		rp.Ranking *= 0.4099 * ranking.inst

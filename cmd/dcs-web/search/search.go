@@ -19,7 +19,8 @@ import (
 
 var indexBackends *string = flag.String("index_backends", "localhost:28081", "Index backends")
 var packageLocation *regexp.Regexp = regexp.MustCompile(`/unpacked/([^/]+)_`)
-var templates = template.Must(template.ParseFiles("templates/results.html"))
+// TODO: hard-coded path is necessary for "go test dcs/..." to find the templates. Investigate!
+var templates = template.Must(template.ParseFiles("/home/michael/gocode/src/dcs/cmd/dcs-web/templates/results.html"))
 
 // This Match data structure is filled when receiving the match from the source
 // backend. It is then enriched with the ranking of the corresponding path and
@@ -169,7 +170,12 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 
 func Search(w http.ResponseWriter, r *http.Request) {
 	var t0, t1, t2, t3, t4 time.Time
-	query := r.URL.Query()
+
+	// Rewrite the query to extract words like "lang:c" from the querystring
+	// and place them in parameters.
+	rewritten := RewriteQuery(*r.URL)
+
+	query := rewritten.Query()
 
 	// Usage of this flag should be restricted to local IP addresses or
 	// something like that (it causes a lot of load, but it makes analyzing the
@@ -183,7 +189,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	querystr := ranking.NewQueryStr(query.Get("q"))
 
-	log.Printf(`Search query for "` + r.URL.String() + `"`)
+	log.Printf(`Search query for "` + rewritten.String() + `"`)
 	log.Printf("opts: %v\n", rankingopts)
 
 	// TODO: compile the regular expression right here so that we don’t do it N
@@ -197,7 +203,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	t0 = time.Now()
 	for _, backend := range backends {
 		log.Printf("Sending query to " + backend)
-		go sendIndexQuery(*r.URL, backend, indexResults, done)
+		go sendIndexQuery(rewritten, backend, indexResults, done)
 	}
 
 	var files, relevantFiles ranking.ResultPaths
@@ -268,7 +274,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// even be multiple instances on the same machine just serving from
 	// different disks).
 	matches := make(chan Match)
-	go sendSourceQuery(*r.URL, relevantFiles, matches, done, allResults)
+	go sendSourceQuery(rewritten, relevantFiles, matches, done, allResults)
 
 	var results SearchResults
 	maxPathRanking := float32(0)
