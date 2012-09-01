@@ -56,9 +56,39 @@ func boolFromQuery(query url.Values, name string) bool {
 func RankingOptsFromQuery(query url.Values) RankingOpts {
 	var result RankingOpts
 	result.Suffixes = make(map[string]float32)
-	if query.Get("lang") == "c" {
+	switch query.Get("lang") {
+	case "c":
 		result.Suffixes[".c"] = 0.75
 		result.Suffixes[".h"] = 0.75
+	case "c++":
+		result.Suffixes[".cpp"] = 0.75
+		result.Suffixes[".cxx"] = 0.75
+		result.Suffixes[".hpp"] = 0.75
+		result.Suffixes[".hxx"] = 0.75
+		result.Suffixes[".h"] = 0.75
+		// Some people write C++ in .c files
+		result.Suffixes[".c"] = 0.55
+	case "perl":
+		// perl scripts
+		result.Suffixes[".pl"] = 0.75
+		// perl modules
+		result.Suffixes[".pm"] = 0.75
+		// test-cases
+		result.Suffixes[".t"] = 0.75
+	case "py":
+		result.Suffixes[".py"] = 0.75
+	case "go":
+		fallthrough
+	case "golang":
+		result.Suffixes[".go"] = 0.75
+	case "java":
+		result.Suffixes[".java"] = 0.75
+	case "ruby":
+		result.Suffixes[".rb"] = 0.75
+	case "shell":
+		result.Suffixes[".sh"] = 0.75
+		result.Suffixes[".bash"] = 0.75
+		result.Suffixes[".zsh"] = 0.75
 	}
 	result.Rdep = boolFromQuery(query, "rdep")
 	result.Inst = boolFromQuery(query, "inst")
