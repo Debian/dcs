@@ -26,7 +26,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: this needs to be a source-backend query instead
 	// TODO: path configuration
-	file, err := os.Open(`/media/sdg/debian-source-mirror/unpacked/` + filename)
+	file, err := os.Open(`/dcs-ssd/unpacked/` + filename)
 	if err != nil {
 		log.Printf("%v\n", err)
 		return
