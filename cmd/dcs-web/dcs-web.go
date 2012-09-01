@@ -15,6 +15,8 @@ func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search webapp")
 
+	search.OpenTimingFiles()
+
 	http.HandleFunc("/", index.Index)
 	http.HandleFunc("/search", search.Search)
 	http.HandleFunc("/show", show.Show)

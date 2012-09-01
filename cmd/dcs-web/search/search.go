@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -18,6 +19,17 @@ import (
 )
 
 var indexBackends *string = flag.String("index_backends", "localhost:28081", "Index backends")
+var timingTotalPath *string = flag.String("timing_total_path", "", "path to a file to save timing data (total request time)")
+var timingFirstRegexp *string = flag.String("timing_first_regexp", "", "path to a file to save timing data (first regexp)")
+var timingFirstIndex *string = flag.String("timing_first_index", "", "path to a file to save timing data (first index)")
+var timingReceiveRank *string = flag.String("timing_receive_rank", "", "path to a file to save timing data (receive and rank)")
+var timingSort *string = flag.String("timing_sort", "", "path to a file to save timing data (sort)")
+var tTotal *os.File
+var tFirstRegexp *os.File
+var tFirstIndex *os.File
+var tReceiveRank *os.File
+var tSort *os.File
+var requestCounter int64 = 0
 var packageLocation *regexp.Regexp = regexp.MustCompile(`/unpacked/([^/]+)_`)
 // TODO: hard-coded path is necessary for "go test dcs/..." to find the templates. Investigate!
 var templates = template.Must(template.ParseFiles("/home/michael/gocode/src/dcs/cmd/dcs-web/templates/results.html"))
@@ -76,6 +88,45 @@ func (s SearchResults) Less(i, j int) bool {
 
 func (s SearchResults) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+func OpenTimingFiles() (err error) {
+	if len(*timingTotalPath) > 0 {
+		tTotal, err = os.Create(*timingTotalPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if len(*timingFirstRegexp) > 0 {
+		tFirstRegexp, err = os.Create(*timingFirstRegexp)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if len(*timingFirstIndex) > 0 {
+		tFirstIndex, err = os.Create(*timingFirstIndex)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if len(*timingReceiveRank) > 0 {
+		tReceiveRank, err = os.Create(*timingReceiveRank)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if len(*timingSort) > 0 {
+		tSort, err = os.Create(*timingSort)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	return
 }
 
 func sendIndexQuery(query url.URL, backend string, indexResults chan string, done chan bool) {
@@ -325,4 +376,26 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+
+	if len(*timingTotalPath) > 0 {
+		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds() / 1000 / 1000)
+	}
+
+	if len(*timingFirstRegexp) > 0 {
+		fmt.Fprintf(tFirstRegexp, "%d\t%d\n", requestCounter, t1.Sub(t0).Nanoseconds() / 1000 / 1000)
+	}
+
+	if len(*timingFirstIndex) > 0 {
+		fmt.Fprintf(tFirstIndex, "%d\t%d\n", requestCounter, t4.Sub(t3).Nanoseconds() / 1000 / 1000)
+	}
+
+	if len(*timingReceiveRank) > 0 {
+		fmt.Fprintf(tReceiveRank, "%d\t%d\n", requestCounter, t2.Sub(t1).Nanoseconds() / 1000 / 1000)
+	}
+
+	if len(*timingSort) > 0 {
+		fmt.Fprintf(tSort, "%d\t%d\n", requestCounter, t3.Sub(t2).Nanoseconds() / 1000 / 1000)
+	}
+
+	requestCounter++
 }
