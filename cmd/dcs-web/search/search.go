@@ -320,6 +320,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"t3": t4.Sub(t3),
 		"numfiles": len(files),
 		"numresults": len(results),
+		"timing": (rewritten.Query().Get("notiming") != "1"),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
