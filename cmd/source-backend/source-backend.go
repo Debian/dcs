@@ -15,11 +15,6 @@ import (
 	"strconv"
 )
 
-var grep regexp.Grep = regexp.Grep{
-	Stdout: os.Stdout,
-	Stderr: os.Stderr,
-}
-
 func Source(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
@@ -42,7 +37,11 @@ func Source(w http.ResponseWriter, r *http.Request) {
 
 	querystr := ranking.NewQueryStr(textQuery)
 
-	grep.Regexp = re
+	grep := regexp.Grep{
+		Regexp: re,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+	}
 
 // TODO: also limit the number of matches per source-package, not only per file
 	var allMatches []regexp.Match
@@ -77,7 +76,6 @@ func Source(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	grep.AddFlags()
 	flag.Parse()
 	fmt.Println("Debian Code Search source-backend")
 
