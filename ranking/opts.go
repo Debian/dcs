@@ -9,7 +9,7 @@ import (
 
 type RankingOpts struct {
 	// Map of file suffix (e.g. ".c") ranking. This is filled in based on the
-	// lang= parameter (which is extracted from the query string).
+	// filetype= parameter (which is extracted from the query string).
 	Suffixes map[string]float32
 
 	// pre-ranking
@@ -20,8 +20,8 @@ type RankingOpts struct {
 	// pre-ranking: popcon installation count
 	Inst bool
 
-	// pre-ranking: file suffix
-	Suffix bool
+	// pre-ranking: filetype
+	Filetype bool
 
 	// pre-ranking: does the search query match the path?
 	Pathmatch bool
@@ -56,7 +56,7 @@ func boolFromQuery(query url.Values, name string) bool {
 func RankingOptsFromQuery(query url.Values) RankingOpts {
 	var result RankingOpts
 	result.Suffixes = make(map[string]float32)
-	switch query.Get("lang") {
+	switch query.Get("filetype") {
 	case "c":
 		result.Suffixes[".c"] = 0.75
 		result.Suffixes[".h"] = 0.75
@@ -75,7 +75,7 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 		result.Suffixes[".pm"] = 0.75
 		// test-cases
 		result.Suffixes[".t"] = 0.75
-	case "py":
+	case "python":
 		result.Suffixes[".py"] = 0.75
 	case "go":
 		fallthrough
@@ -92,7 +92,7 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 	}
 	result.Rdep = boolFromQuery(query, "rdep")
 	result.Inst = boolFromQuery(query, "inst")
-	result.Suffix = boolFromQuery(query, "suffix")
+	result.Filetype = boolFromQuery(query, "filetype")
 	result.Pathmatch = boolFromQuery(query, "pathmatch")
 	result.Sourcepkgmatch = boolFromQuery(query, "sourcepkgmatch")
 	result.Scope = boolFromQuery(query, "scope")

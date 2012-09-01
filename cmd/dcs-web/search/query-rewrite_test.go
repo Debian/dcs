@@ -23,26 +23,26 @@ func TestRewriteQuery(t *testing.T) {
 		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
 	}
 
-	// Verify that the lang: keyword is properly moved
-	rewritten = rewrite(t, "/search?q=searchterm+lang%3Ac")
+	// Verify that the filetype: keyword is properly moved
+	rewritten = rewrite(t, "/search?q=searchterm+filetype%3Ac")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
 	}
-	lang := rewritten.Query().Get("lang")
-	if lang != "c" {
-		t.Fatalf("Expected language %s, got %s", "c", lang)
+	filetype := rewritten.Query().Get("filetype")
+	if filetype != "c" {
+		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
 	}
 
-	// Verify that the lang: keyword is treated case-insensitively
-	rewritten = rewrite(t, "/search?q=searchterm+lang%3AC")
+	// Verify that the filetype: keyword is treated case-insensitively
+	rewritten = rewrite(t, "/search?q=searchterm+filetype%3AC")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
 	}
-	lang = rewritten.Query().Get("lang")
-	if lang != "c" {
-		t.Fatalf("Expected language %s, got %s", "c", lang)
+	filetype = rewritten.Query().Get("filetype")
+	if filetype != "c" {
+		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
 	}
 
 }

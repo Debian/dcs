@@ -93,12 +93,13 @@ func (rp *ResultPath) Rank(opts RankingOpts) {
 	if opts.Rdep {
 		rp.Ranking *= ranking.rdep
 	}
-	if opts.Suffix || opts.Weighted {
+	if (opts.Filetype || opts.Weighted) && len(opts.Suffixes) > 0 {
 		suffix := path.Ext(rp.Path)
 		if val, exists := opts.Suffixes[suffix]; exists {
 			rp.Ranking *= val
 		} else {
-			rp.Ranking *= 0.5
+			// With a ranking of 0, the result will be thrown away.
+			rp.Ranking = 0
 		}
 	}
 	if opts.Weighted {

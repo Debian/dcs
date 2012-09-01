@@ -220,7 +220,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			}
 			result := ranking.ResultPath{path, [2]int{0, 0}, 0}
 			result.Rank(rankingopts)
-			files = append(files, result)
+			if result.Ranking > 0 {
+				files = append(files, result)
+			}
 
 		case <-done:
 			i++
