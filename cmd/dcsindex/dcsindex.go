@@ -62,9 +62,19 @@ func main() {
 
 				// NB: we don’t skip "configure" since that might be a custom shell-script
 				// Skip documentation, configuration files and patches.
+				// NB: we actually skip some autotools files because they blow up our index otherwise
+				// TODO: peek inside the files (we’d have to read them anyways) and check for messages that indicate that the file is generated. either by autoconf or by bison for example.
 				if filename == "NEWS" ||
 					filename == "COPYING" ||
 					filename == "LICENSE" ||
+					filename == "CHANGES" ||
+					filename == "Makefile.in" ||
+					filename == "ltmain.sh" ||
+					filename == "config.guess" ||
+					filename == "config.sub" ||
+					filename == "depcomp" ||
+					filename == "aclocal.m4" ||
+					filename == "libtool.m4" ||
 					strings.HasSuffix(filename, ".conf") ||
 					// spell checking dictionaries
 					strings.HasSuffix(filename, ".dic") ||
