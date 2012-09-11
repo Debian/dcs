@@ -15,10 +15,7 @@ import (
 	_ "github.com/jbarham/gopgsqldriver"
 	"log"
 	"path"
-	"regexp"
 )
-
-var packageLocation *regexp.Regexp = regexp.MustCompile(`/unpacked/([^/]+)_`)
 
 // Represents an entry from our ranking database (determined by using the
 // meta information about source packages).
@@ -70,21 +67,27 @@ type ResultPath struct {
 	Ranking float32
 }
 
-func (rp *ResultPath) Rank(opts RankingOpts) {
+func (rp *ResultPath) Rank(opts *RankingOpts) {
 	// No ranking at all: 807ms
 	// query.Match(&rp.Path): 4.96s
 	// query.Match(&rp.Path) * query.Match(&sourcePackage): 6.7s
 	// full ranking: 24s
 	// lookup table: 6.8s
-	m := packageLocation.FindStringSubmatchIndex(rp.Path)
-	if len(m) != 4 {
+
+	rp.SourcePkgIdx[1] = 0
+	for i := len("/dcs-ssd/unpacked/"); i < len(rp.Path); i++ {
+		if rp.Path[i] == '_' {
+			rp.SourcePkgIdx[0] = len("/dcs-ssd/unpacked/")
+			rp.SourcePkgIdx[1] = i
+			break
+		}
+	}
+	if rp.SourcePkgIdx[1] == 0 {
 		log.Fatal("Invalid path in result: %s", rp.Path)
 	}
 
-	sourcePackage := rp.Path[m[2]:m[3]]
+	sourcePackage := rp.Path[rp.SourcePkgIdx[0]:rp.SourcePkgIdx[1]]
 	//log.Printf("should rank source package %s", sourcePackage)
-	rp.SourcePkgIdx[0] = m[2]
-	rp.SourcePkgIdx[1] = m[3]
 	ranking := storedRanking[sourcePackage]
 	rp.Ranking = 1
 	if opts.Inst {
