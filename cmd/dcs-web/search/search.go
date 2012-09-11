@@ -2,6 +2,7 @@
 package search
 
 import (
+	"bytes"
 	"dcs/ranking"
 	"encoding/json"
 	"flag"
@@ -371,8 +372,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Sort(results)
-	err := templates.ExecuteTemplate(w, "results.html", map[string]interface{} {
-		"results": results,
+
+	// NB: We send the template output to a buffer because that is faster. We
+	// also just use the template for the header of the page and then print the
+	// results directly from Go, which saves ≈ 10 ms (!).
+	outputBuffer := new(bytes.Buffer)
+	err := templates.ExecuteTemplate(outputBuffer, "results.html", map[string]interface{} {
+		//"results": results,
 		"t0": t1.Sub(t0),
 		"t1": t2.Sub(t1),
 		"t2": t3.Sub(t2),
@@ -384,6 +390,25 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+	outputBuffer.WriteTo(w)
+
+	for _, result := range results {
+		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s</code>:%d</a><br><code>%s</code><br>
+PathRank: %g, Rank: %g, Final: %g</li>`,
+			result.SourcePackage,
+			result.RelativePath,
+			result.Line,
+			len(files),
+			result.Line,
+			result.SourcePackage,
+			result.RelativePath,
+			result.Line,
+			result.Context,
+			result.PathRanking,
+			result.Ranking,
+			result.FinalRanking)
+	}
+	fmt.Fprintf(w, "</ul>")
 
 	if len(*timingTotalPath) > 0 {
 		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds() / 1000 / 1000)
