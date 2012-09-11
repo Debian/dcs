@@ -1,0 +1,6 @@
+cmd/index-backend/index-backend
+cmd/source-backend/source-backend
+cmd/dcs-web/dcs-web
+cmd/dcsindex/dcsindex
+cmd/compute-ranking/compute-ranking
+*.swp
