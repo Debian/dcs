@@ -2,7 +2,8 @@
 package main
 
 import (
-	"code.google.com/p/codesearch/index"
+	"csdebug/index"
+	//"code.google.com/p/codesearch/index"
 	"code.google.com/p/codesearch/regexp"
 	"encoding/json"
 	"flag"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"runtime/pprof"
 	"time"
 )
@@ -20,6 +22,7 @@ var (
 	listenAddress = flag.String("listen", ":28081", "listen address")
 	indexPath = flag.String("indexpath", "", "path to the index to serve")
 	cpuProfile = flag.String("cpuprofile", "", "write cpu profile to this file")
+	id string
 )
 
 // Handles requests to /index by compiling the q= parameter into a regular
@@ -40,38 +43,38 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
-	log.Printf("query for %s\n", textQuery)
+	log.Printf("[%s] query for %s\n", id, textQuery)
 	re, err := regexp.Compile(textQuery)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	query := index.RegexpQuery(re.Syntax)
-	log.Printf("query: %s\n", query)
+	log.Printf("[%s] query: %s\n", id, query)
 	t0 := time.Now()
 	post := ix.PostingQuery(query)
 	t1 := time.Now()
-	log.Printf("query done in %v, %d results\n", t1.Sub(t0), len(post))
+	log.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
 	files := make([]string, len(post))
 	for idx, fileid := range post {
 		files[idx] = ix.Name(fileid)
 	}
 	t2 := time.Now()
-	log.Printf("filenames collected in %v\n", t2.Sub(t1))
+	log.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
 	jsonFiles, err := json.Marshal(files)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	t3 := time.Now()
-	log.Printf("marshaling done in %v\n", t3.Sub(t2))
+	log.Printf("[%s] marshaling done in %v\n", id, t3.Sub(t2))
 	_, err = w.Write(jsonFiles)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	t4 := time.Now()
-	log.Printf("written in %v\n", t4.Sub(t3))
+	log.Printf("[%s] written in %v\n", id, t4.Sub(t3))
 }
 
 func main() {
@@ -80,6 +83,8 @@ func main() {
 		log.Fatal("You need to specify a non-empty -indexpath")
 	}
 	fmt.Println("Debian Code Search index-backend")
+
+	id = path.Base(*indexPath)
 
 	ix = index.Open(*indexPath)
 
