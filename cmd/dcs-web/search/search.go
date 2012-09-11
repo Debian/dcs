@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -30,7 +29,6 @@ var tFirstIndex *os.File
 var tReceiveRank *os.File
 var tSort *os.File
 var requestCounter int64 = 0
-var packageLocation *regexp.Regexp = regexp.MustCompile(`/unpacked/([^/]+)_`)
 // TODO: hard-coded path is necessary for "go test dcs/..." to find the templates. Investigate!
 var templates = template.Must(template.ParseFiles("/home/michael/gocode/src/dcs/cmd/dcs-web/templates/results.html"))
 
@@ -59,13 +57,13 @@ type Match struct {
 }
 
 func (m *Match) Prettify() {
-	index := packageLocation.FindStringSubmatchIndex(m.Path)
-	if index == nil {
-		log.Fatalf("Invalid path in result: %s", m.Path)
+	for i := len("/dcs-ssd/unpacked/"); i < len(m.Path); i++ {
+		if m.Path[i] == '_' {
+			m.SourcePackage = m.Path[len("/dcs-ssd/unpacked/"):i]
+			m.RelativePath = m.Path[i:]
+			break
+		}
 	}
-
-	m.SourcePackage = m.Path[index[2]:index[3]]
-	m.RelativePath = m.Path[index[3]:]
 }
 
 
