@@ -129,7 +129,7 @@ func OpenTimingFiles() (err error) {
 	return
 }
 
-func sendIndexQuery(query url.URL, backend string, indexResults chan string, done chan bool) {
+func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.ResultPath, done chan bool, rankingopts ranking.RankingOpts) {
 	t0 := time.Now()
 	query.Scheme = "http"
 	query.Host = backend
@@ -160,8 +160,13 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan string, don
 
 	log.Printf("[%s] %d results in %v\n", backend, len(files), t1.Sub(t0))
 
+	var result ranking.ResultPath
 	for _, filename := range files {
-		indexResults <- filename
+		result.Path = filename
+		result.Rank(&rankingopts)
+		if result.Ranking > 0 {
+			indexResults <- result
+		}
 	}
 	done <- true
 }
@@ -220,7 +225,9 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 }
 
 func Search(w http.ResponseWriter, r *http.Request) {
-	var t0, t1, t2, t3, t4 time.Time
+	var tinit, t0, t1, t2, t3, t4 time.Time
+
+	tinit = time.Now()
 
 	// Rewrite the query to extract words like "lang:c" from the querystring
 	// and place them in parameters.
@@ -243,6 +250,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	log.Printf(`Search query for "` + rewritten.String() + `"`)
 	log.Printf("opts: %v\n", rankingopts)
 
+	log.Printf("Query parsed after %v\n", time.Now().Sub(tinit))
+
 	// TODO: compile the regular expression right here so that we don’t do it N
 	// times and can properly error out.
 
@@ -250,11 +259,11 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// pieces).
 	backends := strings.Split(*indexBackends, ",")
 	done := make(chan bool)
-	indexResults := make(chan string)
+	indexResults := make(chan ranking.ResultPath, 10)
 	t0 = time.Now()
 	for _, backend := range backends {
 		log.Printf("Sending query to " + backend)
-		go sendIndexQuery(rewritten, backend, indexResults, done)
+		go sendIndexQuery(rewritten, backend, indexResults, done, rankingopts)
 	}
 
 	var files, relevantFiles ranking.ResultPaths
@@ -263,17 +272,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	fileMap := make(map[string]ranking.ResultPath)
 	for i := 0; i < len(backends); {
 		select {
-		case path := <-indexResults:
+		case result := <-indexResults:
 			// Time to the first result (≈ time to query the regexp index in
 			// case len(backends) == 1)
 			if t1.IsZero() {
 				t1 = time.Now()
 			}
-			result := ranking.ResultPath{path, [2]int{0, 0}, 0}
-			result.Rank(rankingopts)
-			if result.Ranking > 0 {
-				files = append(files, result)
-			}
+			files = append(files, result)
 
 		case <-done:
 			i++
@@ -282,6 +287,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	// Time to receive and rank the results
 	t2 = time.Now()
+	log.Printf("All index backend results after %v\n", t2.Sub(t0))
 
 	sort.Sort(files)
 
@@ -322,6 +328,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// we map rankings onto it and then we need it sorted. Maybe there is some
 	// Go package already which can help us here?
 
+	tBeforeSource := time.Now()
+
 	// NB: At this point we could implement some kind of scheduler in the
 	// future to split the load between multiple source servers (that might
 	// even be multiple instances on the same machine just serving from
@@ -353,6 +361,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			i++
 		}
 	}
+
+	fmt.Printf("All source backend results after %v\n", time.Now().Sub(tBeforeSource))
 
 	// Now store the combined ranking of PathRanking (pre) and Ranking (post).
 	// We add the values because they are both percentages.
