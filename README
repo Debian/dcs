@@ -1,0 +1,5 @@
+cmd/
+    dcsindex - tool to create an index from a debian source mirror
+    dcs-web  - the code search web application itself
+    index-backend - simple server which provides (a shard) of the index to dcs-web
+    source-backend - simple server which provides the debian source to dcs-web
