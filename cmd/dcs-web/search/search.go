@@ -371,6 +371,21 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	sort.Sort(results)
 
+	// Add our measurements as HTTP headers so that we can log them in nginx.
+	outHeader := w.Header()
+	// time to first regexp result
+	outHeader.Add("dcs-t0", fmt.Sprintf("%.2fms", float32(t1.Sub(t0).Nanoseconds()) / 1000 / 1000))
+	// time to receive and rank
+	outHeader.Add("dcs-t1", fmt.Sprintf("%.2fms", float32(t2.Sub(t1).Nanoseconds()) / 1000 / 1000))
+	// time to sort
+	outHeader.Add("dcs-t2", fmt.Sprintf("%.2fms", float32(t3.Sub(t2).Nanoseconds()) / 1000 / 1000))
+	// time to first index result
+	outHeader.Add("dcs-t3", fmt.Sprintf("%.2fms", float32(t4.Sub(t3).Nanoseconds()) / 1000 / 1000))
+	// amount of regexp results
+	outHeader.Add("dcs-numfiles", fmt.Sprintf("%.d", len(files)))
+	// amount of source results
+	outHeader.Add("dcs-numresults", fmt.Sprintf("%.d", len(results)))
+
 	// NB: We send the template output to a buffer because that is faster. We
 	// also just use the template for the header of the page and then print the
 	// results directly from Go, which saves ≈ 10 ms (!).
