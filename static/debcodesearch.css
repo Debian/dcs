@@ -1,0 +1,7 @@
+/* TODO: Verify that the CSS processing order is as specified in an HTML file
+ * and then include debian.css first, debcodesearch.css last */
+@import url("debian.css");
+
+#searchform {
+	text-align: center;
+}
