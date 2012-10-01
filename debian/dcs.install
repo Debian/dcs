@@ -1,0 +1,4 @@
+# Install all binaries from bin/ to /usr/bin/
+bin/* /usr/bin/
+# Install the templates folder to /usr/share/dcs/templates
+src/dcs/cmd/dcs-web/templates /usr/share/dcs/

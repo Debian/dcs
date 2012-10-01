@@ -1,0 +1,19 @@
+Source: dcs
+Section: net
+Priority: extra
+Maintainer: Michael Stapelberg <stapelberg@debian.org>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.2
+#Vcs-Git: git://git.debian.org/collab-maint/dcs.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/dcs.git;a=summary
+
+Package: dcs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Debian Code Search
+ Server binaries, tools and templates/static assets to run Debian Code Search.
+
+Package: dcs-doc
+Architecture: all
+Description: documentation for dcs
+ <insert long description, indented with spaces>
