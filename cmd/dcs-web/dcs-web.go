@@ -2,6 +2,7 @@
 package main
 
 import (
+	"dcs/cmd/dcs-web/common"
 	"dcs/cmd/dcs-web/index"
 	"dcs/cmd/dcs-web/search"
 	"dcs/cmd/dcs-web/show"
@@ -13,6 +14,8 @@ import (
 
 func main() {
 	flag.Parse()
+	common.LoadTemplates()
+
 	fmt.Println("Debian Code Search webapp")
 
 	search.OpenTimingFiles()

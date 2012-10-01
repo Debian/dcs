@@ -3,11 +3,11 @@ package search
 
 import (
 	"bytes"
+	"dcs/cmd/dcs-web/common"
 	"dcs/ranking"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -30,8 +30,6 @@ var tFirstIndex *os.File
 var tReceiveRank *os.File
 var tSort *os.File
 var requestCounter int64 = 0
-// TODO: hard-coded path is necessary for "go test dcs/..." to find the templates. Investigate!
-var templates = template.Must(template.ParseFiles("/home/michael/gocode/src/dcs/cmd/dcs-web/templates/results.html"))
 
 // This Match data structure is filled when receiving the match from the source
 // backend. It is then enriched with the ranking of the corresponding path and
@@ -377,7 +375,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// also just use the template for the header of the page and then print the
 	// results directly from Go, which saves ≈ 10 ms (!).
 	outputBuffer := new(bytes.Buffer)
-	err := templates.ExecuteTemplate(outputBuffer, "results.html", map[string]interface{} {
+	err := common.Templates.ExecuteTemplate(outputBuffer, "results.html", map[string]interface{}{
 		//"results": results,
 		"t0": t1.Sub(t0),
 		"t1": t2.Sub(t1),

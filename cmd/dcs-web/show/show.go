@@ -2,17 +2,15 @@
 package show
 
 import (
+	"dcs/cmd/dcs-web/common"
 	"fmt"
-	"html/template"
-	"net/http"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
 )
-
-var templates = template.Must(template.ParseFiles("templates/show.html"))
 
 func Show(w http.ResponseWriter, r *http.Request) {
 	query := r.URL
@@ -56,9 +54,9 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		lineNumbers[idx] = idx + 1
 	}
 
-	err = templates.ExecuteTemplate(w, "show.html", map[string]interface{} {
-		"lines": lines,
-		"numbers": lineNumbers,
+	err = common.Templates.ExecuteTemplate(w, "show.html", map[string]interface{}{
+		"lines":    lines,
+		"numbers":  lineNumbers,
 		"lnrwidth": len(highestLineNr),
 		"filename": filename,
 	})

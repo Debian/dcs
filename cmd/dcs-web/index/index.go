@@ -2,14 +2,12 @@
 package index
 
 import (
+	"dcs/cmd/dcs-web/common"
 	"net/http"
-	"html/template"
 )
 
-var templates = template.Must(template.ParseFiles("templates/index.html"))
-
 func Index(w http.ResponseWriter, r *http.Request) {
-	err := templates.ExecuteTemplate(w, "index.html", nil)
+	err := common.Templates.ExecuteTemplate(w, "index.html", nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
