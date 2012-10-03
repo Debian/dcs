@@ -183,41 +183,46 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 	q := query.Query()
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	query.RawQuery = q.Encode()
-	v := url.Values{}
-	cnt := 0
-	for _, filename := range filenames {
-		if limit > 0 && cnt >= limit*10 {
-			break
+
+	start := 0
+	for {
+		v := url.Values{}
+		for _, filename := range filenames[start:start+limit*10] {
+			v.Add("filename", filename.Path)
 		}
-		cnt++
-		v.Add("filename", filename.Path)
-	}
-	log.Printf("(source) asking %s (with %d of %d filenames)\n", query.String(), len(v["filename"]), len(filenames))
-	resp, err := http.PostForm(query.String(), v)
-	if err != nil {
-		done <- true
-		return
-	}
-	defer resp.Body.Close()
+		log.Printf("(source) asking %s (with %d of %d filenames)\n", query.String(), len(v["filename"]), len(filenames))
+		resp, err := http.PostForm(query.String(), v)
+		if err != nil {
+			done <- true
+			return
+		}
+		defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		done <- true
-		return
-	}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			done <- true
+			return
+		}
 
-	var beMatches []Match
-	if err := json.Unmarshal(body, &beMatches); err != nil {
-		log.Printf("Invalid result from backend (source)")
-		done <- true
-		return
-	}
+		var beMatches []Match
+		if err := json.Unmarshal(body, &beMatches); err != nil {
+			log.Printf("Invalid result from backend (source)")
+			done <- true
+			return
+		}
 
-	for _, match := range beMatches {
-		matches <- match
-	}
+		if len(beMatches) > 0 {
+			for _, match := range beMatches {
+				matches <- match
+			}
 
-	done <- true
+			done <- true
+			return
+		}
+
+		// If there were no matches, we provide more filenames and retry
+		start += limit*10
+	}
 }
 
 func Search(w http.ResponseWriter, r *http.Request) {
