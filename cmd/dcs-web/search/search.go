@@ -125,6 +125,16 @@ func OpenTimingFiles() (err error) {
 	return
 }
 
+// Convenience function to get a moving window over the result slice.
+// Prevents out of bounds access.
+func resultWindow(result []ranking.ResultPath, start int, length int) []ranking.ResultPath {
+	end := start + length
+	if end > len(result) {
+		end = len(result)
+	}
+	return result[start:end]
+}
+
 func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.ResultPath, done chan bool, rankingopts ranking.RankingOpts) {
 	t0 := time.Now()
 	query.Scheme = "http"
@@ -168,7 +178,7 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 }
 
 // TODO: refactor this with sendIndexQuery.
-func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan Match, done chan bool, allResults bool) {
+func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan bool, matches chan Match, done chan bool, allResults bool) {
 
 	// How many results per page to display tops.
 	limit := 0
@@ -184,45 +194,60 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	query.RawQuery = q.Encode()
 
-	start := 0
+	numMatches := 0
 	for {
-		v := url.Values{}
-		for _, filename := range filenames[start:start+limit*10] {
-			v.Add("filename", filename.Path)
-		}
-		log.Printf("(source) asking %s (with %d of %d filenames)\n", query.String(), len(v["filename"]), len(filenames))
-		resp, err := http.PostForm(query.String(), v)
-		if err != nil {
+		filenames, open := <-values
+		if !open {
+			// No more values? We have to abort.
 			done <- true
 			return
 		}
-		defer resp.Body.Close()
+		start := 0
+		for start < len(filenames) {
+			v := url.Values{}
+			for _, filename := range resultWindow(filenames, start, 500) {
+				v.Add("filename", filename.Path)
+			}
+			log.Printf("(source) asking %s (with %d of %d filenames)\n", query.String(), len(v["filename"]), len(filenames))
+			resp, err := http.PostForm(query.String(), v)
+			if err != nil {
+				done <- true
+				return
+			}
+			defer resp.Body.Close()
 
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			done <- true
-			return
-		}
-
-		var beMatches []Match
-		if err := json.Unmarshal(body, &beMatches); err != nil {
-			log.Printf("Invalid result from backend (source)")
-			done <- true
-			return
-		}
-
-		if len(beMatches) > 0 {
-			for _, match := range beMatches {
-				matches <- match
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				done <- true
+				return
 			}
 
-			done <- true
-			return
-		}
+			var beMatches []Match
+			if err := json.Unmarshal(body, &beMatches); err != nil {
+				log.Printf("Invalid result from backend (source)")
+				done <- true
+				return
+			}
 
-		// If there were no matches, we provide more filenames and retry
-		start += limit*10
+			for _, match := range beMatches {
+				matches <- match
+				numMatches++
+			}
+
+			if numMatches >= limit {
+				done <- true
+				cont <- false
+				return
+			}
+
+			// If there were no matches, we provide more filenames and retry
+			start += 500
+		}
+		cont <- true
 	}
+
+	done <- true
+	cont <- false
 }
 
 func Search(w http.ResponseWriter, r *http.Request) {
@@ -267,7 +292,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		go sendIndexQuery(rewritten, backend, indexResults, done, rankingopts)
 	}
 
-	var files, relevantFiles ranking.ResultPaths
+	var files ranking.ResultPaths
 	// We also keep the files in a map with their path as the key so that we
 	// can correlate a match to a (ranked!) filename later on.
 	fileMap := make(map[string]ranking.ResultPath)
@@ -295,39 +320,47 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// Time to sort the results
 	t3 = time.Now()
 
-	// XXX: Here we make an educated guess about how many top-ranked
-	// (currently) search results should be considered for further ranking and
-	// then source-querying. Obviously, this makes the search less correct, but
-	// the vast majority of people wouldn’t even notice. Maybe we could expose
-	// a &pedantic=yes parameter for people who care about correct searches
-	// (then again, this offers potential for a DOS attack).
-	numFiles := len(files)
-	if numFiles > 1000 && !allResults {
-		numFiles = 1000
-	}
-	relevantFiles = files[:numFiles]
+	// Now we set up a goroutine which grabs 1000 filenames, ranks them and
+	// sends them to sendSourceQuery until sendSourceQuery tells it to stop.
+	// For most queries, the first batch will be enough, but for queries with a
+	// high false-positive rate (that is, file does not contain the searched
+	// word, but all trigrams), we need multiple iterations.
+	values := make(chan ranking.ResultPaths)
+	cont := make(chan bool)
 
-	for idx, result := range relevantFiles {
-		sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
-		if rankingopts.Pathmatch {
-			relevantFiles[idx].Ranking *= querystr.Match(&result.Path)
-		}
-		if rankingopts.Sourcepkgmatch {
-			relevantFiles[idx].Ranking *= querystr.Match(&sourcePkgName)
-		}
-		if rankingopts.Weighted {
-			relevantFiles[idx].Ranking *= 0.2205 * querystr.Match(&result.Path)
-			relevantFiles[idx].Ranking *= 0.0011 * querystr.Match(&sourcePkgName)
-		}
-		fileMap[result.Path] = relevantFiles[idx]
-	}
+	go func() {
+		start := 0
 
-	sort.Sort(relevantFiles)
+		for start < len(files) {
+			batch := ranking.ResultPaths(resultWindow(files, start, 1000))
 
-	// TODO: Essentially, this follows the MapReduce pattern. Our input is the
-	// filename list, we map that onto matches in the first step (remote), then
-	// we map rankings onto it and then we need it sorted. Maybe there is some
-	// Go package already which can help us here?
+			for idx, result := range batch {
+				sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
+				if rankingopts.Pathmatch {
+					batch[idx].Ranking *= querystr.Match(&result.Path)
+				}
+				if rankingopts.Sourcepkgmatch {
+					batch[idx].Ranking *= querystr.Match(&sourcePkgName)
+				}
+				if rankingopts.Weighted {
+					batch[idx].Ranking *= 0.2205 * querystr.Match(&result.Path)
+					batch[idx].Ranking *= 0.0011 * querystr.Match(&sourcePkgName)
+				}
+				fileMap[result.Path] = batch[idx]
+			}
+
+			sort.Sort(batch)
+			values <- batch
+			if !<-cont {
+				return
+			}
+
+			start += 1000
+		}
+
+		// Close the channel to signal that there are no more values available
+		close(values)
+	}()
 
 	tBeforeSource := time.Now()
 
@@ -336,7 +369,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// even be multiple instances on the same machine just serving from
 	// different disks).
 	matches := make(chan Match)
-	go sendSourceQuery(rewritten, relevantFiles, matches, done, allResults)
+	go sendSourceQuery(rewritten, values, cont, matches, done, allResults)
 
 	var results SearchResults
 	maxPathRanking := float32(0)
