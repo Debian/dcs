@@ -61,6 +61,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 			}
 			log.Printf("match: %s", match)
 			match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
+			match.Path = match.Path[len(*unpackedPath):]
 			allMatches = append(allMatches, match)
 		}
 		if limit > 0 && int64(len(allMatches)) >= limit {

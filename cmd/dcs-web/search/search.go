@@ -56,9 +56,9 @@ type Match struct {
 }
 
 func (m *Match) Prettify() {
-	for i := len("/dcs-ssd/unpacked/"); i < len(m.Path); i++ {
+	for i := 0; i < len(m.Path); i++ {
 		if m.Path[i] == '_' {
-			m.SourcePackage = m.Path[len("/dcs-ssd/unpacked/"):i]
+			m.SourcePackage = m.Path[:i]
 			m.RelativePath = m.Path[i:]
 			break
 		}
