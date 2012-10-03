@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -30,6 +31,13 @@ var tFirstIndex *os.File
 var tReceiveRank *os.File
 var tSort *os.File
 var requestCounter int64 = 0
+
+type SourceReply struct {
+	// The number of the last used filename, needed for pagination
+	LastUsedFilename int
+
+	AllMatches []Match
+}
 
 // This Match data structure is filled when receiving the match from the source
 // backend. It is then enriched with the ranking of the corresponding path and
@@ -135,7 +143,7 @@ func resultWindow(result []ranking.ResultPath, start int, length int) []ranking.
 	return result[start:end]
 }
 
-func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.ResultPath, done chan bool, rankingopts ranking.RankingOpts) {
+func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.ResultPath, done chan int, rankingopts ranking.RankingOpts) {
 	t0 := time.Now()
 	query.Scheme = "http"
 	query.Host = backend
@@ -143,14 +151,14 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 	log.Printf("asking %s\n", query.String())
 	resp, err := http.Get(query.String())
 	if err != nil {
-		done <- true
+		done <- 1
 		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		done <- true
+		done <- 1
 		return
 	}
 
@@ -158,7 +166,7 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 	if err := json.Unmarshal(body, &files); err != nil {
 		// TODO: Better error message
 		log.Printf("Invalid result from backend " + backend)
-		done <- true
+		done <- 1
 		return
 	}
 
@@ -174,11 +182,11 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 			indexResults <- result
 		}
 	}
-	done <- true
+	done <- 1
 }
 
 // TODO: refactor this with sendIndexQuery.
-func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan bool, matches chan Match, done chan bool, allResults bool) {
+func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan bool, matches chan Match, done chan int, allResults bool, skip int) {
 
 	// How many results per page to display tops.
 	limit := 0
@@ -195,14 +203,17 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 	query.RawQuery = q.Encode()
 
 	numMatches := 0
+	lastUsedFilename := 0
+	skipped := 0
 	for {
 		filenames, open := <-values
 		if !open {
 			// No more values? We have to abort.
-			done <- true
+			done <- 0
 			return
 		}
-		start := 0
+		start := skip
+		fmt.Printf("start = %d, skip = %d, len(filenames) = %d\n", start, skip, len(filenames))
 		for start < len(filenames) {
 			v := url.Values{}
 			for _, filename := range resultWindow(filenames, start, 500) {
@@ -211,31 +222,36 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 			log.Printf("(source) asking %s (with %d of %d filenames)\n", query.String(), len(v["filename"]), len(filenames))
 			resp, err := http.PostForm(query.String(), v)
 			if err != nil {
-				done <- true
+				done <- 0
 				return
 			}
 			defer resp.Body.Close()
 
 			body, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				done <- true
+				done <- 0
 				return
 			}
 
-			var beMatches []Match
-			if err := json.Unmarshal(body, &beMatches); err != nil {
+			var reply SourceReply
+			if err := json.Unmarshal(body, &reply); err != nil {
 				log.Printf("Invalid result from backend (source)")
-				done <- true
+				done <- 0
 				return
 			}
 
-			for _, match := range beMatches {
+			if len(reply.AllMatches) > 0 {
+				lastUsedFilename = skipped + skip + reply.LastUsedFilename
+				fmt.Printf("last used filename: %d -> %d\n", reply.LastUsedFilename, lastUsedFilename)
+			}
+
+			for _, match := range reply.AllMatches {
 				matches <- match
 				numMatches++
 			}
 
 			if numMatches >= limit {
-				done <- true
+				done <- lastUsedFilename
 				cont <- false
 				return
 			}
@@ -243,10 +259,17 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 			// If there were no matches, we provide more filenames and retry
 			start += 500
 		}
+		skip -= len(filenames)
+		skipped += len(filenames)
+		if skip < 0 {
+			done <- lastUsedFilename
+			cont <- false
+			return
+		}
 		cont <- true
 	}
 
-	done <- true
+	done <- lastUsedFilename
 	cont <- false
 }
 
@@ -273,6 +296,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	querystr := ranking.NewQueryStr(query.Get("q"))
 
+	// Number of files to skip when searching. Used for pagination.
+	skip64, _ := strconv.ParseInt(query.Get("skip"), 10, 0)
+	skip := int(skip64)
+
 	log.Printf(`Search query for "` + rewritten.String() + `"`)
 	log.Printf("opts: %v\n", rankingopts)
 
@@ -284,7 +311,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// Send the query to all index backends (our index is sharded into multiple
 	// pieces).
 	backends := strings.Split(*indexBackends, ",")
-	done := make(chan bool)
+	done := make(chan int)
 	indexResults := make(chan ranking.ResultPath, 10)
 	t0 = time.Now()
 	for _, backend := range backends {
@@ -369,9 +396,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// even be multiple instances on the same machine just serving from
 	// different disks).
 	matches := make(chan Match)
-	go sendSourceQuery(rewritten, values, cont, matches, done, allResults)
+	go sendSourceQuery(rewritten, values, cont, matches, done, allResults, skip)
 
 	var results SearchResults
+	var lastUsedFilename int
 	maxPathRanking := float32(0)
 	for i := 0; i < 1; {
 		select {
@@ -391,7 +419,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 				maxPathRanking = match.PathRanking
 			}
 			results = append(results, match)
-		case <-done:
+		case lastUsedFilename = <-done:
 			i++
 		}
 	}
@@ -459,6 +487,19 @@ PathRank: %g, Rank: %g, Final: %g</li>`,
 			result.FinalRanking)
 	}
 	fmt.Fprintf(w, "</ul>")
+
+	// TODO: use a template for the pagination :)
+	if skip > 0 {
+		fmt.Fprintf(w, `<a href="javascript:history.go(-1)">Previous page</a><span style="width: 100px">&nbsp;</span>`)
+	}
+
+	if skip != lastUsedFilename {
+		urlCopy := *r.URL
+		queryCopy := urlCopy.Query()
+		queryCopy.Set("skip", fmt.Sprintf("%d", lastUsedFilename))
+		urlCopy.RawQuery = queryCopy.Encode()
+		fmt.Fprintf(w, `<a href="%s">Next page</a>`, urlCopy.RequestURI())
+	}
 
 	if len(*timingTotalPath) > 0 {
 		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds()/1000/1000)

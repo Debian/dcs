@@ -20,6 +20,13 @@ var unpackedPath = flag.String("unpacked_path",
 	"/dcs-ssd/unpacked/",
 	"Path to the unpacked sources")
 
+type SourceReply struct {
+	// The number of the last used filename, needed for pagination
+	LastUsedFilename int
+
+	AllMatches []regexp.Match
+}
+
 func Source(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
@@ -49,8 +56,8 @@ func Source(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: also limit the number of matches per source-package, not only per file
-	var allMatches []regexp.Match
-	for _, filename := range filenames {
+	var reply SourceReply
+	for idx, filename := range filenames {
 		log.Printf("…in %s\n", filename)
 		matches := grep.File(path.Join(*unpackedPath, filename))
 		for idx, match := range matches {
@@ -62,13 +69,14 @@ func Source(w http.ResponseWriter, r *http.Request) {
 			log.Printf("match: %s", match)
 			match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
 			match.Path = match.Path[len(*unpackedPath):]
-			allMatches = append(allMatches, match)
+			reply.AllMatches = append(reply.AllMatches, match)
 		}
-		if limit > 0 && int64(len(allMatches)) >= limit {
+		if limit > 0 && int64(len(reply.AllMatches)) >= limit {
+			reply.LastUsedFilename = idx
 			break
 		}
 	}
-	jsonFiles, err := json.Marshal(allMatches)
+	jsonFiles, err := json.Marshal(&reply)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
