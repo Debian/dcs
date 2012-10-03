@@ -4,16 +4,21 @@ package main
 import (
 	// This is a forked version of codesearch/regexp which returns the results
 	// in a structure instead of printing to stdout/stderr directly.
-	"dcs/regexp"
 	"dcs/ranking"
+	"dcs/regexp"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"flag"
+	"path"
 	"strconv"
 )
+
+var unpackedPath = flag.String("unpacked_path",
+	"/dcs-ssd/unpacked/",
+	"Path to the unpacked sources")
 
 func Source(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
@@ -43,11 +48,11 @@ func Source(w http.ResponseWriter, r *http.Request) {
 		Stderr: os.Stderr,
 	}
 
-// TODO: also limit the number of matches per source-package, not only per file
+	// TODO: also limit the number of matches per source-package, not only per file
 	var allMatches []regexp.Match
 	for _, filename := range filenames {
 		log.Printf("…in %s\n", filename)
-		matches := grep.File(filename)
+		matches := grep.File(path.Join(*unpackedPath, filename))
 		for idx, match := range matches {
 			if limit > 0 && idx == 5 {
 				// TODO: we somehow need to signal that there are more results

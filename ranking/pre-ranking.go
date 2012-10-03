@@ -15,11 +15,7 @@ import (
 	_ "github.com/jbarham/gopgsqldriver"
 	"log"
 	"path"
-	"flag"
 )
-
-// TODO: This must go away as soon as we don’t store absolute paths anymore.
-var unpackedPath = flag.String("unpacked_path", "/dcs-ssd/unpacked/", "Path to the unpacked source mirror")
 
 // Represents an entry from our ranking database (determined by using the
 // meta information about source packages).
@@ -78,16 +74,16 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 	// full ranking: 24s
 	// lookup table: 6.8s
 
+	rp.SourcePkgIdx[0] = 0
 	rp.SourcePkgIdx[1] = 0
-	for i := len(*unpackedPath); i < len(rp.Path); i++ {
+	for i := 0; i < len(rp.Path); i++ {
 		if rp.Path[i] == '_' {
-			rp.SourcePkgIdx[0] = len(*unpackedPath)
 			rp.SourcePkgIdx[1] = i
 			break
 		}
 	}
 	if rp.SourcePkgIdx[1] == 0 {
-		log.Fatal("Invalid path in result: %s", rp.Path)
+		log.Fatalf("Invalid path in result: %s", rp.Path)
 	}
 
 	sourcePackage := rp.Path[rp.SourcePkgIdx[0]:rp.SourcePkgIdx[1]]
