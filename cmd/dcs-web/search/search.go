@@ -46,7 +46,7 @@ type Match struct {
 
 	// These are filled in by Prettify()
 	SourcePackage string
-	RelativePath string
+	RelativePath  string
 
 	// The ranking of the ResultPath corresponding to Path
 	PathRanking float32
@@ -64,7 +64,6 @@ func (m *Match) Prettify() {
 		}
 	}
 }
-
 
 // This type implements sort.Interface so that we can sort it by rank.
 type SearchResults []Match
@@ -187,7 +186,7 @@ func sendSourceQuery(query url.URL, filenames []ranking.ResultPath, matches chan
 	v := url.Values{}
 	cnt := 0
 	for _, filename := range filenames {
-		if limit > 0 && cnt >= limit * 10 {
+		if limit > 0 && cnt >= limit*10 {
 			break
 		}
 		cnt++
@@ -374,13 +373,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// Add our measurements as HTTP headers so that we can log them in nginx.
 	outHeader := w.Header()
 	// time to first regexp result
-	outHeader.Add("dcs-t0", fmt.Sprintf("%.2fms", float32(t1.Sub(t0).Nanoseconds()) / 1000 / 1000))
+	outHeader.Add("dcs-t0", fmt.Sprintf("%.2fms", float32(t1.Sub(t0).Nanoseconds())/1000/1000))
 	// time to receive and rank
-	outHeader.Add("dcs-t1", fmt.Sprintf("%.2fms", float32(t2.Sub(t1).Nanoseconds()) / 1000 / 1000))
+	outHeader.Add("dcs-t1", fmt.Sprintf("%.2fms", float32(t2.Sub(t1).Nanoseconds())/1000/1000))
 	// time to sort
-	outHeader.Add("dcs-t2", fmt.Sprintf("%.2fms", float32(t3.Sub(t2).Nanoseconds()) / 1000 / 1000))
+	outHeader.Add("dcs-t2", fmt.Sprintf("%.2fms", float32(t3.Sub(t2).Nanoseconds())/1000/1000))
 	// time to first index result
-	outHeader.Add("dcs-t3", fmt.Sprintf("%.2fms", float32(t4.Sub(t3).Nanoseconds()) / 1000 / 1000))
+	outHeader.Add("dcs-t3", fmt.Sprintf("%.2fms", float32(t4.Sub(t3).Nanoseconds())/1000/1000))
 	// amount of regexp results
 	outHeader.Add("dcs-numfiles", fmt.Sprintf("%.d", len(files)))
 	// amount of source results
@@ -392,13 +391,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	outputBuffer := new(bytes.Buffer)
 	err := common.Templates.ExecuteTemplate(outputBuffer, "results.html", map[string]interface{}{
 		//"results": results,
-		"t0": t1.Sub(t0),
-		"t1": t2.Sub(t1),
-		"t2": t3.Sub(t2),
-		"t3": t4.Sub(t3),
-		"numfiles": len(files),
+		"t0":         t1.Sub(t0),
+		"t1":         t2.Sub(t1),
+		"t2":         t3.Sub(t2),
+		"t3":         t4.Sub(t3),
+		"numfiles":   len(files),
 		"numresults": len(results),
-		"timing": (rewritten.Query().Get("notiming") != "1"),
+		"timing":     (rewritten.Query().Get("notiming") != "1"),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -424,23 +423,23 @@ PathRank: %g, Rank: %g, Final: %g</li>`,
 	fmt.Fprintf(w, "</ul>")
 
 	if len(*timingTotalPath) > 0 {
-		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds() / 1000 / 1000)
+		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds()/1000/1000)
 	}
 
 	if len(*timingFirstRegexp) > 0 {
-		fmt.Fprintf(tFirstRegexp, "%d\t%d\n", requestCounter, t1.Sub(t0).Nanoseconds() / 1000 / 1000)
+		fmt.Fprintf(tFirstRegexp, "%d\t%d\n", requestCounter, t1.Sub(t0).Nanoseconds()/1000/1000)
 	}
 
 	if len(*timingFirstIndex) > 0 {
-		fmt.Fprintf(tFirstIndex, "%d\t%d\n", requestCounter, t4.Sub(t3).Nanoseconds() / 1000 / 1000)
+		fmt.Fprintf(tFirstIndex, "%d\t%d\n", requestCounter, t4.Sub(t3).Nanoseconds()/1000/1000)
 	}
 
 	if len(*timingReceiveRank) > 0 {
-		fmt.Fprintf(tReceiveRank, "%d\t%d\n", requestCounter, t2.Sub(t1).Nanoseconds() / 1000 / 1000)
+		fmt.Fprintf(tReceiveRank, "%d\t%d\n", requestCounter, t2.Sub(t1).Nanoseconds()/1000/1000)
 	}
 
 	if len(*timingSort) > 0 {
-		fmt.Fprintf(tSort, "%d\t%d\n", requestCounter, t3.Sub(t2).Nanoseconds() / 1000 / 1000)
+		fmt.Fprintf(tSort, "%d\t%d\n", requestCounter, t3.Sub(t2).Nanoseconds()/1000/1000)
 	}
 
 	requestCounter++
