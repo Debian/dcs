@@ -9,7 +9,7 @@
 package main
 
 import (
-	"code.google.com/p/codesearch/index"
+	"dcs/index"
 	"flag"
 	"fmt"
 	"os"
@@ -50,7 +50,8 @@ func main() {
 	//ix.AddPaths([]string{ mirrorPath })
 
 	cnt := 0
-	filepath.Walk(path.Join(*mirrorPath, "unpacked"),
+	unpackedDir := path.Join(*mirrorPath, "unpacked")
+	filepath.Walk(unpackedDir,
 		func(path string, info os.FileInfo, err error) error {
 			if _, filename := filepath.Split(path); filename != "" {
 				// Skip quilt’s .pc directories and "po" directories (localization)
@@ -99,7 +100,10 @@ func main() {
 				}
 			}
 			if info != nil && info.Mode()&os.ModeType == 0 {
-				ix[cnt%*numShards].AddFile(path)
+				// We strip the unpacked directory path plus the following
+				// slash, e.g. /dcs-ssd/unpacked plus /
+				indexname := path[len(unpackedDir)+1:]
+				ix[cnt%*numShards].AddFile(path, indexname)
 				cnt++
 			}
 			return nil

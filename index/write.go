@@ -103,14 +103,14 @@ func (ix *IndexWriter) AddPaths(paths []string) {
 
 // AddFile adds the file with the given name (opened using os.Open)
 // to the index.  It logs errors using package log.
-func (ix *IndexWriter) AddFile(name string) {
+func (ix *IndexWriter) AddFile(name string, indexname string) {
 	f, err := os.Open(name)
 	if err != nil {
 		log.Print(err)
 		return
 	}
 	defer f.Close()
-	ix.Add(name, f)
+	ix.Add(indexname, f)
 }
 
 // Add adds the file f to the index under the given name.
