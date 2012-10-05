@@ -1,0 +1,12 @@
+[Unit]
+Description=Debian Code Search: source backend
+
+[Service]
+User=dcs
+Group=dcs
+ExecStart=/usr/bin/source-backend -unpacked_path=/dcs/unpacked/
+# Since logging is very verbose, we log to /dev/null for now
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target
