@@ -97,6 +97,11 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 	result.Sourcepkgmatch = boolFromQuery(query, "sourcepkgmatch")
 	result.Scope = boolFromQuery(query, "scope")
 	result.Linematch = boolFromQuery(query, "linematch")
-	result.Weighted = boolFromQuery(query, "weighted")
+	// Special case: weighted is the default, so assume true if unset.
+	if _, ok := query["weighted"]; !ok {
+		result.Weighted = true
+	} else {
+		result.Weighted = boolFromQuery(query, "weighted")
+	}
 	return result
 }
