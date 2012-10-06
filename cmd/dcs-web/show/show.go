@@ -3,14 +3,18 @@ package show
 
 import (
 	"dcs/cmd/dcs-web/common"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 )
+
+var workaroundPath = flag.String("workaround_path", "/dcs-ssd/unpacked/", "workaround until the TODO item is fulfilled")
 
 func Show(w http.ResponseWriter, r *http.Request) {
 	query := r.URL
@@ -23,8 +27,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Showing file %s, line %d\n", filename, line)
 
 	// TODO: this needs to be a source-backend query instead
-	// TODO: path configuration
-	file, err := os.Open(`/dcs-ssd/unpacked/` + filename)
+	file, err := os.Open(path.Join(*workaroundPath, filename))
 	if err != nil {
 		log.Printf("%v\n", err)
 		return
