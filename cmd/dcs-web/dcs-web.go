@@ -12,6 +12,10 @@ import (
 	"net/http"
 )
 
+var listenHost = flag.String("listen_host",
+	":28080",
+	"host:port to listen on")
+
 func main() {
 	flag.Parse()
 	common.LoadTemplates()
@@ -23,5 +27,5 @@ func main() {
 	http.HandleFunc("/", index.Index)
 	http.HandleFunc("/search", search.Search)
 	http.HandleFunc("/show", show.Show)
-	log.Fatal(http.ListenAndServe(":28080", nil))
+	log.Fatal(http.ListenAndServe(*listenHost, nil))
 }
