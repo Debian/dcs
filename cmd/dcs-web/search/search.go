@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -481,7 +482,7 @@ PathRank: %g, Rank: %g, Final: %g</li>`,
 			result.SourcePackage,
 			result.RelativePath,
 			result.Line,
-			result.Context,
+			html.EscapeString(result.Context),
 			result.PathRanking,
 			result.Ranking,
 			result.FinalRanking)
