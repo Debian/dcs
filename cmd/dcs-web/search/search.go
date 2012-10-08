@@ -464,6 +464,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"numfiles":   len(files),
 		"numresults": len(results),
 		"timing":     (rewritten.Query().Get("notiming") != "1"),
+		"q":          r.URL.Query().Get("q"),
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -472,7 +473,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	for _, result := range results {
 		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s</code>:%d</a><br><code>%s</code><br>
-PathRank: %g, Rank: %g, Final: %g</li>`,
+<small>PathRank: %g, Rank: %g, Final: %g</small></li>`,
 			result.SourcePackage,
 			result.RelativePath,
 			result.Line,

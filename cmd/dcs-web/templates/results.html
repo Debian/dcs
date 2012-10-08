@@ -1,5 +1,73 @@
-<html>
-<h2>Results</h2>
+<!--
+vim:ts=4:sw=4:expandtab
+--><!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Debian Code Search: {{.filename}}</title>
+<link rel="stylesheet" href="debcodesearch.css">
+<style type="text/css">
+pre, code {
+    /* We need to make sure that the line numbers and the code itself have
+    no padding/margin so the positions match. The !important is to
+    overwrite the style set by highlight.js’s stylesheet. */
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+a code {
+    color: #00E;
+}
+
+#results li {
+    margin-bottom: 1em;
+}
+
+#results small {
+    opacity: 0.4;
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: {{.lnrwidth}}em;
+}
+</style>
+<link rel="stylesheet" href="http://yandex.st/highlightjs/7.0/styles/default.min.css">
+<script src="http://yandex.st/highlightjs/7.0/highlight.min.js"></script>
+</head>
+<body>
+
+<div id="header">
+   <div id="upperheader">
+   <div id="logo">
+  <a href="./" title="Debian Home"><img src="./Pics/openlogo-50.png" alt="Debian" width="50" height="61"></a>
+  </div> <!-- end logo -->
+  <p class="section"><a href="/">Code Search</a></p>
+  <div id="searchbox">
+<form action="/search" method="get">
+<input type="text" name="q" value="{{.q}}" autofocus="autofocus">
+<input type="submit" value="Search">
+</form>
+  </div>
+ </div> <!-- end upperheader -->
+<!--UdmComment-->
+<div id="navbar">
+<p class="hidecss"><a href="#content">Skip Quicknav</a></p>
+<ul>
+   <li><a href="./">Search</a></li>
+   <li><a href="./about">About Code Search</a></li>
+   <li><a href="./faq">FAQ</a></li>
+</ul>
+</div> <!-- end navbar -->
+	<p id="breadcrumbs">&nbsp; search results</p>
+</div> <!-- end header -->
+<!--/UdmComment-->
+<div id="content">
+
+<h2>Search Results for "{{.q}}"</h2>
 
 <div id="expertbox" style="background: #000; color: #eee; opacity: 0.75; float: right; border-radius: 5px; padding: 1em">
 {{if .timing}}
@@ -12,7 +80,7 @@ Time to first index result: {{.t3}}<br>
 {{end}}
 </div>
 
-<ul>
+<ul id="results">
 {{range .results}}
 <li><a href="/show?file={{.SourcePackage}}{{.RelativePath}}&line={{.Line}}&numfiles={{$.numfiles}}#L{{.Line}}"><code><strong>{{.SourcePackage}}</strong>{{.RelativePath}}</code>:{{.Line}}</a><br>
 <code>{{.Context}}</code><br>
