@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path"
 	"strconv"
+	"strings"
 )
 
 var unpackedPath = flag.String("unpacked_path",
@@ -25,6 +27,30 @@ type SourceReply struct {
 	LastUsedFilename int
 
 	AllMatches []regexp.Match
+}
+
+// Serves a single file for displaying it in /show
+func File(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	filename := r.Form.Get("file")
+
+	log.Printf("requested filename *%s*\n", filename)
+	// path.Join calls path.Clean so we get the shortest path without any "..".
+	absPath := path.Join(*unpackedPath, filename)
+	log.Printf("clean, absolute path is *%s*\n", absPath)
+	if !strings.HasPrefix(absPath, *unpackedPath) {
+		http.Error(w, "Path traversal is bad, mhkay?", http.StatusForbidden)
+		return
+	}
+
+	file, err := os.Open(absPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`Could not open file "%s"`, absPath), http.StatusNotFound)
+		return
+	}
+	defer file.Close()
+
+	io.Copy(w, file)
 }
 
 func Source(w http.ResponseWriter, r *http.Request) {
@@ -94,5 +120,6 @@ func main() {
 	fmt.Println("Debian Code Search source-backend")
 
 	http.HandleFunc("/source", Source)
+	http.HandleFunc("/file", File)
 	log.Fatal(http.ListenAndServe(":28082", nil))
 }
