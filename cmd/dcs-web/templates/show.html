@@ -1,9 +1,10 @@
 <!--
 vim:ts=4:sw=4:expandtab
 --><!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Debian codesearch: {{.filename}}</title>
+<title>Debian Code Search: {{.filename}}</title>
+<link rel="stylesheet" href="debcodesearch.css">
 <style type="text/css">
 pre, code {
     /* We need to make sure that the line numbers and the code itself have
@@ -26,7 +27,29 @@ pre, code {
 <script src="http://yandex.st/highlightjs/7.0/highlight.min.js"></script>
 </head>
 <body>
-<h2>Source</h2>
+
+<div id="header">
+   <div id="upperheader">
+   <div id="logo">
+  <a href="./" title="Debian Home"><img src="./Pics/openlogo-50.png" alt="Debian" width="50" height="61"></a>
+  </div> <!-- end logo -->
+  <p class="section"><a href="/">Code Search</a></p>
+ </div> <!-- end upperheader -->
+<!--UdmComment-->
+<div id="navbar">
+<p class="hidecss"><a href="#content">Skip Quicknav</a></p>
+<ul>
+   <li><a href="./">Search</a></li>
+   <li><a href="./about">About Code Search</a></li>
+   <li><a href="./faq">FAQ</a></li>
+</ul>
+</div> <!-- end navbar -->
+	<p id="breadcrumbs">&nbsp; show source</p>
+</div> <!-- end header -->
+<!--/UdmComment-->
+<div id="content">
+
+<h2>Source of {{.filename}}</h2>
 
 <!-- Line numbers on the left of the source code -->
 <div class="lnr"><pre>{{range $idx, $line := .numbers}}<a id="L{{$line}}"><span id="L{{$line}}"></a>{{$line}}</span>

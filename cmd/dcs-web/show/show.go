@@ -49,7 +49,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// NB: contents is untrusted as it can containt the contents of any file
+	// NB: contents is untrusted as it can contain the contents of any file
 	// within any Debian package. Converting it to string is not a problem,
 	// though, see http://golang.org/ref/spec#Conversions, "Conversions to and
 	// from a string type": "Converting a slice of bytes to a string type
