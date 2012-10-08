@@ -475,7 +475,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	outputBuffer.WriteTo(w)
 
 	for _, result := range results {
-		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s</code>:%d</a><br><pre>%s<br>%s<br><strong>%s</strong><br>%s<br>%s</pre>
+		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s:%d</code></a><br><pre>%s<br>%s<br><strong>%s</strong><br>%s<br>%s</pre>
 <small>PathRank: %g, Rank: %g, Final: %g</small></li>`,
 			result.SourcePackage,
 			result.RelativePath,
