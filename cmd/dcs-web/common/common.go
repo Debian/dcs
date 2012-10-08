@@ -12,6 +12,9 @@ import (
 var templatePattern = flag.String("template_pattern",
 	"templates/*",
 	"Pattern matching the HTML templates (./templates/* by default)")
+var SourceBackends = flag.String("source_backends",
+	"localhost:28082",
+	"host:port (multiple values are comma-separated) of the source-backend(s)")
 var Templates *template.Template
 
 func LoadTemplates() {

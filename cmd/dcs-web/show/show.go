@@ -8,8 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
-	"path"
 	"strconv"
 	"strings"
 )
@@ -26,17 +24,28 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Showing file %s, line %d\n", filename, line)
 
-	// TODO: this needs to be a source-backend query instead
-	file, err := os.Open(path.Join(*workaroundPath, filename))
+	queryCopy := query
+	queryCopy.Scheme = "http"
+	queryCopy.Host = *common.SourceBackends
+	queryCopy.Path = "/file"
+
+	log.Printf("Asking source backend: %s\n", queryCopy.String())
+	resp, err := http.Get(queryCopy.String())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	contents, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Printf("%v\n", err)
 		return
 	}
-	defer file.Close()
 
-	contents, err := ioutil.ReadAll(file)
-	if err != nil {
-		log.Printf("%v\n", err)
+	if resp.StatusCode != 200 {
+		// relay the source backend error
+		http.Error(w, string(contents), resp.StatusCode)
 		return
 	}
 

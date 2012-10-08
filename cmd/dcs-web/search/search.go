@@ -196,8 +196,7 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 	}
 
 	query.Scheme = "http"
-	// TODO: make this configurable
-	query.Host = "localhost:28082"
+	query.Host = *common.SourceBackends
 	query.Path = "/source"
 	q := query.Query()
 	q.Set("limit", fmt.Sprintf("%d", limit))
