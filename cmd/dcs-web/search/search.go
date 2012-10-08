@@ -474,8 +474,23 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 	outputBuffer.WriteTo(w)
 
+	context := make([]string, 5)
 	for _, result := range results {
-		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s:%d</code></a><br><pre>%s<br>%s<br><strong>%s</strong><br>%s<br>%s</pre>
+		ctx := context[:0]
+		if val := strings.TrimSpace(result.Ctxp2); val != "" {
+			ctx = append(ctx, result.Ctxp2)
+		}
+		if val := strings.TrimSpace(result.Ctxp1); val != "" {
+			ctx = append(ctx, result.Ctxp1)
+		}
+		ctx = append(ctx, "<strong>"+result.Context+"</strong>")
+		if val := strings.TrimSpace(result.Ctxn1); val != "" {
+			ctx = append(ctx, result.Ctxn1)
+		}
+		if val := strings.TrimSpace(result.Ctxn2); val != "" {
+			ctx = append(ctx, result.Ctxn2)
+		}
+		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s:%d</code></a><br><pre>%s</pre>
 <small>PathRank: %g, Rank: %g, Final: %g</small></li>`,
 			result.SourcePackage,
 			result.RelativePath,
@@ -485,11 +500,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			result.SourcePackage,
 			result.RelativePath,
 			result.Line,
-			result.Ctxp2,
-			result.Ctxp1,
-			result.Context,
-			result.Ctxn1,
-			result.Ctxn2,
+			strings.Replace(strings.Join(ctx, "<br>"), "\t", "    ", -1),
 			result.PathRanking,
 			result.Ranking,
 			result.FinalRanking)
