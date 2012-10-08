@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"html"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -50,7 +49,11 @@ type Match struct {
 	// decoding/encoding (it’s documented :-/).
 	Path    string
 	Line    int
+	Ctxp2   string
+	Ctxp1   string
 	Context string
+	Ctxn1   string
+	Ctxn2   string
 	Ranking float32
 
 	// These are filled in by Prettify()
@@ -472,7 +475,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	outputBuffer.WriteTo(w)
 
 	for _, result := range results {
-		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s</code>:%d</a><br><code>%s</code><br>
+		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s</code>:%d</a><br><pre>%s<br>%s<br><strong>%s</strong><br>%s<br>%s</pre>
 <small>PathRank: %g, Rank: %g, Final: %g</small></li>`,
 			result.SourcePackage,
 			result.RelativePath,
@@ -482,7 +485,11 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			result.SourcePackage,
 			result.RelativePath,
 			result.Line,
-			html.EscapeString(result.Context),
+			result.Ctxp2,
+			result.Ctxp1,
+			result.Context,
+			result.Ctxn1,
+			result.Ctxn2,
 			result.PathRanking,
 			result.Ranking,
 			result.FinalRanking)
