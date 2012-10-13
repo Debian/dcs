@@ -102,7 +102,7 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 			rp.Ranking *= val
 		} else {
 			// With a ranking of 0, the result will be thrown away.
-			rp.Ranking = 0
+			rp.Ranking = -1
 		}
 	}
 	if opts.Weighted {

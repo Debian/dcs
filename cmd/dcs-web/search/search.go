@@ -182,7 +182,7 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 	for _, filename := range files {
 		result.Path = filename
 		result.Rank(&rankingopts)
-		if result.Ranking > 0 {
+		if result.Ranking > -1 {
 			indexResults <- result
 		}
 	}
