@@ -508,13 +508,33 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: use a template for the pagination :)
 	if skip > 0 {
-		fmt.Fprintf(w, `<a href="javascript:history.go(-1)">Previous page</a><span style="width: 100px">&nbsp;</span>`)
+		urlCopy := *r.URL
+		queryCopy := urlCopy.Query()
+		// Pop one value from nextPrev
+		prev := strings.Split(queryCopy.Get("prev"), ".")
+		// We always have one element, but let’s make sure, it’s user-input
+		// after all.
+		if len(prev) > 0 {
+			queryCopy.Set("skip", prev[len(prev)-1])
+			queryCopy.Set("prev", strings.Join(prev[:len(prev)-1], "."))
+			urlCopy.RawQuery = queryCopy.Encode()
+			fmt.Fprintf(w, `<a href="%s">Previous page</a><span style="width: 100px">&nbsp;</span>`, urlCopy.RequestURI())
+		}
 	}
 
 	if skip != lastUsedFilename {
 		urlCopy := *r.URL
 		queryCopy := urlCopy.Query()
 		queryCopy.Set("skip", fmt.Sprintf("%d", lastUsedFilename))
+		nextPrev := queryCopy.Get("prev")
+		if nextPrev == "" {
+			nextPrev = "0"
+		} else {
+			// We use dot as a separator becuase it doesn’t get url-encoded
+			// (see RFC 3986 section 2.3).
+			nextPrev = fmt.Sprintf("%s.%d", nextPrev, skip)
+		}
+		queryCopy.Set("prev", nextPrev)
 		urlCopy.RawQuery = queryCopy.Encode()
 		fmt.Fprintf(w, `<a href="%s">Next page</a>`, urlCopy.RequestURI())
 	}
