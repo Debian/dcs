@@ -12,6 +12,7 @@ import (
 	"dcs/index"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -23,6 +24,7 @@ var numShards = flag.Int("shards", 1,
 var mirrorPath = flag.String("mirrorpath",
 	"/dcs-ssd/",
 	"Path to an Debian source package mirror with an /unpacked directory inside")
+var dry = flag.Bool("dryrun", false, "Don't write index files")
 
 // Returns true when the file matches .[0-9]$ (cheaper than a regular
 // expression).
@@ -37,17 +39,18 @@ func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search indexing tool")
 
-	// Walk through all the directories and add files matching our source file
-	// regular expression to the index.
 	ix := make([]*index.IndexWriter, *numShards)
-	for i := 0; i < *numShards; i++ {
-		path := fmt.Sprintf("%s/index.%d.idx", *mirrorPath, i)
-		ix[i] = index.Create(path)
-		ix[i].Verbose = true
+
+	if !*dry {
+		for i := 0; i < *numShards; i++ {
+			path := fmt.Sprintf("%s/index.%d.idx", *mirrorPath, i)
+			ix[i] = index.Create(path)
+			ix[i].Verbose = true
+		}
 	}
 
-	// XXX: This is actually only for house-keeping. Not sure if we will use it for anything.
-	//ix.AddPaths([]string{ mirrorPath })
+	// Walk through all the directories and add files matching our source file
+	// regular expression to the index.
 
 	cnt := 0
 	unpackedDir := path.Join(*mirrorPath, "unpacked")
@@ -96,20 +99,30 @@ func main() {
 					strings.HasPrefix(strings.ToLower(filename), "changelog") ||
 					strings.HasPrefix(strings.ToLower(filename), "readme") ||
 					hasManpageSuffix(filename) {
+					if *dry {
+						log.Printf("skipping %s\n", filename)
+					}
 					return nil
 				}
 			}
+
 			if info != nil && info.Mode()&os.ModeType == 0 {
 				// We strip the unpacked directory path plus the following
 				// slash, e.g. /dcs-ssd/unpacked plus /
 				indexname := path[len(unpackedDir)+1:]
-				ix[cnt%*numShards].AddFile(path, indexname)
-				cnt++
+				if *dry {
+					log.Printf("adding %s as %s\n", path, indexname)
+				} else {
+					ix[cnt%*numShards].AddFile(path, indexname)
+					cnt++
+				}
 			}
 			return nil
 		})
-	for i := 0; i < *numShards; i++ {
-		ix[i].Flush()
+	if !*dry {
+		for i := 0; i < *numShards; i++ {
+			ix[i].Flush()
+		}
 	}
 	os.Exit(0)
 }
