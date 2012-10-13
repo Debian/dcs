@@ -490,10 +490,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		if val := strings.TrimSpace(result.Ctxn2); val != "" {
 			ctx = append(ctx, result.Ctxn2)
 		}
-		fmt.Fprintf(w, `<li><a href="/show?file=%s%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s:%d</code></a><br><pre>%s</pre>
+		fmt.Fprintf(w, `<li><a href="/show?file=%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s:%d</code></a><br><pre>%s</pre>
 <small>PathRank: %g, Rank: %g, Final: %g</small></li>`,
-			result.SourcePackage,
-			result.RelativePath,
+			url.QueryEscape(result.SourcePackage+result.RelativePath),
 			result.Line,
 			len(files),
 			result.Line,
