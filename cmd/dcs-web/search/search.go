@@ -506,7 +506,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Fprintf(w, "</ul>")
 
-	// TODO: use a template for the pagination :)
+	fmt.Fprintf(w, `<div id="pagination">`)
 	if skip > 0 {
 		urlCopy := *r.URL
 		queryCopy := urlCopy.Query()
@@ -518,7 +518,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			queryCopy.Set("skip", prev[len(prev)-1])
 			queryCopy.Set("prev", strings.Join(prev[:len(prev)-1], "."))
 			urlCopy.RawQuery = queryCopy.Encode()
-			fmt.Fprintf(w, `<a href="%s">Previous page</a><span style="width: 100px">&nbsp;</span>`, urlCopy.RequestURI())
+			fmt.Fprintf(w, `<a href="%s">Previous page</a><div style="display: inline-block; width: 100px">&nbsp;</div>`, urlCopy.RequestURI())
 		}
 	}
 
@@ -538,6 +538,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		urlCopy.RawQuery = queryCopy.Encode()
 		fmt.Fprintf(w, `<a href="%s">Next page</a>`, urlCopy.RequestURI())
 	}
+
+	fmt.Fprintf(w, `</div></div></body></html>`)
 
 	if len(*timingTotalPath) > 0 {
 		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds()/1000/1000)
