@@ -3,7 +3,6 @@ package show
 
 import (
 	"dcs/cmd/dcs-web/common"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 )
-
-var workaroundPath = flag.String("workaround_path", "/dcs-ssd/unpacked/", "workaround until the TODO item is fulfilled")
 
 func Show(w http.ResponseWriter, r *http.Request) {
 	query := r.URL
