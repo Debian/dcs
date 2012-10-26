@@ -52,7 +52,7 @@ pre, code {
 <h2>Source of {{.filename}}</h2>
 
 <!-- Line numbers on the left of the source code -->
-<div class="lnr"><pre>{{range $idx, $line := .numbers}}<a id="L{{$line}}"><span id="L{{$line}}"></a>{{$line}}</span>
+<div class="lnr"><pre>{{range $idx, $line := .numbers}}{{ if eq $line $.line }}<span style="font-weight: bold; background-color: #333;">{{ end }}<a id="L{{$line}}"><span id="L{{$line}}"></a>{{$line}}</span>{{ if eq $line $.line }}</span>{{ end }}
 {{end}}
 </pre></div>
 <!-- The source code itself -->
@@ -61,5 +61,4 @@ pre, code {
 </code></pre>
 
 <script>hljs.initHighlightingOnLoad();</script>
-</body>
-</html>
+{{ template "footer.html" }}

@@ -539,7 +539,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `<a href="%s">Next page</a>`, urlCopy.RequestURI())
 	}
 
-	fmt.Fprintf(w, `</div></div></body></html>`)
+	err = common.Templates.ExecuteTemplate(w, "footer.html", map[string]interface{}{})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 
 	if len(*timingTotalPath) > 0 {
 		fmt.Fprintf(tTotal, "%d\t%d\n", requestCounter, time.Now().Sub(t0).Nanoseconds()/1000/1000)
