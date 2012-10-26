@@ -14,11 +14,12 @@ import (
 func Show(w http.ResponseWriter, r *http.Request) {
 	query := r.URL
 	filename := query.Query().Get("file")
-	line, err := strconv.ParseInt(query.Query().Get("line"), 10, 0)
+	line64, err := strconv.ParseInt(query.Query().Get("line"), 10, 0)
 	if err != nil {
 		log.Printf("%v\n", err)
 		return
 	}
+	line := int(line64)
 	log.Printf("Showing file %s, line %d\n", filename, line)
 
 	queryCopy := query
@@ -64,6 +65,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = common.Templates.ExecuteTemplate(w, "show.html", map[string]interface{}{
+		"line":     line,
 		"lines":    lines,
 		"numbers":  lineNumbers,
 		"lnrwidth": len(highestLineNr),

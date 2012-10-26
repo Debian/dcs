@@ -7,6 +7,7 @@ import (
 	"flag"
 	"html/template"
 	"log"
+	"reflect"
 )
 
 var templatePattern = flag.String("template_pattern",
@@ -19,7 +20,31 @@ var Templates *template.Template
 
 func LoadTemplates() {
 	var err error
-	Templates, err = template.ParseGlob(*templatePattern)
+	Templates = template.New("foo").Funcs(template.FuncMap{
+		"eq": func(args ...interface{}) bool {
+			if len(args) == 0 {
+				return false
+			}
+			x := args[0]
+			switch x := x.(type) {
+			case string, int, int64, byte, float32, float64:
+				for _, y := range args[1:] {
+					if x == y {
+						return true
+					}
+				}
+				return false
+			}
+
+			for _, y := range args[1:] {
+				if reflect.DeepEqual(x, y) {
+					return true
+				}
+			}
+			return false
+		},
+	})
+	Templates, err = Templates.ParseGlob(*templatePattern)
 	if err != nil {
 		log.Fatalf(`Could not load templates from "%s": %v`, *templatePattern, err)
 	}
