@@ -532,7 +532,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		if nextPrev == "" {
 			nextPrev = "0"
 		} else {
-			// We use dot as a separator becuase it doesn’t get url-encoded
+			// We use dot as a separator because it doesn’t get url-encoded
 			// (see RFC 3986 section 2.3).
 			nextPrev = fmt.Sprintf("%s.%d", nextPrev, skip)
 		}
