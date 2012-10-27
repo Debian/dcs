@@ -262,7 +262,9 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 			// If there were no matches, we provide more filenames and retry
 			start += 500
 		}
-		skip -= len(filenames)
+		if skip > 0 {
+			skip -= len(filenames)
+		}
 		skipped += len(filenames)
 		if skip < 0 {
 			done <- lastUsedFilename
