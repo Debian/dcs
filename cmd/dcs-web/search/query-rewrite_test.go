@@ -45,4 +45,29 @@ func TestRewriteQuery(t *testing.T) {
 		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
 	}
 
+	// Verify that the package: keyword is recognized (case-sensitively)
+	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+	}
+	pkg := rewritten.Query().Get("package")
+	if pkg != "i3-WM" {
+		t.Fatalf("Expected package %s, got %s", "i3-WM", pkg)
+	}
+
+	// Verify that the multiple keywords work as expected
+	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM+filetype%3Ac")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+	}
+	pkg = rewritten.Query().Get("package")
+	if pkg != "i3-WM" {
+		t.Fatalf("Expected package %s, got %s", "i3-WM", pkg)
+	}
+	filetype = rewritten.Query().Get("filetype")
+	if filetype != "c" {
+		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
+	}
 }

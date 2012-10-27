@@ -288,6 +288,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	rewritten := RewriteQuery(*r.URL)
 
 	query := rewritten.Query()
+	// The "package:" keyword, if specified.
+	pkg := rewritten.Query().Get("package")
 
 	// Usage of this flag should be restricted to local IP addresses or
 	// something like that (it causes a lot of load, but it makes analyzing the
@@ -346,6 +348,22 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// Time to receive and rank the results
 	t2 = time.Now()
 	log.Printf("All index backend results after %v\n", t2.Sub(t0))
+
+	// Filter the filenames if the "package:" keyword was specified.
+	if pkg != "" {
+		log.Printf(`Filtering for package "%s"`, pkg)
+		filtered := make(ranking.ResultPaths, 0, len(files))
+		for _, file := range(files) {
+			// XXX: Do we want this to be a regular expression match, too?
+			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] != pkg {
+				continue
+			}
+
+			filtered = append(filtered, file)
+		}
+
+		files = filtered
+	}
 
 	sort.Sort(files)
 

@@ -17,8 +17,11 @@ func RewriteQuery(u url.URL) url.URL {
 	queryWords := []string{}
 	for _, word := range strings.Split(querystr, " ") {
 		fmt.Printf("word = %v\n", word)
-		if strings.HasPrefix(strings.ToLower(word), "filetype:") {
+		lower := strings.ToLower(word)
+		if strings.HasPrefix(lower, "filetype:") {
 			query.Set("filetype", strings.ToLower(word[len("filetype:"):]))
+		} else if strings.HasPrefix(lower, "package:") {
+			query.Set("package", word[len("package:"):])
 		} else {
 			queryWords = append(queryWords, word)
 		}
