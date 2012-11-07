@@ -43,38 +43,37 @@ func Index(w http.ResponseWriter, r *http.Request) {
 
 	r.ParseForm()
 	textQuery := r.Form.Get("q")
-	log.Printf("[%s] query for %s\n", id, textQuery)
 	re, err := regexp.Compile(textQuery)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	query := index.RegexpQuery(re.Syntax)
-	log.Printf("[%s] query: %s\n", id, query)
+	log.Printf("[%s] query: text = %s, regexp = %s\n", id, textQuery, query)
 	t0 := time.Now()
 	post := ix.PostingQuery(query)
 	t1 := time.Now()
-	log.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
+	fmt.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
 	files := make([]string, len(post))
 	for idx, fileid := range post {
 		files[idx] = ix.Name(fileid)
 	}
 	t2 := time.Now()
-	log.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
+	fmt.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
 	jsonFiles, err := json.Marshal(files)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	t3 := time.Now()
-	log.Printf("[%s] marshaling done in %v\n", id, t3.Sub(t2))
+	fmt.Printf("[%s] marshaling done in %v\n", id, t3.Sub(t2))
 	_, err = w.Write(jsonFiles)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	t4 := time.Now()
-	log.Printf("[%s] written in %v\n", id, t4.Sub(t3))
+	fmt.Printf("[%s] written in %v\n", id, t4.Sub(t3))
 }
 
 func main() {
