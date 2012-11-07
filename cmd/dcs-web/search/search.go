@@ -257,7 +257,8 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 				numMatches++
 			}
 
-			if numMatches >= limit {
+			if numMatches >= limit && limit > 0 {
+				fmt.Printf("numMatches = %d, limit = %d, end\n", numMatches, limit)
 				done <- lastUsedFilename
 				return
 			}
