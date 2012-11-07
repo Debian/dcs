@@ -271,6 +271,7 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 		}
 		skipped += len(filenames)
 		if skip < 0 {
+			fmt.Printf("skip = %d < 0\n", skip)
 			done <- lastUsedFilename
 			return
 		}
@@ -310,9 +311,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	skip := int(skip64)
 
 	log.Printf(`Search query for "` + rewritten.String() + `"`)
-	log.Printf("opts: %v\n", rankingopts)
+	fmt.Printf("opts: %v\n", rankingopts)
 
-	log.Printf("Query parsed after %v\n", time.Now().Sub(tinit))
+	fmt.Printf("Query parsed after %v\n", time.Now().Sub(tinit))
 
 	// TODO: compile the regular expression right here so that we don’t do it N
 	// times and can properly error out.
@@ -324,7 +325,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	indexResults := make(chan ranking.ResultPath, 10)
 	t0 = time.Now()
 	for _, backend := range backends {
-		log.Printf("Sending query to " + backend)
+		fmt.Printf("Sending query to " + backend)
 		go sendIndexQuery(rewritten, backend, indexResults, done, rankingopts)
 	}
 
@@ -349,13 +350,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	// Time to receive and rank the results
 	t2 = time.Now()
-	log.Printf("All index backend results after %v\n", t2.Sub(t0))
+	fmt.Printf("All index backend results after %v\n", t2.Sub(t0))
 
 	// Filter the filenames if the "package:" keyword was specified.
 	if pkg != "" {
-		log.Printf(`Filtering for package "%s"`, pkg)
+		fmt.Printf(`Filtering for package "%s"`, pkg)
 		filtered := make(ranking.ResultPaths, 0, len(files))
-		for _, file := range(files) {
+		for _, file := range files {
 			// XXX: Do we want this to be a regular expression match, too?
 			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] != pkg {
 				continue
@@ -384,6 +385,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		start := 0
 
 		for start < len(files) {
+			fmt.Printf("ranking 1000 starting from %d\n", start)
 			batch := ranking.ResultPaths(resultWindow(files, start, 1000))
 
 			for idx, result := range batch {
@@ -514,7 +516,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			ctx = append(ctx, result.Ctxn2)
 		}
 		fmt.Fprintf(w, `<li><a href="/show?file=%s&amp;line=%d&amp;numfiles=%d#L%d"><code><strong>%s</strong>%s:%d</code></a><br><pre>%s</pre>
-<small>PathRank: %g, Rank: %g, Final: %g</small></li>`,
+<small>PathRank: %g, Rank: %g, Final: %g</small></li>`+"\n",
 			url.QueryEscape(result.SourcePackage+result.RelativePath),
 			result.Line,
 			len(files),
