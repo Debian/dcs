@@ -62,14 +62,13 @@ func Source(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filenames := r.Form["filename"]
-	log.Printf("query for %s\n", textQuery)
 	re, err := regexp.Compile(textQuery)
 	if err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 
-	log.Printf("query = %s\n", re)
+	log.Printf("query: text = %s, regexp = %s\n", textQuery, re)
 
 	rankingopts := ranking.RankingOptsFromQuery(r.URL.Query())
 
@@ -84,7 +83,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 	// TODO: also limit the number of matches per source-package, not only per file
 	var reply SourceReply
 	for idx, filename := range filenames {
-		log.Printf("…in %s\n", filename)
+		fmt.Printf("…in %s\n", filename)
 		matches := grep.File(path.Join(*unpackedPath, filename))
 		for idx, match := range matches {
 			if limit > 0 && idx == 5 {
@@ -92,7 +91,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 				// (if there are more), so that the user can expand this.
 				break
 			}
-			log.Printf("match: %s", match)
+			fmt.Printf("match: %s", match)
 			match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
 			match.Path = match.Path[len(*unpackedPath):]
 			reply.AllMatches = append(reply.AllMatches, match)
