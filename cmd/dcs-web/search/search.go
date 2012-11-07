@@ -306,6 +306,18 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	querystr := ranking.NewQueryStr(query.Get("q"))
 
+	if len(query.Get("q")) < 3 {
+		err := common.Templates.ExecuteTemplate(w, "error.html", map[string]interface{}{
+			"q":        r.URL.Query().Get("q"),
+			"errormsg": "Your search term is too short. You need at least 3 characters.",
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		return
+	}
+
 	// Number of files to skip when searching. Used for pagination.
 	skip64, _ := strconv.ParseInt(query.Get("skip"), 10, 0)
 	skip := int(skip64)
