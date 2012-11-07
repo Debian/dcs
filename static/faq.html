@@ -30,8 +30,42 @@
 
 <h1>Debian Code Search FAQ</h1>
 
+<a id="keywords"><h2>Q: What kind of keywords can I use in the search field?</h2></a>
+
 <p>
-Since nobody asked any questions yet, this page is empty :-).
+Each keyword must be specified as "type:value", without additional spaces.<br>
+Keywords are separated from search terms by space, e.g. "<tt>printf filetype:c</tt>".
+</p>
+
+<dl>
+<dt>filetype</dt>
+<dd>
+Filters file names according to their extension.<br>
+To find source code dealing with XMPP written in Perl, you could search for "<tt>XMPP
+filetype:perl</tt>".<br>
+The currently supported languages are c, c++, perl, python, go, java, ruby, shell.
+</dd>
+<dt>package</dt>
+<dd>
+Searches only within the specified Debian source package.<br>
+To find all calls to <tt>xcb_create_window</tt> which the window manager i3 does, you could search for "<tt>xcb_create_window package:i3-wm</tt>".
+</dd>
+</dl>
+
+<a id="regexp"><h2>Q: Can I use regular expressions?</h2></a>
+
+<p>
+Why yes! The full syntax is described at <a
+href="http://code.google.com/p/re2/wiki/Syntax">RE2:Syntax</a>.
+</p>
+
+<h2>Q: Where is the source code of DCS?</h2>
+
+<p>
+While DCS is an open-source project, I cannot share the source code until
+January 2013 (when I hand in my thesis) because otherwise there might be
+attribution problems — that is, when you make contributions, is it really clear
+what’s my work and what’s not.
 </p>
 
 </div>
