@@ -192,6 +192,10 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 // TODO: refactor this with sendIndexQuery.
 func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan bool, matches chan Match, done chan int, allResults bool, skip int) {
 
+	defer func() {
+		cont <- false
+	}()
+
 	// How many results per page to display tops.
 	limit := 0
 	if !allResults {
@@ -255,7 +259,6 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 
 			if numMatches >= limit {
 				done <- lastUsedFilename
-				cont <- false
 				return
 			}
 
@@ -268,14 +271,12 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 		skipped += len(filenames)
 		if skip < 0 {
 			done <- lastUsedFilename
-			cont <- false
 			return
 		}
 		cont <- true
 	}
 
 	done <- lastUsedFilename
-	cont <- false
 }
 
 func Search(w http.ResponseWriter, r *http.Request) {
@@ -402,6 +403,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			sort.Sort(batch)
 			values <- batch
 			if !<-cont {
+				fmt.Printf("ranking goroutine exits\n")
 				return
 			}
 
