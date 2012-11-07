@@ -7,6 +7,9 @@ Group=dcs
 ExecStart=/usr/bin/source-backend -unpacked_path=/dcs/unpacked/
 # Since logging is very verbose, we log to /dev/null for now
 StandardOutput=null
+StandardError=journal
+RestartSec=1
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
