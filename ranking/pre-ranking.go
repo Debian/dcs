@@ -87,7 +87,6 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 	}
 
 	sourcePackage := rp.Path[rp.SourcePkgIdx[0]:rp.SourcePkgIdx[1]]
-	//log.Printf("should rank source package %s", sourcePackage)
 	ranking := storedRanking[sourcePackage]
 	rp.Ranking = 1
 	if opts.Inst {
@@ -101,8 +100,9 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 		if val, exists := opts.Suffixes[suffix]; exists {
 			rp.Ranking *= val
 		} else {
-			// With a ranking of 0, the result will be thrown away.
+			// With a ranking of -1, the result will be thrown away.
 			rp.Ranking = -1
+			return
 		}
 	}
 	if opts.Weighted {
