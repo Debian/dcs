@@ -564,7 +564,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	err = common.Templates.ExecuteTemplate(w, "footer.html", map[string]interface{}{})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("template error: %v\n", err.Error())
+		// We cannot use http.Error since it sends headers and we already did that.
+		//http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
 	if len(*timingTotalPath) > 0 {
