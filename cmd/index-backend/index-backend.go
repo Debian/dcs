@@ -45,7 +45,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	textQuery := r.Form.Get("q")
 	re, err := regexp.Compile(textQuery)
 	if err != nil {
-		log.Printf("%s\n", err)
+		log.Printf("regexp.Compile: %s\n", err)
 		return
 	}
 	query := index.RegexpQuery(re.Syntax)

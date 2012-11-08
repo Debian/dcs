@@ -3,11 +3,13 @@ package search
 
 import (
 	"bytes"
+	"code.google.com/p/codesearch/regexp"
 	"dcs/cmd/dcs-web/common"
 	"dcs/ranking"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -318,6 +320,20 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, err := regexp.Compile(query.Get("q"))
+	if err != nil {
+		err := common.Templates.ExecuteTemplate(w, "error.html", map[string]interface{}{
+			"q":          r.URL.Query().Get("q"),
+			"errormsg":   fmt.Sprintf(`%v`, err),
+			"suggestion": template.HTML(`See <a href="http://codesearch.debian.net/faq#regexp">http://codesearch.debian.net/faq#regexp</a> for help on regular expressions.`),
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		return
+	}
+
 	// Number of files to skip when searching. Used for pagination.
 	skip64, _ := strconv.ParseInt(query.Get("skip"), 10, 0)
 	skip := int(skip64)
@@ -495,7 +511,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// also just use the template for the header of the page and then print the
 	// results directly from Go, which saves ≈ 10 ms (!).
 	outputBuffer := new(bytes.Buffer)
-	err := common.Templates.ExecuteTemplate(outputBuffer, "results.html", map[string]interface{}{
+	err = common.Templates.ExecuteTemplate(outputBuffer, "results.html", map[string]interface{}{
 		//"results": results,
 		"t0":         t1.Sub(t0),
 		"t1":         t2.Sub(t1),
