@@ -492,6 +492,12 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	sort.Sort(results)
 
+	// People seem to be distracted by large negative numbers, so we rather
+	// show a 0 in case there were no source results :-).
+	if t4.IsZero() {
+		t4 = t3
+	}
+
 	// Add our measurements as HTTP headers so that we can log them in nginx.
 	outHeader := w.Header()
 	// time to first regexp result
