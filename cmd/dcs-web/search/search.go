@@ -513,6 +513,22 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// amount of source results
 	outHeader.Add("dcs-numresults", fmt.Sprintf("%.d", len(results)))
 
+	// Show a helpful message when there are no search results instead of just
+	// an empty list.
+	if len(results) == 0 {
+		err := common.Templates.ExecuteTemplate(w, "error.html", map[string]interface{}{
+			"q":          r.URL.Query().Get("q"),
+			"errormsg":   "No search results!",
+			"suggestion": template.HTML(`Debian Code Search is case-sensitive. Also, search queries are interpreted as <a href="http://codesearch.debian.net/faq#regexp">regular expressions</a>.`),
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		return
+
+	}
+
 	// NB: We send the template output to a buffer because that is faster. We
 	// also just use the template for the header of the page and then print the
 	// results directly from Go, which saves ≈ 10 ms (!).
