@@ -276,11 +276,7 @@ func (ix *Index) PostingList(trigram uint32) []uint32 {
 func (ix *Index) postingList(trigram uint32, restrict []uint32) []uint32 {
 	var r postReader
 	r.init(ix, trigram, restrict)
-	x := make([]uint32, 0, r.max())
-	for r.next() {
-		x = append(x, r.fileid)
-	}
-	return x
+	return myPostingList(r.d, r.max(), restrict)
 }
 
 func (ix *Index) PostingAnd(list []uint32, trigram uint32) []uint32 {
@@ -290,19 +286,7 @@ func (ix *Index) PostingAnd(list []uint32, trigram uint32) []uint32 {
 func (ix *Index) postingAnd(list []uint32, trigram uint32, restrict []uint32) []uint32 {
 	var r postReader
 	r.init(ix, trigram, restrict)
-	x := list[:0]
-	i := 0
-	for r.next() {
-		fileid := r.fileid
-		for i < len(list) && list[i] < fileid {
-			i++
-		}
-		if i < len(list) && list[i] == fileid {
-			x = append(x, fileid)
-			i++
-		}
-	}
-	return x
+	return myPostingAnd(r.d, r.max(), list, restrict)
 }
 
 func (ix *Index) PostingOr(list []uint32, trigram uint32) []uint32 {
@@ -312,26 +296,34 @@ func (ix *Index) PostingOr(list []uint32, trigram uint32) []uint32 {
 func (ix *Index) postingOr(list []uint32, trigram uint32, restrict []uint32) []uint32 {
 	var r postReader
 	r.init(ix, trigram, restrict)
-	x := make([]uint32, 0, len(list)+r.max())
-	i := 0
-	for r.next() {
-		fileid := r.fileid
-		for i < len(list) && list[i] < fileid {
-			x = append(x, list[i])
-			i++
-		}
-		x = append(x, fileid)
-		if i < len(list) && list[i] == fileid {
-			i++
-		}
-	}
-	x = append(x, list[i:]...)
-	return x
+	return myPostingOr(r.d, r.max(), list, restrict)
 }
 
 func (ix *Index) PostingQuery(q *Query) []uint32 {
 	return ix.postingQuery(q, nil)
 }
+
+// Implements sort.Interface
+type trigramCnt struct {
+	trigram uint32
+	count int
+	listcnt int
+}
+
+type trigramCnts []trigramCnt
+
+func (t trigramCnts) Len() int {
+	return len(t)
+}
+
+func (t trigramCnts) Less(i, j int) bool {
+	return t[i].count < t[j].count
+}
+
+func (t trigramCnts) Swap(i, j int) {
+	t[i], t[j] = t[j], t[i]
+}
+
 
 func (ix *Index) postingQuery(q *Query, restrict []uint32) (ret []uint32) {
 	var list []uint32
@@ -348,17 +340,40 @@ func (ix *Index) postingQuery(q *Query, restrict []uint32) (ret []uint32) {
 		}
 		return list
 	case QAnd:
-		for _, t := range q.Trigram {
+		// "Query planner": we first sort the posting lists by their
+		// length (ascending)
+		withCount := make(trigramCnts, len(q.Trigram))
+		for idx, t := range q.Trigram {
 			tri := uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2])
+			count, _ := ix.findList(tri)
+			withCount[idx] = trigramCnt{tri, count, 0}
+		}
+		sort.Sort(withCount)
+
+		stoppedAt := 0
+		for idx, t := range withCount {
+			previous := len(list)
 			if list == nil {
-				list = ix.postingList(tri, restrict)
+				list = ix.postingList(t.trigram, restrict)
 			} else {
-				list = ix.postingAnd(list, tri, restrict)
+				list = ix.postingAnd(list, t.trigram, restrict)
 			}
 			if len(list) == 0 {
 				return nil
 			}
+			withCount[idx].listcnt = len(list)
+			if previous > 0 {
+				minIdx := 0.70 * float32(len(withCount))
+				if (previous - len(list)) < 10 && stoppedAt == 0 && float32(idx) > minIdx {
+					stoppedAt = len(list)
+				}
+			}
+			if previous > 0 && (previous - len(list)) < 10 {
+				//fmt.Printf("difference is %d, break!\n", previous - len(list))
+				break
+			}
 		}
+
 		for _, sub := range q.Sub {
 			if list == nil {
 				list = restrict

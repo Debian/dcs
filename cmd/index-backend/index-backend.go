@@ -2,8 +2,7 @@
 package main
 
 import (
-	"csdebug/index"
-	//"code.google.com/p/codesearch/index"
+	"dcs/index"
 	"code.google.com/p/codesearch/regexp"
 	"encoding/json"
 	"flag"
