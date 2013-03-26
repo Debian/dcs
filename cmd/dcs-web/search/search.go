@@ -218,10 +218,13 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 		filenames, open := <-values
 		if !open {
 			// No more values? We have to abort.
-			done <- 0
+			done <- lastUsedFilename
 			return
 		}
 		start := skip
+		if start < 0 {
+			start = 0
+		}
 		fmt.Printf("start = %d, skip = %d, len(filenames) = %d\n", start, skip, len(filenames))
 		for start < len(filenames) {
 			v := url.Values{}
@@ -250,7 +253,7 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 			}
 
 			if len(reply.AllMatches) > 0 {
-				lastUsedFilename = skipped + skip + reply.LastUsedFilename
+				lastUsedFilename = skipped + start + reply.LastUsedFilename
 				fmt.Printf("last used filename: %d -> %d\n", reply.LastUsedFilename, lastUsedFilename)
 			}
 
@@ -272,11 +275,8 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 			skip -= len(filenames)
 		}
 		skipped += len(filenames)
-		if skip < 0 {
-			fmt.Printf("skip = %d < 0\n", skip)
-			done <- lastUsedFilename
-			return
-		}
+		log.Printf("skip = %d, skipped = %d, len(filenames) = %d, start = %d\n",
+			skip, skipped, len(filenames), start)
 		cont <- true
 	}
 
