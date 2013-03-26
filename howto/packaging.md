@@ -2,7 +2,7 @@
 
 The canonical way of deploying DCS is creating a Debian package and installing that on the machine to run DCS on. This document describes how to set up all the dependencies and create the Debian package.
 
-## Installing Go
+## Installing and setting up Go
 
 ```bash
 apt-get install golang-go
@@ -22,6 +22,13 @@ cd ~/gocode/src
 git clone git://github.com/debiancodesearch/dcs.git
 ```
 
+## Installing Go dependencies
+
+Ensure that you got the Postgres development package installed:
+```bash
+apt-get install libpq-dev
+```
+
 Then, install all the dependencies:
 ```bash
 go get github.com/jbarham/gopgsqldriver
@@ -34,6 +41,8 @@ Note that gopgsqldriver currently does not compile cleanly due to [libpq-fe.h be
 cd github.com/jbarham/gopgsqldriver
 sed -i 's,#include <libpq-fe.h>,#include <postgresql/libpq-fe.h>,g' pgdriver.go
 ```
+
+## Creating the Debian package
 
 We now create an upstream tarball from the git source, extract it and create a package via dpkg-buildpackage:
 ```bash
