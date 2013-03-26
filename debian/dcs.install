@@ -4,4 +4,3 @@ bin/* /usr/bin/
 src/dcs/cmd/dcs-web/templates /usr/share/dcs/
 # Install static html files to /usr/share/dcs/static
 src/dcs/static /usr/share/dcs/
-src/dcs/dcs-unpack /usr/bin/
