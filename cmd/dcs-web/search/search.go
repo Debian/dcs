@@ -357,28 +357,31 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		go sendIndexQuery(rewritten, backend, indexResults, done, rankingopts)
 	}
 
+	// Close the result channel when all index queries are done so that we can
+	// use range on the result channel.
+	go func() {
+		for i := 0; i < len(backends); i++ {
+			<-done
+		}
+		close(indexResults)
+	}()
+
 	var files ranking.ResultPaths
 	// We also keep the files in a map with their path as the key so that we
 	// can correlate a match to a (ranked!) filename later on.
 	fileMap := make(map[string]ranking.ResultPath)
-	for i := 0; i < len(backends); {
-		select {
-		case result := <-indexResults:
-			// Time to the first result (≈ time to query the regexp index in
-			// case len(backends) == 1)
-			if t1.IsZero() {
-				t1 = time.Now()
-			}
-			files = append(files, result)
-
-		case <-done:
-			i++
+	for result := range indexResults {
+		// Time to the first result (≈ time to query the regexp index in
+		// case len(backends) == 1)
+		if t1.IsZero() {
+			t1 = time.Now()
 		}
+		files = append(files, result)
 	}
 
 	// Time to receive and rank the results
 	t2 = time.Now()
-	fmt.Printf("All index backend results after %v\n", t2.Sub(t0))
+	log.Printf("All %d index backend results after %v\n", len(files), t2.Sub(t0))
 
 	// Filter the filenames if the "package:" keyword was specified.
 	if pkg != "" {
