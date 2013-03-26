@@ -89,6 +89,9 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 		result.Suffixes[".sh"] = 0.75
 		result.Suffixes[".bash"] = 0.75
 		result.Suffixes[".zsh"] = 0.75
+	case "vala":
+		result.Suffixes[".vala"] = 0.75
+		result.Suffixes[".vapi"] = 0.75
 	}
 	result.Rdep = boolFromQuery(query, "rdep")
 	result.Inst = boolFromQuery(query, "inst")
