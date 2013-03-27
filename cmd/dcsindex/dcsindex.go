@@ -14,16 +14,18 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 )
 
 var numShards = flag.Int("shards", 1,
 	"Number of index shards (the index will be split into 'shard' different files)")
-var mirrorPath = flag.String("mirrorpath",
+var mirrorPath = flag.String("mirrorPath",
 	"/dcs-ssd/",
-	"Path to an Debian source package mirror with an /unpacked directory inside")
+	"Where to place the index.<shard>.idx files in")
+var unpackedPath = flag.String("unpackedPath",
+	"/dcs-ssd/unpacked/",
+	"Where to look for unpacked directories. Needs to have a trailing /")
 var dry = flag.Bool("dryrun", false, "Don't write index files")
 
 // Returns true when the file matches .[0-9]$ (cheaper than a regular
@@ -49,12 +51,16 @@ func main() {
 		}
 	}
 
+	skiplen := len(*unpackedPath)
+	if (*unpackedPath)[len(*unpackedPath)-1] != '/' {
+		skiplen += 1
+	}
+
 	// Walk through all the directories and add files matching our source file
 	// regular expression to the index.
 
 	cnt := 0
-	unpackedDir := path.Join(*mirrorPath, "unpacked")
-	filepath.Walk(unpackedDir,
+	filepath.Walk(*unpackedPath,
 		func(path string, info os.FileInfo, err error) error {
 			if _, filename := filepath.Split(path); filename != "" {
 				// Skip quilt’s .pc directories and "po" directories (localization)
@@ -109,7 +115,7 @@ func main() {
 			if info != nil && info.Mode()&os.ModeType == 0 {
 				// We strip the unpacked directory path plus the following
 				// slash, e.g. /dcs-ssd/unpacked plus /
-				indexname := path[len(unpackedDir)+1:]
+				indexname := path[skiplen:]
 				if *dry {
 					log.Printf("adding %s as %s\n", path, indexname)
 				} else {
