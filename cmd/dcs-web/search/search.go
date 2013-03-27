@@ -422,14 +422,14 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			for idx, result := range batch {
 				sourcePkgName := result.Path[result.SourcePkgIdx[0]:result.SourcePkgIdx[1]]
 				if rankingopts.Pathmatch {
-					batch[idx].Ranking *= querystr.Match(&result.Path)
+					batch[idx].Ranking += querystr.Match(&result.Path)
 				}
 				if rankingopts.Sourcepkgmatch {
-					batch[idx].Ranking *= querystr.Match(&sourcePkgName)
+					batch[idx].Ranking += querystr.Match(&sourcePkgName)
 				}
 				if rankingopts.Weighted {
-					batch[idx].Ranking *= 0.2205 * querystr.Match(&result.Path)
-					batch[idx].Ranking *= 0.0011 * querystr.Match(&sourcePkgName)
+					batch[idx].Ranking += 0.1460 * querystr.Match(&result.Path)
+					batch[idx].Ranking += 0.0008 * querystr.Match(&sourcePkgName)
 				}
 				fileMap[result.Path] = batch[idx]
 			}

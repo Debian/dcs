@@ -90,15 +90,15 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 	ranking := storedRanking[sourcePackage]
 	rp.Ranking = 1
 	if opts.Inst {
-		rp.Ranking *= ranking.inst
+		rp.Ranking += ranking.inst
 	}
 	if opts.Rdep {
-		rp.Ranking *= ranking.rdep
+		rp.Ranking += ranking.rdep
 	}
 	if (opts.Filetype || opts.Weighted) && len(opts.Suffixes) > 0 {
 		suffix := path.Ext(rp.Path)
 		if val, exists := opts.Suffixes[suffix]; exists {
-			rp.Ranking *= val
+			rp.Ranking += val
 		} else {
 			// With a ranking of -1, the result will be thrown away.
 			rp.Ranking = -1
@@ -106,8 +106,8 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 		}
 	}
 	if opts.Weighted {
-		rp.Ranking *= 0.4099 * ranking.inst
-		rp.Ranking *= 0.3683 * ranking.rdep
+		rp.Ranking += 0.3840 * ranking.inst
+		rp.Ranking += 0.3427 * ranking.rdep
 	}
 }
 
