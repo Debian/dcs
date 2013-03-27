@@ -9,7 +9,44 @@ Debian Code Search requires an index in order to search through tons of source c
 
 ## Creating a new index (first deployment)
 
+Beware: These steps are untested. Please submit any corrections and/or ask if you have any questions.
 
+First of all, we need to mirror the Debian archive:
+
+```bash
+$ cd /dcs
+$ debmirror --progress --verbose -a none --source -s main -h deb-mirror.de -r /debian source-mirror
+```
+
+Then, we use `dcs-unpack` to unpack every package in order to make its source code servable and indexable:
+
+```bash
+$ dcs-unpack \
+    -mirrorPath=/dcs/source-mirror \
+    -newUnpackPath=/dcs/unpacked \
+    -oldUnpackPath=/invalid
+```
+
+Now that we have all source packages unpacked, we need to create the actual index. Depending on the size of your source code, you need to use more or less shards. Currently, I use 6 shards with about 1.2 GiB each. A shard cannot be larger than 2 GiB.
+
+Also note that dcsindex creates a large amount of temporary data (many gigabytes, at least 7 GiB). If you have `/tmp` mounted as tmpfs, you might need to set `TMPDIR=/some/path` to place the temporary files in a different directory.
+
+```bash
+$ dcsindex \
+    -mirrorPath=/dcs/ \
+    -unpackedPath=/dcs/unpacked/ \
+    -shards 6
+```
+
+Finally, start the index backend processes, the source backend process and dcs-web itself:
+
+```bash
+for i in $(seq 0 5); do
+    systemctl start dcs-index-backend@$i.service
+done
+systemctl start dcs-source-backend.service
+systemctl start dcs-web.service
+```
 
 ## Updating an existing index
 
