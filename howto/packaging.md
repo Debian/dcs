@@ -5,7 +5,7 @@ The canonical way of deploying DCS is creating a Debian package and installing t
 ## Installing and setting up Go
 
 ```bash
-apt-get install golang-go
+apt-get install -t experimental golang-go
 ```
 
 Go requires you to setup a directory in which all source code is stored. The location of that directory is stored in an environment variable called `GOPATH`:
