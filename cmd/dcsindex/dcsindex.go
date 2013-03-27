@@ -62,7 +62,7 @@ func main() {
 	cnt := 0
 	filepath.Walk(*unpackedPath,
 		func(path string, info os.FileInfo, err error) error {
-			if _, filename := filepath.Split(path); filename != "" {
+			if dir, filename := filepath.Split(path); filename != "" {
 				// Skip quilt’s .pc directories and "po" directories (localization)
 				if info.IsDir() &&
 					(filename == ".pc" ||
@@ -102,8 +102,11 @@ func main() {
 					strings.HasSuffix(filename, ".rtf") ||
 					strings.HasSuffix(filename, ".docbook") ||
 					strings.HasSuffix(filename, ".symbols") ||
-					strings.HasPrefix(strings.ToLower(filename), "changelog") ||
-					strings.HasPrefix(strings.ToLower(filename), "readme") ||
+					// Don’t match /debian/changelog or /debian/README, but
+					// exclude changelog and readme files generally.
+					(!strings.HasSuffix(dir, "/debian/") &&
+						strings.HasPrefix(strings.ToLower(filename), "changelog") ||
+						strings.HasPrefix(strings.ToLower(filename), "readme")) ||
 					hasManpageSuffix(filename) {
 					if *dry {
 						log.Printf("skipping %s\n", filename)
