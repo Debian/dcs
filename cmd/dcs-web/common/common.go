@@ -10,6 +10,7 @@ import (
 	"reflect"
 )
 
+var Version string = "unknown"
 var templatePattern = flag.String("template_pattern",
 	"templates/*",
 	"Pattern matching the HTML templates (./templates/* by default)")

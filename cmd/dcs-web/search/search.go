@@ -617,7 +617,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `<a href="%s">Next page</a>`, urlCopy.RequestURI())
 	}
 
-	err = common.Templates.ExecuteTemplate(w, "footer.html", map[string]interface{}{})
+	err = common.Templates.ExecuteTemplate(w, "footer.html", map[string]interface{}{
+		"version": common.Version,
+	})
 	if err != nil {
 		log.Printf("template error: %v\n", err.Error())
 		// We cannot use http.Error since it sends headers and we already did that.
