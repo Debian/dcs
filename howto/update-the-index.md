@@ -48,4 +48,21 @@ $ dcsindex \
     -mirrorPath=/dcs/NEW/ \
     -unpackedPath=/dcs/unpacked-new/ \
     -shards 6
+3418,80s user 1111,40s system 24% cpu 5:05:19,09 total
 ```
+
+For the next step, it is recommended to create a simple shell script to automate the steps (and reduce downtime as much as possible). Note that the script hardcodes the amount of shards (the `seq 0 5` for 6 shards). Also, it is expected to run as root because it directly uses systemctl calls to restart the index backend processes.
+
+```bash
+#!/bin/zsh
+
+mv /dcs/index.*.idx /dcs/OLD/
+mv /dcs/NEW/index.*.idx /dcs/
+mv /dcs/unpacked /dcs/OLD/unpacked
+mv /dcs/unpacked-new /dcs/unpacked
+for i in $(seq 0 5); do
+    systemctl restart dcs-index-backend@$i.service
+done
+```
+
+That’s it! Your index is now up to date. Verify that search still works and enjoy your new index.
