@@ -50,6 +50,11 @@ The currently supported languages are c, c++, perl, python, go, java, ruby, shel
 Searches only within the specified Debian source package.<br>
 To find all calls to <tt>xcb_create_window</tt> which the window manager i3 does, you could search for "<tt>xcb_create_window package:i3-wm</tt>".
 </dd>
+<dt>path</dt>
+<dd>
+Searches only files that match the given path (usnig regular expressions).<br>
+To find only matches within Debian packaging, use e.g. "<tt>systemctl path:debian/</tt>".<br>
+To find only matches within the libi3 folder of any version of i3-wm, use "<tt>i3Font path:i3-wm_.*/libi3/</tt>".
 </dl>
 
 <a id="regexp"><h2>Q: Can I use regular expressions?</h2></a>

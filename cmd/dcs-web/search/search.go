@@ -295,6 +295,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	query := rewritten.Query()
 	// The "package:" keyword, if specified.
 	pkg := rewritten.Query().Get("package")
+	// The "path:" keyword, if specified.
+	path := rewritten.Query().Get("path")
 
 	// Usage of this flag should be restricted to local IP addresses or
 	// something like that (it causes a lot of load, but it makes analyzing the
@@ -385,11 +387,39 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	// Filter the filenames if the "package:" keyword was specified.
 	if pkg != "" {
-		fmt.Printf(`Filtering for package "%s"`, pkg)
+		fmt.Printf(`Filtering for package "%s"\n`, pkg)
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
 			// XXX: Do we want this to be a regular expression match, too?
 			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] != pkg {
+				continue
+			}
+
+			filtered = append(filtered, file)
+		}
+
+		files = filtered
+	}
+
+	if path != "" {
+		fmt.Printf(`Filtering for path "%s"\n`, path)
+		pathRegexp, err := regexp.Compile(path)
+		if err != nil {
+			err := common.Templates.ExecuteTemplate(w, "error.html", map[string]interface{}{
+				"q":          r.URL.Query().Get("q"),
+				"errormsg":   fmt.Sprintf(`%v`, err),
+				"suggestion": template.HTML(`See <a href="http://codesearch.debian.net/faq#regexp">http://codesearch.debian.net/faq#regexp</a> for help on regular expressions.`),
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+
+			return
+		}
+
+		filtered := make(ranking.ResultPaths, 0, len(files))
+		for _, file := range files {
+			if pathRegexp.MatchString(file.Path, true, true) == -1 {
 				continue
 			}
 
