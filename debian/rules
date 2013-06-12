@@ -19,5 +19,8 @@ export DH_OPTIONS
 override_dh_auto_build:
 	GOPATH=$(CURDIR):$(GOPATH) go install -ldflags "-X dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)" -v dcs/cmd/...
 
+override_dh_builddeb:
+	dh_builddeb -- -Zxz
+
 %:
 	dh $@ 
