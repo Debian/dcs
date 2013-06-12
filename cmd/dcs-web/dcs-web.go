@@ -3,6 +3,7 @@ package main
 
 import (
 	"dcs/cmd/dcs-web/common"
+	"dcs/cmd/dcs-web/health"
 	"dcs/cmd/dcs-web/index"
 	"dcs/cmd/dcs-web/search"
 	"dcs/cmd/dcs-web/show"
@@ -26,6 +27,8 @@ func main() {
 	fmt.Println("Debian Code Search webapp")
 
 	search.OpenTimingFiles()
+
+	health.StartChecking()
 
 	http.HandleFunc("/", index.Index)
 	http.HandleFunc("/search", search.Search)

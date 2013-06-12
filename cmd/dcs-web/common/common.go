@@ -17,6 +17,9 @@ var templatePattern = flag.String("template_pattern",
 var SourceBackends = flag.String("source_backends",
 	"localhost:28082",
 	"host:port (multiple values are comma-separated) of the source-backend(s)")
+var UseSourcesDebianNet = flag.Bool("use_sources_debian_net",
+	false,
+	"Redirect to sources.debian.net instead of handling /show on our own.")
 var Templates *template.Template
 
 func LoadTemplates() {

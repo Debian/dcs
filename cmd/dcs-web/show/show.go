@@ -3,6 +3,7 @@ package show
 
 import (
 	"dcs/cmd/dcs-web/common"
+	"dcs/cmd/dcs-web/health"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -21,6 +22,14 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	}
 	line := int(line64)
 	log.Printf("Showing file %s, line %d\n", filename, line)
+
+	if *common.UseSourcesDebianNet && health.IsHealthy("sources.debian.net") {
+		destination := fmt.Sprintf("http://sources.debian.net/src/%s#L%d",
+			strings.Replace(filename, "_", "/", 1), line)
+		log.Printf("SDN is healthy. Redirecting to %s\n", destination)
+		http.Redirect(w, r, destination, 302)
+		return
+	}
 
 	queryCopy := query
 	queryCopy.Scheme = "http"
