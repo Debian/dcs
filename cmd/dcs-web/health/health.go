@@ -34,7 +34,7 @@ func checkSDN(updates chan healthUpdate) {
 	delay := 0 * time.Second
 	for {
 		time.Sleep(delay)
-		delay = 5 * time.Second
+		delay = 30 * time.Second
 		update.healthy = false
 		client := &http.Client{
 			Transport: &http.Transport{
