@@ -72,7 +72,7 @@ func main() {
 				}
 
 				// NB: we don’t skip "configure" since that might be a custom shell-script
-				// Skip documentation, configuration files and patches.
+				// Skip documentation and configuration files.
 				// NB: we actually skip some autotools files because they blow up our index otherwise
 				// TODO: peek inside the files (we’d have to read them anyways) and check for messages that indicate that the file is generated. either by autoconf or by bison for example.
 				if filename == "NEWS" ||
@@ -97,7 +97,6 @@ func main() {
 					strings.HasSuffix(filename, ".sgml") ||
 					strings.HasSuffix(filename, ".pod") ||
 					strings.HasSuffix(filename, ".po") ||
-					strings.HasSuffix(filename, ".patch") ||
 					strings.HasSuffix(filename, ".txt") ||
 					strings.HasSuffix(filename, ".tex") ||
 					strings.HasSuffix(filename, ".rtf") ||
