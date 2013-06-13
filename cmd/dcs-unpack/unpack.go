@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
@@ -23,8 +22,6 @@ var oldUnpackPath = flag.String("oldUnpackPath",
 var newUnpackPath = flag.String("newUnpackPath",
 	"/dcs-ssd/unpacked-new/",
 	"Path to the unpacked debian source mirror")
-
-var removeEpoch = regexp.MustCompile(`^[0-9]+:`)
 
 // Copies directories by hard-linking all files inside,
 // necessary since hard-links on directories are not possible.
@@ -74,10 +71,7 @@ func main() {
 			continue
 		}
 
-		// The epoch is not used by dpkg-source when unpacking, so remove it
-		version := removeEpoch.ReplaceAllString(pkg["Version"], "")
-
-		dir := fmt.Sprintf("%s_%s", pkg["Package"], version)
+		dir := fmt.Sprintf("%s_%s", pkg["Package"], pkg["Version"])
 		oldPath := path.Join(*oldUnpackPath, dir)
 		newPath := path.Join(*newUnpackPath, dir)
 
