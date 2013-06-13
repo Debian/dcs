@@ -29,10 +29,10 @@ $ dcs-unpack \
 
 Now that we have all source packages unpacked, we need to create the actual index. Depending on the size of your source code, you need to use more or less shards. Currently, I use 6 shards with about 1.2 GiB each. A shard cannot be larger than 2 GiB.
 
-Also note that dcsindex creates a large amount of temporary data (many gigabytes, at least 7 GiB). If you have `/tmp` mounted as tmpfs, you might need to set `TMPDIR=/some/path` to place the temporary files in a different directory.
+Also note that dcs-index creates a large amount of temporary data (many gigabytes, at least 7 GiB). If you have `/tmp` mounted as tmpfs, you might need to set `TMPDIR=/some/path` to place the temporary files in a different directory.
 
 ```bash
-$ dcsindex \
+$ dcs-index \
     -mirrorPath=/dcs/ \
     -unpackedPath=/dcs/unpacked/ \
     -shards 6
@@ -78,10 +78,10 @@ $ dcs-unpack \
 
 Now that we have all source packages unpacked, we need to create the actual index. Depending on the size of your source code, you need to use more or less shards. Currently, I use 6 shards with about 1.2 GiB each. A shard cannot be larger than 2 GiB.
 
-Also note that dcsindex creates a large amount of temporary data (many gigabytes, at least 7 GiB). If you have `/tmp` mounted as tmpfs, you might need to set `TMPDIR=/some/path` to place the temporary files in a different directory.
+Also note that dcs-index creates a large amount of temporary data (many gigabytes, at least 7 GiB). If you have `/tmp` mounted as tmpfs, you might need to set `TMPDIR=/some/path` to place the temporary files in a different directory.
 
 ```bash
-$ dcsindex \
+$ dcs-index \
     -mirrorPath=/dcs/NEW/ \
     -unpackedPath=/dcs/unpacked-new/ \
     -shards 6

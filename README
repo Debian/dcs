@@ -2,7 +2,7 @@ Please read http://codesearch.debian.net/research/bsc-thesis.pdf first!
 
 cmd/
     dcs-unpack - tool to unpack a debian source mirror
-    dcsindex - tool to create an index from a debian source mirror
+    dcs-index - tool to create an index from a debian source mirror
     compute-ranking - computes the ranking of each package/file
     dcs-web  - the code search web application itself
     index-backend - simple server which provides (a shard) of the index to dcs-web
