@@ -51,41 +51,30 @@ func checkSDN() (update healthUpdate) {
 			},
 		},
 	}
-	responseChan := make(chan *http.Response)
-	go func() {
-		resp, _ := client.Get("http://sources.debian.net/api/ping/")
-		responseChan <- resp
-	}()
-	select {
-	case <-time.After(15 * time.Second):
-		// TODO: if this never ever happens we can make this code simpler and blockingly call client.Get()
-		log.Printf("BUG BUG BUG: The http client.Get took too long even though it is supposed to have a timeout.")
+	resp, err := client.Get("http://sources.debian.net/api/ping/")
+	if err != nil {
+		log.Printf("health check: sources.debian.net did not answer to HTTP\n")
 		return
-	case resp := <-responseChan:
-		if resp == nil {
-			log.Printf("health check: sources.debian.net did not answer to HTTP\n")
-			return
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			log.Printf("health check: sources.debian.net returned code %d\n", resp.StatusCode)
-			return
-		}
-		type sdnStatus struct {
-			Status string
-		}
-		status := sdnStatus{}
-		decoder := json.NewDecoder(resp.Body)
-		if err := decoder.Decode(&status); err != nil {
-			log.Printf("health check: sources.debian.net returned invalid JSON: %v\n", err)
-			return
-		}
-		if status.Status != "ok" {
-			log.Printf("health check: sources.debian.net returned status == false\n")
-			return
-		}
-		update.healthy = true
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		log.Printf("health check: sources.debian.net returned code %d\n", resp.StatusCode)
+		return
+	}
+	type sdnStatus struct {
+		Status string
+	}
+	status := sdnStatus{}
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&status); err != nil {
+		log.Printf("health check: sources.debian.net returned invalid JSON: %v\n", err)
+		return
+	}
+	if status.Status != "ok" {
+		log.Printf("health check: sources.debian.net returned status == false\n")
+		return
+	}
+	update.healthy = true
 	return
 }
 
