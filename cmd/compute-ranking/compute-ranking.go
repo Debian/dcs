@@ -23,10 +23,9 @@ var mirrorPath = flag.String("mirrorPath",
 	"/media/sdd1/debian-source-mirror/",
 	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
 var dryRun = flag.Bool("dry_run", false, "Don’t actually write anything to the database.")
-var popconInst map[string]float32 = make(map[string]float32)
 var popconInstSrc map[string]float32 = make(map[string]float32)
 
-// Fills popconInst from the Ultimate Debian Database (udd). The popcon
+// Fills popconInstSrc from the Ultimate Debian Database (udd). The popcon
 // installation count is stored normalized by dividing through the total amount
 // of popcon installations.
 func fillPopconInst() {
@@ -35,8 +34,6 @@ func fillPopconInst() {
 		log.Fatal(err)
 	}
 
-	// XXX: Using popcon_src would make this code a lot easier. See if
-	// refactoring it is useful in the future.
 	var totalInstallations int
 	var packageName string
 	var installations int
@@ -47,7 +44,7 @@ func fillPopconInst() {
 
 	log.Printf("total %d installations", totalInstallations)
 
-	rows, err := db.Query("SELECT package, insts FROM popcon WHERE package != '_submissions'")
+	rows, err := db.Query("SELECT source, insts FROM popcon_src")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,8 +54,9 @@ func fillPopconInst() {
 		}
 
 		// XXX: We multiply 1000 here because all values are < 0.0009.
-		popconInst[packageName] = (float32(installations) / float32(totalInstallations)) * 1000
+		popconInstSrc[packageName] = (float32(installations) / float32(totalInstallations)) * 1000
 	}
+
 }
 
 func countReverseDepends(out string) int {
@@ -125,7 +123,6 @@ func main() {
 				fmt.Printf("%s is an UDEB\n", parts[0])
 			}
 		}
-		packageRank := float32(0)
 		rdepcount := float32(0)
 		binaryPackages := strings.Split(pkg["Binary"], ",")
 		for _, packageName := range binaryPackages {
@@ -137,11 +134,6 @@ func main() {
 			if packageName == "" {
 				continue
 			}
-			if popconRank, ok := popconInst[packageName]; ok {
-				if popconRank > packageRank {
-					packageRank = popconRank
-				}
-			}
 			var out bytes.Buffer
 			cmd := exec.Command("apt-cache", "rdepends", packageName)
 			cmd.Stdout = &out
@@ -150,13 +142,15 @@ func main() {
 			}
 			rdepcount += float32(countReverseDepends(out.String()))
 		}
+		srcpkg := pkg["Package"]
+		packageRank := popconInstSrc[srcpkg]
 		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
-		fmt.Printf("%f %d %s\n", packageRank, rdepcount, pkg["Package"])
+		fmt.Printf("%f %d %s\n", packageRank, rdepcount, srcpkg)
 		if *dryRun {
 			continue
 		}
-		if _, err = insert.Exec(pkg["Package"], packageRank, rdepcount); err != nil {
-			if _, err = update.Exec(pkg["Package"], packageRank, rdepcount); err != nil {
+		if _, err = insert.Exec(srcpkg, packageRank, rdepcount); err != nil {
+			if _, err = update.Exec(srcpkg, packageRank, rdepcount); err != nil {
 				log.Fatal(err)
 			}
 		}
