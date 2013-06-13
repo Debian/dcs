@@ -50,7 +50,15 @@ func checkSDN() (update healthUpdate) {
 			},
 		},
 	}
-	resp, err := client.Get("http://sources.debian.net/api/ping/")
+
+	req, err := http.NewRequest("GET", "http://sources.debian.net/api/ping/", nil)
+	if err != nil {
+		log.Printf("health check: could not create request: %v\n", err)
+		return
+	}
+	// We are not going to use Keep-Alive, so be upfront about it to the server.
+	req.Close = true
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("health check: sources.debian.net did not answer to HTTP\n")
 		return
