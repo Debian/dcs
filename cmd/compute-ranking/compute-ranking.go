@@ -37,30 +37,21 @@ func fillPopconInst() {
 
 	// XXX: Using popcon_src would make this code a lot easier. See if
 	// refactoring it is useful in the future.
-	rows, err := db.Query("SELECT SUM(insts) FROM popcon")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if !rows.Next() {
-		log.Fatal("rows.Next() failed")
-	}
 	var totalInstallations int
-	if err = rows.Scan(&totalInstallations); err != nil {
-		log.Fatal("rows.Scan() failed")
+	var packageName string
+	var installations int
+	err = db.QueryRow("SELECT SUM(insts) FROM popcon").Scan(&totalInstallations)
+	if err != nil {
+		log.Fatalf("Could not get SUM(insts) FROM popcon: %v", err)
 	}
-	rows.Close()
 
 	log.Printf("total %d installations", totalInstallations)
 
-	rows, err = db.Query("SELECT package, insts FROM popcon WHERE package != '_submissions'")
+	rows, err := db.Query("SELECT package, insts FROM popcon WHERE package != '_submissions'")
 	if err != nil {
 		log.Fatal(err)
 	}
 	for rows.Next() {
-		var packageName string
-		var installations int
-
 		if err = rows.Scan(&packageName, &installations); err != nil {
 			log.Fatal(err)
 		}
