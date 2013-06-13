@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -18,8 +19,12 @@ import (
 var packageLine *regexp.Regexp = regexp.MustCompile(`^Package: (.+)`)
 var binaryLine *regexp.Regexp = regexp.MustCompile(`^Binary: (.+)`)
 var udeb *regexp.Regexp = regexp.MustCompile(`\budeb\b`)
-var numShards *int = flag.Int("shards", 1, "Number of index shards (the index will be split into 'shard' different files)")
+var mirrorPath = flag.String("mirrorPath",
+	"/media/sdd1/debian-source-mirror/",
+	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
+var dryRun = flag.Bool("dry_run", false, "Don’t actually write anything to the database.")
 var popconInst map[string]float32 = make(map[string]float32)
+var popconInstSrc map[string]float32 = make(map[string]float32)
 
 // Fills popconInst from the Ultimate Debian Database (udd). The popcon
 // installation count is stored normalized by dividing through the total amount
@@ -83,9 +88,6 @@ func main() {
 	flag.Parse()
 	fmt.Println("Debian Code Search ranking tool")
 
-	// TODO: make the path configurable
-	mirrorPath := "/media/sdg/debian-source-mirror/"
-
 	fillPopconInst()
 
 	db, err := sql.Open("postgres", "dbname=dcs")
@@ -106,7 +108,7 @@ func main() {
 	defer update.Close()
 
 	// Walk through all source packages
-	file, err := os.Open(mirrorPath + "/dists/sid/main/source/Sources")
+	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/source/Sources"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -126,8 +128,8 @@ func main() {
 			pkg = strings.TrimSpace(pkg)
 			parts := strings.Split(pkg, " ")
 			if (len(parts) > 1 && parts[1] == "udeb") ||
-			   (len(parts) > 2 && parts[2] == "debian-installer") ||
-			   (len(parts) > 0 && strings.HasSuffix(parts[0], "-udeb")) {
+				(len(parts) > 2 && parts[2] == "debian-installer") ||
+				(len(parts) > 0 && strings.HasSuffix(parts[0], "-udeb")) {
 				udebs[parts[0]] = true
 				fmt.Printf("%s is an UDEB\n", parts[0])
 			}
@@ -159,6 +161,9 @@ func main() {
 		}
 		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
 		fmt.Printf("%f %d %s\n", packageRank, rdepcount, pkg["Package"])
+		if *dryRun {
+			continue
+		}
 		if _, err = insert.Exec(pkg["Package"], packageRank, rdepcount); err != nil {
 			if _, err = update.Exec(pkg["Package"], packageRank, rdepcount); err != nil {
 				log.Fatal(err)
