@@ -36,7 +36,6 @@ func periodically(checkFunc func() healthUpdate, updates chan healthUpdate) {
 func checkSDN() (update healthUpdate) {
 	update.service = "sources.debian.net"
 
-	update.healthy = false
 	client := &http.Client{
 		Transport: &http.Transport{
 			// Dials a network address with a connection timeout of 5 seconds and a data
