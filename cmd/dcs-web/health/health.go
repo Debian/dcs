@@ -25,73 +25,68 @@ type healthUpdate struct {
 	healthy bool
 }
 
-// health-checks sources.debian.net, run as a goroutine
-func checkSDN(updates chan healthUpdate) {
-	update := healthUpdate{service: "sources.debian.net"}
-
-	// Perform the first check immediately so that requests immediately get
-	// redirected if sources.debian.net is up.
-	delay := 0 * time.Second
+func periodically(checkFunc func() healthUpdate, updates chan healthUpdate) {
 	for {
-		time.Sleep(delay)
-		delay = 30 * time.Second
-		update.healthy = false
-		client := &http.Client{
-			Transport: &http.Transport{
-				// Dials a network address with a connection timeout of 5 seconds and a data
-				// deadline of 5 seconds.
-				Dial: func(netw, addr string) (net.Conn, error) {
-					conn, err := net.DialTimeout(netw, addr, 5*time.Second)
-					if err != nil {
-						return nil, err
-					}
-					conn.SetDeadline(time.Now().Add(5 * time.Second))
-					return conn, nil
-				},
-			},
-		}
-		responseChan := make(chan *http.Response)
-		go func() {
-			resp, _ := client.Get("http://sources.debian.net/api/ping/")
-			responseChan <- resp
-		}()
-		select {
-		case <-time.After(15 * time.Second):
-			// TODO: if this never ever happens we can make this code simpler and blockingly call client.Get()
-			log.Printf("BUG BUG BUG: The http client.Get took too long even though it is supposed to have a timeout.")
-			updates <- update
-			continue
-		case resp := <-responseChan:
-			if resp == nil {
-				log.Printf("health check: sources.debian.net did not answer to HTTP\n")
-				updates <- update
-				continue
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				log.Printf("health check: sources.debian.net returned code %d\n", resp.StatusCode)
-				updates <- update
-				continue
-			}
-			type sdnStatus struct {
-				Status string
-			}
-			status := sdnStatus{}
-			decoder := json.NewDecoder(resp.Body)
-			if err := decoder.Decode(&status); err != nil {
-				log.Printf("health check: sources.debian.net returned invalid JSON: %v\n", err)
-				updates <- update
-				continue
-			}
-			if status.Status != "ok" {
-				log.Printf("health check: sources.debian.net returned status == false\n")
-				updates <- update
-				continue
-			}
-			update.healthy = true
-			updates <- update
-		}
+		updates <- checkFunc()
+		time.Sleep(30 * time.Second)
 	}
+}
+
+// health-checks sources.debian.net, run within a goroutine
+func checkSDN() (update healthUpdate) {
+	update.service = "sources.debian.net"
+
+	update.healthy = false
+	client := &http.Client{
+		Transport: &http.Transport{
+			// Dials a network address with a connection timeout of 5 seconds and a data
+			// deadline of 5 seconds.
+			Dial: func(netw, addr string) (net.Conn, error) {
+				conn, err := net.DialTimeout(netw, addr, 5*time.Second)
+				if err != nil {
+					return nil, err
+				}
+				conn.SetDeadline(time.Now().Add(5 * time.Second))
+				return conn, nil
+			},
+		},
+	}
+	responseChan := make(chan *http.Response)
+	go func() {
+		resp, _ := client.Get("http://sources.debian.net/api/ping/")
+		responseChan <- resp
+	}()
+	select {
+	case <-time.After(15 * time.Second):
+		// TODO: if this never ever happens we can make this code simpler and blockingly call client.Get()
+		log.Printf("BUG BUG BUG: The http client.Get took too long even though it is supposed to have a timeout.")
+		return
+	case resp := <-responseChan:
+		if resp == nil {
+			log.Printf("health check: sources.debian.net did not answer to HTTP\n")
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 200 {
+			log.Printf("health check: sources.debian.net returned code %d\n", resp.StatusCode)
+			return
+		}
+		type sdnStatus struct {
+			Status string
+		}
+		status := sdnStatus{}
+		decoder := json.NewDecoder(resp.Body)
+		if err := decoder.Decode(&status); err != nil {
+			log.Printf("health check: sources.debian.net returned invalid JSON: %v\n", err)
+			return
+		}
+		if status.Status != "ok" {
+			log.Printf("health check: sources.debian.net returned status == false\n")
+			return
+		}
+		update.healthy = true
+	}
+	return
 }
 
 func IsHealthy(service string) bool {
@@ -107,7 +102,7 @@ func IsHealthy(service string) bool {
 func StartChecking() {
 	updates := make(chan healthUpdate)
 
-	go checkSDN(updates)
+	go periodically(checkSDN, updates)
 
 	// Take updates and respond to health status requests in a single
 	// goroutine. It is not safe to write/read to a map from multiple go
