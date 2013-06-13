@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"compress/bzip2"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -97,13 +98,13 @@ func main() {
 	defer update.Close()
 
 	// Walk through all source packages
-	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/source/Sources"))
+	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/source/Sources.bz2"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
 
-	sourcePackages, err := godebiancontrol.Parse(file)
+	sourcePackages, err := godebiancontrol.Parse(bzip2.NewReader(file))
 	if err != nil {
 		log.Fatal(err)
 	}
