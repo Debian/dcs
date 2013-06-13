@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 var numShards = flag.Int("shards", 1,
@@ -115,16 +116,27 @@ func main() {
 				}
 			}
 
-			if info != nil && info.Mode()&os.ModeType == 0 {
-				// We strip the unpacked directory path plus the following
-				// slash, e.g. /dcs-ssd/unpacked plus /
-				indexname := path[skiplen:]
-				if *dry {
-					log.Printf("adding %s as %s\n", path, indexname)
-				} else {
-					ix[cnt%*numShards].AddFile(path, indexname)
-					cnt++
-				}
+			if info == nil || !info.Mode().IsRegular() {
+				return nil
+			}
+
+			// Some filenames (e.g.
+			// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
+			// invalid UTF-8 and will break when sending them via JSON later
+			// on. Filter those out early to avoid breakage.
+			if !utf8.ValidString(path) {
+				log.Printf("Skipping due to invalid UTF-8: %s\n", path)
+				return nil
+			}
+
+			// We strip the unpacked directory path plus the following
+			// slash, e.g. /dcs-ssd/unpacked plus /
+			indexname := path[skiplen:]
+			if *dry {
+				log.Printf("adding %s as %s\n", path, indexname)
+			} else {
+				ix[cnt%*numShards].AddFile(path, indexname)
+				cnt++
 			}
 			return nil
 		})
