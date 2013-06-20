@@ -6,6 +6,7 @@
 package health
 
 import (
+	"dcs/cmd/dcs-web/common"
 	"encoding/json"
 	"log"
 	"net"
@@ -98,7 +99,9 @@ func IsHealthy(service string) bool {
 func StartChecking() {
 	updates := make(chan healthUpdate)
 
-	go periodically(checkSDN, updates)
+	if *common.UseSourcesDebianNet {
+		go periodically(checkSDN, updates)
+	}
 
 	// Take updates and respond to health status requests in a single
 	// goroutine. It is not safe to write/read to a map from multiple go
