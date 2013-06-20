@@ -7,6 +7,7 @@ import (
 	"dcs/cmd/dcs-web/index"
 	"dcs/cmd/dcs-web/search"
 	"dcs/cmd/dcs-web/show"
+	"dcs/cmd/dcs-web/varz"
 	"flag"
 	"fmt"
 	"log"
@@ -31,6 +32,7 @@ func main() {
 	health.StartChecking()
 
 	http.HandleFunc("/", index.Index)
+	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/search", search.Search)
 	http.HandleFunc("/show", show.Show)
 	http.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
