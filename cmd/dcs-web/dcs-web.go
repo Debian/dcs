@@ -32,6 +32,7 @@ func main() {
 	health.StartChecking()
 
 	http.HandleFunc("/", index.Index)
+	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/search", search.Search)
 	http.HandleFunc("/show", show.Show)
