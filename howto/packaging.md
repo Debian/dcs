@@ -6,6 +6,7 @@ The canonical way of deploying DCS is creating a Debian package and installing t
 
 ```bash
 apt-get install -t experimental golang-go
+apt-get install golang-pq-dev golang-godebiancontrol-dev golang-codesearch-dev
 ```
 
 Go requires you to setup a directory in which all source code is stored. The location of that directory is stored in an environment variable called `GOPATH`:
@@ -18,16 +19,7 @@ export GOPATH=/home/michael/gocode
 Now, check out the source of dcs:
 
 ```bash
-cd ~/gocode/src
-git clone git://github.com/debiancodesearch/dcs.git
-```
-
-## Installing Go dependencies
-
-```bash
-go get github.com/lib/pq
-go get github.com/mstap/godebiancontrol
-go get code.google.com/p/codesearch
+go get github.com/Debian/dcs
 ```
 
 ## Creating the Debian package
@@ -35,11 +27,10 @@ go get code.google.com/p/codesearch
 We now create an upstream tarball from the git source, extract it and create a package via dpkg-buildpackage:
 ```bash
 cd $GOPATH/src/dcs
-git archive --format=tar.gz --prefix=dcs-0.1/src/dcs/ -o /tmp/dcs_0.1.orig.tar.gz HEAD
+git archive --format=tar.gz --prefix=dcs-0.1/ -o /tmp/dcs_0.1.orig.tar.gz HEAD
 cd /tmp
 tar xf dcs_0.1.orig.tar.gz
 cd dcs-0.1
-mv src/dcs/debian .
 dpkg-buildpackage -b
 ```
 
