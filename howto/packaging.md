@@ -24,22 +24,10 @@ git clone git://github.com/debiancodesearch/dcs.git
 
 ## Installing Go dependencies
 
-Ensure that you got the Postgres development package installed:
 ```bash
-apt-get install libpq-dev
-```
-
-Then, install all the dependencies:
-```bash
-go get github.com/jbarham/gopgsqldriver
+go get github.com/lib/pq
 go get github.com/mstap/godebiancontrol
 go get code.google.com/p/codesearch
-```
-
-Note that gopgsqldriver currently does not compile cleanly due to [libpq-fe.h being in a different location on Debian](https://github.com/jbarham/gopgsqldriver/issues/4) than on the author’s machine apparently. Let’s fix that:
-```bash
-cd github.com/jbarham/gopgsqldriver
-sed -i 's,#include <libpq-fe.h>,#include <postgresql/libpq-fe.h>,g' pgdriver.go
 ```
 
 ## Creating the Debian package

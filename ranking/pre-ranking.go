@@ -12,7 +12,7 @@ package ranking
 
 import (
 	"database/sql"
-	_ "github.com/jbarham/gopgsqldriver"
+	_ "github.com/lib/pq"
 	"log"
 	"path"
 )
@@ -33,7 +33,7 @@ var storedRanking = make(map[string]StoredRanking)
 // *a lot* of time when ranking queries which have many possible results (such
 // as "smart" with 201043 possible results).
 func init() {
-	db, err := sql.Open("postgres", "dbname=dcs")
+	db, err := sql.Open("postgres", "dbname=dcs host=/var/run/postgresql/ sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}

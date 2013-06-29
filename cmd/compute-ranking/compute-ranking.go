@@ -7,7 +7,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	_ "github.com/jbarham/gopgsqldriver"
+	_ "github.com/lib/pq"
 	"github.com/mstap/godebiancontrol"
 	"log"
 	"os"
@@ -30,7 +30,7 @@ var popconInstSrc map[string]float32 = make(map[string]float32)
 // installation count is stored normalized by dividing through the total amount
 // of popcon installations.
 func fillPopconInst() {
-	db, err := sql.Open("postgres", "dbname=udd")
+	db, err := sql.Open("postgres", "dbname=udd host=/var/run/postgresql/ sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func main() {
 
 	fillPopconInst()
 
-	db, err := sql.Open("postgres", "dbname=dcs")
+	db, err := sql.Open("postgres", "dbname=dcs host=/var/run/postgresql/ sslmode=disable")
 	if err != nil {
 		log.Fatal(err)
 	}
