@@ -16,8 +16,23 @@
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
-override_dh_auto_build:
-	GOPATH=$(CURDIR):$(GOPATH) go install -ldflags "-X dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)" -v dcs/cmd/...
+GOPKG := github.com/Debian/dcs
+
+TMPGOPATH = $(CURDIR)/debian/tmp/usr/share/gocode
+
+override_dh_auto_install:
+	mkdir -p ${TMPGOPATH}/src/${GOPKG}
+	# Copy all .go files to /usr/share/gocode (we compile and ship).
+	find . -path ./debian -prune -o -type f -name "*.go" -exec tar cf - {} + | (cd "${TMPGOPATH}/src/${GOPKG}" && tar xvf -)
+	# Ensure that GOPATH is clean: It should only contain the temporary
+	# /usr/src/golang containing the package we want to install and the
+	# /usr/src/golang of the system we are building on. It should
+	# specifically NOT contain the user’s local ~/gocode.
+	GOPATH=${TMPGOPATH}:/usr/share/gocode go install -v -ldflags "-X dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)" ${GOPKG}/cmd/...
+	deps=`dpkg-query -f='$${source:Package} (= $${source:Version}), ' -W $$(perl -MParse::DebControl -E 'my $$p = Parse::DebControl->new(); my $$data = $$p->parse_file("./debian/control"); my @deps = grep { /^\s*golang-/ } split(",", $$data->[0]->{"Build-Depends"}); say join(" ", @deps)')`; \
+        for pkg in `dh_listpackages`; do \
+                echo "misc:Built-Using=$$deps" >> debian/$$pkg.substvars; \
+        done
 
 override_dh_builddeb:
 	dh_builddeb -- -Zxz
