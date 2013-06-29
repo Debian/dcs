@@ -6,7 +6,7 @@
 package health
 
 import (
-	"dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"encoding/json"
 	"log"
 	"net"

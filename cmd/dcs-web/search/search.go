@@ -4,8 +4,8 @@ package search
 import (
 	"bytes"
 	"code.google.com/p/codesearch/regexp"
-	"dcs/cmd/dcs-web/common"
-	"dcs/ranking"
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/ranking"
 	"encoding/json"
 	"flag"
 	"fmt"

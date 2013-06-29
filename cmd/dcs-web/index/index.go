@@ -2,8 +2,8 @@
 package index
 
 import (
-	"dcs/cmd/dcs-web/common"
-	"dcs/cmd/dcs-web/varz"
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/varz"
 	"net/http"
 )
 

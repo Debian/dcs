@@ -2,7 +2,7 @@
 package main
 
 import (
-	"dcs/index"
+	"github.com/Debian/dcs/index"
 	"code.google.com/p/codesearch/regexp"
 	"encoding/json"
 	"flag"

@@ -9,7 +9,7 @@
 package main
 
 import (
-	"dcs/index"
+	"github.com/Debian/dcs/index"
 	"flag"
 	"fmt"
 	"log"

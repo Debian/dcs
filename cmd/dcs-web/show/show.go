@@ -2,8 +2,8 @@
 package show
 
 import (
-	"dcs/cmd/dcs-web/common"
-	"dcs/cmd/dcs-web/health"
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"fmt"
 	"io/ioutil"
 	"log"

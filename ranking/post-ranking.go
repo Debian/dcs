@@ -7,7 +7,7 @@
 package ranking
 
 import (
-	"dcs/regexp"
+	"github.com/Debian/dcs/regexp"
 	"unicode"
 )
 

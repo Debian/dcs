@@ -4,8 +4,8 @@ package main
 import (
 	// This is a forked version of codesearch/regexp which returns the results
 	// in a structure instead of printing to stdout/stderr directly.
-	"dcs/ranking"
-	"dcs/regexp"
+	"github.com/Debian/dcs/ranking"
+	"github.com/Debian/dcs/regexp"
 	"encoding/json"
 	"flag"
 	"fmt"

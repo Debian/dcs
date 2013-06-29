@@ -2,12 +2,12 @@
 package main
 
 import (
-	"dcs/cmd/dcs-web/common"
-	"dcs/cmd/dcs-web/health"
-	"dcs/cmd/dcs-web/index"
-	"dcs/cmd/dcs-web/search"
-	"dcs/cmd/dcs-web/show"
-	"dcs/cmd/dcs-web/varz"
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/health"
+	"github.com/Debian/dcs/cmd/dcs-web/index"
+	"github.com/Debian/dcs/cmd/dcs-web/search"
+	"github.com/Debian/dcs/cmd/dcs-web/show"
+	"github.com/Debian/dcs/cmd/dcs-web/varz"
 	"flag"
 	"fmt"
 	"log"
