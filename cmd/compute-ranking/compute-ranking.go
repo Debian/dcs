@@ -57,22 +57,6 @@ func fillPopconInst() {
 
 }
 
-func countReverseDepends(out string, packageName string) uint {
-	packages := make(map[string]bool)
-	for _, line := range strings.Split(out, "\n") {
-		if !strings.HasPrefix(line, "  ") {
-			continue
-		}
-
-		parts := strings.Split(line, ":")
-		packages[parts[0]] = true
-	}
-	delete(packages, "  "+packageName)
-	delete(packages, " |"+packageName)
-
-	return uint(len(packages))
-}
-
 func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
 	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/", name))
 	if err != nil {
