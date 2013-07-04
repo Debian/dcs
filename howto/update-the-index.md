@@ -15,7 +15,7 @@ First of all, we need to mirror the Debian archive:
 
 ```bash
 $ cd /dcs
-$ debmirror --progress --verbose -a none --source -s main -h deb-mirror.de -r /debian source-mirror
+$ debmirror --diff=none --progress --verbose -a none --source -s main -h deb-mirror.de -r /debian source-mirror
 ```
 
 Then, we use `dcs-unpack` to unpack every package in order to make its source code servable and indexable:
