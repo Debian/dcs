@@ -11,11 +11,25 @@ Debian Code Search requires an index in order to search through tons of source c
 
 Beware: These steps are untested. Please submit any corrections and/or ask if you have any questions.
 
+Create a PostgreSQL database:
+```bash
+su - postgres
+createdb -O dcs -T template0 -E SQL_ASCII udd
+```
+
 First of all, we need to mirror the Debian archive:
 
 ```bash
 $ cd /dcs
 $ debmirror --diff=none --progress --verbose -a none --source -s main -h deb-mirror.de -r /debian source-mirror
+$ debmirror --diff=none --exclude-deb-section=.* --include golang-mode --nocleanup --progress --verbose -a none --arch amd64 -s main -h deb-mirror.de -r /debian source-mirror
+```
+
+(We download the golang-mode binary package because it is small, and we need to make debhelper download at least one package to keep the binary-amd64/Packages files in which we are interestd in.)
+
+Update the ranking:
+```bash
+compute-ranking -mirrorPath=/dcs/source-mirror
 ```
 
 Then, we use `dcs-unpack` to unpack every package in order to make its source code servable and indexable:
@@ -59,11 +73,23 @@ $ rm -rf NEW OLD
 $ mkdir NEW OLD
 ```
 
+First of all, get an updated copy of the UDD’s popcon_src table and import it to the PostgreSQL server:
+```bash
+echo 'DROP TABLE popcon; DROP TABLE popcon_src;' | psql udd
+wget -qO- http://udd.debian.org/udd-popcon.sql.xz | xz -d -c | psql udd
+```
+
 Then, update your copy of the Debian source mirror. This should not take much more than 15 minutes when using a high-speed mirror.
 
 ```bash
-$ debmirror --progress --verbose -a none --source -s main -h deb-mirror.de -r /debian source-mirror
+$ debmirror --diff=none --progress --verbose -a none --source -s main -h deb-mirror.de -r /debian source-mirror
+$ debmirror --diff=none --exclude-deb-section=.* --include golang-mode --nocleanup --progress --verbose -a none --arch amd64 -s main -h deb-mirror.de -r /debian source-mirror
 97,56s user 110,12s system 26% cpu 12:50,20 total
+```
+
+Update the ranking:
+```bash
+compute-ranking -mirrorPath=/dcs/source-mirror
 ```
 
 Now, `dcs-unpack` creates a new folder called `unpacked-new` which contains the unpacked source mirror. To save time and space, packages that have not changed from the last index will be hard-linked.
