@@ -146,7 +146,7 @@ func main() {
 		srcpkg := pkg["Package"]
 		packageRank := popconInstSrc[srcpkg]
 		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
-		fmt.Printf("%f %d %s\n", packageRank, rdepcount, srcpkg)
+		fmt.Printf("%f %f %s\n", packageRank, rdepcount, srcpkg)
 		if *dryRun {
 			continue
 		}
