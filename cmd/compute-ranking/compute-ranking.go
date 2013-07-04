@@ -18,6 +18,7 @@ var mirrorPath = flag.String("mirrorPath",
 	"/media/sdd1/debian-source-mirror/",
 	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
 var dryRun = flag.Bool("dry_run", false, "Don’t actually write anything to the database.")
+var verbose = flag.Bool("verbose", false, "Print ranking information about every package")
 var popconInstSrc map[string]float32 = make(map[string]float32)
 
 // Fills popconInstSrc from the Ultimate Debian Database (udd). The popcon
@@ -37,7 +38,9 @@ func fillPopconInst() {
 		log.Fatalf("Could not get SUM(insts) FROM popcon: %v", err)
 	}
 
-	log.Printf("total %d installations", totalInstallations)
+	if *verbose {
+		log.Printf("total %d installations", totalInstallations)
+	}
 
 	rows, err := db.Query("SELECT source, insts FROM popcon_src")
 	if err != nil {
@@ -87,7 +90,6 @@ func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
 
 func main() {
 	flag.Parse()
-	fmt.Println("Debian Code Search ranking tool")
 
 	fillPopconInst()
 
@@ -146,7 +148,9 @@ func main() {
 		srcpkg := pkg["Package"]
 		packageRank := popconInstSrc[srcpkg]
 		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
-		fmt.Printf("%f %f %s\n", packageRank, rdepcount, srcpkg)
+		if *verbose {
+			fmt.Printf("%f %f %s\n", packageRank, rdepcount, srcpkg)
+		}
 		if *dryRun {
 			continue
 		}
