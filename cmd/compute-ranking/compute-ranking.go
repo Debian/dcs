@@ -2,7 +2,6 @@
 package main
 
 import (
-	"bytes"
 	"compress/bzip2"
 	"database/sql"
 	"flag"
@@ -11,15 +10,10 @@ import (
 	"github.com/mstap/godebiancontrol"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 )
 
-var packageLine *regexp.Regexp = regexp.MustCompile(`^Package: (.+)`)
-var binaryLine *regexp.Regexp = regexp.MustCompile(`^Binary: (.+)`)
-var udeb *regexp.Regexp = regexp.MustCompile(`\budeb\b`)
 var mirrorPath = flag.String("mirrorPath",
 	"/media/sdd1/debian-source-mirror/",
 	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
@@ -60,7 +54,7 @@ func fillPopconInst() {
 
 }
 
-func countReverseDepends(out string) int {
+func countReverseDepends(out string, packageName string) uint {
 	packages := make(map[string]bool)
 	for _, line := range strings.Split(out, "\n") {
 		if !strings.HasPrefix(line, "  ") {
@@ -70,8 +64,25 @@ func countReverseDepends(out string) int {
 		parts := strings.Split(line, ":")
 		packages[parts[0]] = true
 	}
+	delete(packages, "  "+packageName)
+	delete(packages, " |"+packageName)
 
-	return len(packages)
+	return uint(len(packages))
+}
+
+func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
+	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/", name))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	contents, err := godebiancontrol.Parse(bzip2.NewReader(file))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return contents
 }
 
 func main() {
@@ -97,51 +108,40 @@ func main() {
 	}
 	defer update.Close()
 
-	// Walk through all source packages
-	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/source/Sources.bz2"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
+	sourcePackages := mustLoadMirroredControlFile("source/Sources.bz2")
+	binaryPackages := mustLoadMirroredControlFile("binary-amd64/Packages.bz2")
 
-	sourcePackages, err := godebiancontrol.Parse(bzip2.NewReader(file))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	udebs := make(map[string]bool)
-	for _, pkg := range sourcePackages {
-		// Fill our map of udebs. Used later on to avoid running apt-cache
-		// rdepends on udebs.
-		packageList := strings.Split(pkg["Package-List"], "\n")
-		for _, pkg := range packageList {
-			pkg = strings.TrimSpace(pkg)
-			parts := strings.Split(pkg, " ")
-			if (len(parts) > 1 && parts[1] == "udeb") ||
-				(len(parts) > 2 && parts[2] == "debian-installer") ||
-				(len(parts) > 0 && strings.HasSuffix(parts[0], "-udeb")) {
-				udebs[parts[0]] = true
-				fmt.Printf("%s is an UDEB\n", parts[0])
+	reverseDeps := make(map[string]uint)
+	for _, pkg := range binaryPackages {
+		// We need to filter duplicates, because consider this:
+		// agda-bin Recommends: libghc-agda-dev (>= 2.3.2), libghc-agda-dev (<< 2.3.2)
+		dependsOn := make(map[string]bool)
+		// NB: This differs from what apt-cache rdepends spit out. apt-cache
+		// also considers the Replaces field.
+		allDeps := pkg["Depends"] + "," + pkg["Suggests"] + "," + pkg["Recommends"] + "," + pkg["Enhances"]
+		for _, dep := range strings.FieldsFunc(allDeps, func(r rune) bool {
+			return r == ',' || r == '|'
+		}) {
+			trimmed := strings.TrimSpace(dep)
+			spaceIdx := strings.Index(trimmed, " ")
+			if spaceIdx == -1 {
+				spaceIdx = len(trimmed)
 			}
+			dependsOn[trimmed[:spaceIdx]] = true
 		}
+		for name, _ := range dependsOn {
+			reverseDeps[name] += 1
+		}
+	}
+
+	for _, pkg := range sourcePackages {
 		rdepcount := float32(0)
-		binaryPackages := strings.Split(pkg["Binary"], ",")
-		for _, packageName := range binaryPackages {
+		for _, packageName := range strings.Split(pkg["Binary"], ",") {
 			packageName = strings.TrimSpace(packageName)
-			if udebs[packageName] {
-				fmt.Printf("skipping %s because it’s not a deb\n", packageName)
-				continue
-			}
 			if packageName == "" {
 				continue
 			}
-			var out bytes.Buffer
-			cmd := exec.Command("apt-cache", "rdepends", packageName)
-			cmd.Stdout = &out
-			if err = cmd.Run(); err != nil {
-				log.Printf("ERROR: %v\n", err)
-			}
-			rdepcount += float32(countReverseDepends(out.String()))
+			rdepcount += float32(reverseDeps[packageName])
 		}
 		srcpkg := pkg["Package"]
 		packageRank := popconInstSrc[srcpkg]
