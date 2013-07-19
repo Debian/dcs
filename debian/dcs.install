@@ -1,5 +1,5 @@
 # Install all binaries from bin/ to /usr/bin/
-debian/tmp/usr/share/gocode/bin/* /usr/bin/
+debian/tmp/bin/* /usr/bin/
 # Install the templates folder to /usr/share/dcs/templates
 cmd/dcs-web/templates /usr/share/dcs/
 # Install static html files to /usr/share/dcs/static

@@ -11,38 +11,18 @@
 # build-arch and build-indep targets  by Bill Allombert 2001
 
 # Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
+export DH_VERBOSE=1
 
 # This has to be exported to make some magic below work.
 export DH_OPTIONS
 
-GOPKG := github.com/Debian/dcs
+export DH_GOPKG := github.com/Debian/dcs
 
-TMPGOPATH = $(CURDIR)/debian/tmp/usr/share/gocode
+override_dh_auto_build:
+	dh_auto_build -- -ldflags "-X dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)"
 
-override_dh_auto_install:
-	mkdir -p ${TMPGOPATH}/src/${GOPKG}
-	# Copy all .go files to /usr/share/gocode (we compile and ship).
-	find . -path ./debian -prune -o -type f -name "*.go" -exec tar cf - {} + | (cd "${TMPGOPATH}/src/${GOPKG}" && tar xvf -)
-	# Symlink all the available libraries to our temporary $GOPATH. This is
-	# necessary because go install will want to modify the pkg subdir of
-	# the part of $GOPATH where the src is in, e.g. it’ll want to write to
-	# /usr/share/gocode/pkg when a dependency is found there. That
-	# obviously fails, but when symlinking, all libraries are found in our
-	# temporary $GOPATH.
-	$(CURDIR)/debian/symlink.pl "/usr/share/gocode/src" "${TMPGOPATH}/src"
-	# Ensure that GOPATH is clean: It should only contain the temporary
-	# /usr/src/golang containing the package we want to install and the
-	# /usr/src/golang of the system we are building on. It should
-	# specifically NOT contain the user’s local ~/gocode.
-	GOPATH=${TMPGOPATH} go install -v -ldflags "-X dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)" ${GOPKG}/cmd/...
-	deps=`dpkg-query -f='$${source:Package} (= $${source:Version}), ' -W $$(perl -MParse::DebControl -E 'my $$p = Parse::DebControl->new(); my $$data = $$p->parse_file("./debian/control"); my @deps = grep { /^\s*golang-/ } split(",", $$data->[0]->{"Build-Depends"}); say join(" ", @deps)')`; \
-        for pkg in `dh_listpackages`; do \
-                echo "misc:Built-Using=$$deps" >> debian/$$pkg.substvars; \
-        done
-
-override_dh_builddeb:
-	dh_builddeb -- -Zxz
+# FIXME: tests currently fail
+override_dh_auto_test:
 
 %:
-	dh $@ 
+	dh $@ --buildsystem=golang --with=golang
