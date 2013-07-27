@@ -13,12 +13,12 @@ set -e
 /usr/bin/debmirror --diff=none -a none --source -s main -h deb-mirror.de -r /debian /dcs/source-mirror >/dev/null
 /usr/bin/debmirror --diff=none --exclude-deb-section=.* --include golang-mode --nocleanup -a none --arch amd64 -s main -h deb-mirror.de -r /debian /dcs/source-mirror >/dev/null
 
-echo 'DROP TABLE popcon; DROP TABLE popcon_src;' | psql udd
 POPCONDUMP=$(mktemp)
 if ! wget -q http://udd.debian.org/udd-popcon.sql.xz -O $POPCONDUMP
 then
 	wget -q http://public-udd-mirror.xvm.mit.edu/snapshots/udd-popcon.sql.xz -O $POPCONDUMP
 fi
+echo 'DROP TABLE popcon; DROP TABLE popcon_src;' | psql udd
 xz -d -c $POPCONDUMP | psql udd
 rm $POPCONDUMP
 
