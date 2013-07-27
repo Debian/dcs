@@ -13,13 +13,13 @@ import (
 	"strings"
 )
 
-var mirrorPath = flag.String("mirrorPath",
+var mirrorPath = flag.String("mirror_path",
 	"/media/sdd1/debian-source-mirror/",
 	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
-var oldUnpackPath = flag.String("oldUnpackPath",
+var oldUnpackPath = flag.String("old_unpacked_path",
 	"/dcs-ssd/unpacked/",
 	"Path to the unpacked debian source mirror")
-var newUnpackPath = flag.String("newUnpackPath",
+var newUnpackPath = flag.String("new_unpacked_path",
 	"/dcs-ssd/unpacked-new/",
 	"Path to the unpacked debian source mirror")
 

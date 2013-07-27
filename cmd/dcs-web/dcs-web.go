@@ -16,9 +16,9 @@ import (
 	"runtime/pprof"
 )
 
-var listenHost = flag.String("listen_host",
+var listenAddress = flag.String("listen_address",
 	":28080",
-	"host:port to listen on")
+	"listen address ([host]:port)")
 var memprofile = flag.String("memprofile", "", "Write memory profile to this file")
 
 func main() {
@@ -48,5 +48,5 @@ func main() {
 			return
 		}
 	})
-	log.Fatal(http.ListenAndServe(*listenHost, nil))
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

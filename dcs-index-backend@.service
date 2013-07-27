@@ -4,7 +4,7 @@ Description=Debian Code Search: index backend
 [Service]
 User=dcs
 Group=dcs
-ExecStart=/usr/bin/index-backend -listen=:2908%i -indexpath=/dcs/index.%i.idx
+ExecStart=/usr/bin/index-backend -listen_address=:2908%i -index_path=/dcs/index.%i.idx
 # Since logging is very verbose, we log to /dev/null for now
 StandardOutput=null
 StandardError=journal

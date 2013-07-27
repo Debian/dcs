@@ -18,8 +18,8 @@ import (
 var ix *index.Index
 
 var (
-	listenAddress = flag.String("listen", ":28081", "listen address")
-	indexPath = flag.String("indexpath", "", "path to the index to serve")
+	listenAddress = flag.String("listen_address", ":28081", "listen address ([host]:port)")
+	indexPath = flag.String("index_path", "", "path to the index shard to serve, e.g. /dcs-ssd/index.0.idx")
 	cpuProfile = flag.String("cpuprofile", "", "write cpu profile to this file")
 	id string
 )
@@ -78,7 +78,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	if *indexPath == "" {
-		log.Fatal("You need to specify a non-empty -indexpath")
+		log.Fatal("You need to specify a non-empty -index_path")
 	}
 	fmt.Println("Debian Code Search index-backend")
 

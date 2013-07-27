@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-var mirrorPath = flag.String("mirrorPath",
+var mirrorPath = flag.String("mirror_path",
 	"/media/sdd1/debian-source-mirror/",
 	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
 var dryRun = flag.Bool("dry_run", false, "Don’t actually write anything to the database.")

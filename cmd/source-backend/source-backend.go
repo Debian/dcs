@@ -18,9 +18,12 @@ import (
 	"strings"
 )
 
-var unpackedPath = flag.String("unpacked_path",
-	"/dcs-ssd/unpacked/",
-	"Path to the unpacked sources")
+var (
+	listenAddress = flag.String("listen_address", ":28082", "listen address ([host]:port)")
+	unpackedPath  = flag.String("unpacked_path",
+		"/dcs-ssd/unpacked/",
+		"Path to the unpacked sources")
+)
 
 type SourceReply struct {
 	// The number of the last used filename, needed for pagination
@@ -120,5 +123,5 @@ func main() {
 
 	http.HandleFunc("/source", Source)
 	http.HandleFunc("/file", File)
-	log.Fatal(http.ListenAndServe(":28082", nil))
+	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

@@ -21,13 +21,13 @@ import (
 
 var numShards = flag.Int("shards", 1,
 	"Number of index shards (the index will be split into 'shard' different files)")
-var mirrorPath = flag.String("mirrorPath",
+var indexShardPath = flag.String("index_shard_path",
 	"/dcs-ssd/",
 	"Where to place the index.<shard>.idx files in")
-var unpackedPath = flag.String("unpackedPath",
+var unpackedPath = flag.String("unpacked_path",
 	"/dcs-ssd/unpacked/",
 	"Where to look for unpacked directories. Needs to have a trailing /")
-var dry = flag.Bool("dryrun", false, "Don't write index files")
+var dry = flag.Bool("dry_run", false, "Don't write index files")
 
 // Returns true when the file matches .[0-9]$ (cheaper than a regular
 // expression).
@@ -46,7 +46,7 @@ func main() {
 
 	if !*dry {
 		for i := 0; i < *numShards; i++ {
-			path := fmt.Sprintf("%s/index.%d.idx", *mirrorPath, i)
+			path := fmt.Sprintf("%s/index.%d.idx", *indexShardPath, i)
 			ix[i] = index.Create(path)
 			ix[i].Verbose = true
 		}
