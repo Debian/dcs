@@ -1,0 +1,12 @@
+# This file contains attributes that are common to all DCS jobs.
+# It should not be started directly, it is included from other files.
+
+[Service]
+User=dcs
+Group=dcs
+# Redirecting stdout to /dev/null because it’s very verbose.
+# It makes sense to enable it on demand for debugging only.
+StandardOutput=null
+StandardError=journal
+RestartSec=1
+Restart=on-failure

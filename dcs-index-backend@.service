@@ -1,15 +1,10 @@
+.include /lib/systemd/system/dcs-common.service
+
 [Unit]
 Description=Debian Code Search: index backend
 
 [Service]
-User=dcs
-Group=dcs
 ExecStart=/usr/bin/index-backend -listen_address=:2908%i -index_path=/dcs/index.%i.idx
-# Since logging is very verbose, we log to /dev/null for now
-StandardOutput=null
-StandardError=journal
-RestartSec=1
-Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
