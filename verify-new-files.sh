@@ -8,7 +8,7 @@ set -e
 STACK=$(dcs-batch-helper -max_stacks=6 create)
 if [ $? -ne 0 ]
 then
-	echo "Could not create a new batch stack" >2
+	echo "Could not create a new batch stack" >&2
 	exit 1
 fi
 
@@ -46,7 +46,7 @@ sleep 10
 # As we discover problems, more checks could be added here, but this one seems fine for now.
 if ! wget -qO- "http://localhost:30${STACK}20/search?q=i3Font" | grep -q 'i3Font load_font'
 then
-	echo "Stack not serving correctly, /search?q=i3Font did not contain 'i3Font load_font'" >2
+	echo "Stack not serving correctly, /search?q=i3Font did not contain 'i3Font load_font'" >&2
 	exit 1
 fi
 
