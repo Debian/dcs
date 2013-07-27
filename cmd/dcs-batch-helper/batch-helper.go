@@ -138,6 +138,13 @@ ExecStart=/usr/bin/dcs-web \
 		log.Fatal(err)
 	}
 
+	// Use daemon-reload so that systemd picks up the new unit
+	// files.
+	cmd := exec.Command("systemctl", "daemon-reload")
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("systemctl daemon-reload: %v", err)
+	}
+
 	systemctlStartForStackOrDie(stackId, "-source-backend.service")
 	for i := 0; i < 6; i++ {
 		systemctlStartForStackOrDie(stackId, fmt.Sprintf("-index-backend@%d.service", i))
