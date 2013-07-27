@@ -195,9 +195,9 @@ func destroyStack(stackId int) {
 
 	// Use daemon-reload so that systemd realizes the unit files
 	// we just deleted disappeared.
-	cmd = exec.Command("systemctl", "daemon-reload", service)
+	cmd := exec.Command("systemctl", "daemon-reload")
 	if err := cmd.Run(); err != nil {
-		log.Fatalf("systemctl daemon-reload %s: %v", service, err)
+		log.Fatalf("systemctl daemon-reload: %v", err)
 	}
 }
 
