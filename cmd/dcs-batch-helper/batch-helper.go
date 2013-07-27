@@ -130,8 +130,9 @@ Description=DCS batch stack dcs-web
 ExecStart=/usr/bin/dcs-web \
     -template_pattern=/usr/share/dcs/templates/* \
     -index_backends=localhost:30%d10,localhost:30%d11,localhost:30%d12,localhost:30%d13,localhost:30%d14,localhost:30%d15 \
-    -listen_address=localhost:30%d20
-`, stackId, stackId, stackId, stackId, stackId, stackId, stackId))
+    -listen_address=localhost:30%d20 \
+    -source_backends=localhost:30%d00
+`, stackId, stackId, stackId, stackId, stackId, stackId, stackId, stackId))
 	if err := ioutil.WriteFile(filepath.Join(*unitDir,
 		fmt.Sprintf(batchPrefixFmt+"-dcs-web.service", stackId)),
 		contents, 0644); err != nil {
