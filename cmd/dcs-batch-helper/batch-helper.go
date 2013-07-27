@@ -187,9 +187,11 @@ func destroyStack(stackId int) {
 		}
 
 		// Use reset-failed because the unit enters failed
-		// state after using systemctl stop. I am not entirely
-		// sure if that is intended behavior on systemd’s
-		// side.
+		// state after using systemctl stop. This is because
+		// go’s default behavior is to exit(2) upon receiving
+		// SIGTERM. Given that any of our binaries might not
+		// necessarily exit with code 0, it seems good to
+		// leave this code in.
 		cmd = exec.Command("systemctl", "reset-failed", service)
 		if err := cmd.Run(); err != nil {
 			log.Fatalf("systemctl reset-failed %s: %v", service, err)
