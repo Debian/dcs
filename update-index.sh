@@ -38,4 +38,7 @@ rm $POPCONDUMP
 # cat > /etc/sudoers.d/dcs-verify-new-files <<EOT
 # dcs ALL=(ALL:ALL) NOPASSWD: /dcs/verify-new-files.sh
 # EOT
-sudo /dcs/verify-new-files.sh && /dcs/swap-index.sh
+# cat > /etc/sudoers.d/dcs-swap-index <<EOT
+# dcs ALL=(ALL:ALL) NOPASSWD: /dcs/swap-index.sh
+# EOT
+sudo /dcs/verify-new-files.sh && sudo /dcs/swap-index.sh
