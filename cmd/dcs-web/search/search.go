@@ -295,6 +295,8 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	query := rewritten.Query()
 	// The "package:" keyword, if specified.
 	pkg := rewritten.Query().Get("package")
+	// The "-package:" keyword, if specified.
+	npkg := rewritten.Query().Get("npackage")
 	// The "path:" keyword, if specified.
 	path := rewritten.Query().Get("path")
 
@@ -392,6 +394,21 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		for _, file := range files {
 			// XXX: Do we want this to be a regular expression match, too?
 			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] != pkg {
+				continue
+			}
+
+			filtered = append(filtered, file)
+		}
+
+		files = filtered
+	}
+	// Filter the filenames if the "-package:" keyword was specified.
+	if npkg != "" {
+		fmt.Printf(`Excluding matches for package "%s"\n`, npkg)
+		filtered := make(ranking.ResultPaths, 0, len(files))
+		for _, file := range files {
+			// XXX: Do we want this to be a regular expression match, too?
+			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] == npkg {
 				continue
 			}
 
