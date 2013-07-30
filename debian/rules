@@ -19,7 +19,7 @@ export DH_OPTIONS
 export DH_GOPKG := github.com/Debian/dcs
 
 override_dh_auto_build:
-	dh_auto_build -- -ldflags "-X dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)"
+	dh_auto_build -- -ldflags "-X github.com/Debian/dcs/cmd/dcs-web/common.Version $(shell date -u +%Y-%m-%d.%H%M)"
 
 # FIXME: tests currently fail
 override_dh_auto_test:
