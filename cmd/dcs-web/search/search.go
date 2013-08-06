@@ -296,9 +296,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	// The "package:" keyword, if specified.
 	pkg := rewritten.Query().Get("package")
 	// The "-package:" keyword, if specified.
-	npkg := rewritten.Query().Get("npackage")
+	npkgs := rewritten.Query()["npackage"]
 	// The "path:" keyword, if specified.
-	path := rewritten.Query().Get("path")
+	paths := rewritten.Query()["path"]
 
 	// Usage of this flag should be restricted to local IP addresses or
 	// something like that (it causes a lot of load, but it makes analyzing the
@@ -403,7 +403,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		files = filtered
 	}
 	// Filter the filenames if the "-package:" keyword was specified.
-	if npkg != "" {
+	for npkg := range npkgs {
 		fmt.Printf(`Excluding matches for package "%s"\n`, npkg)
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
@@ -418,7 +418,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		files = filtered
 	}
 
-	if path != "" {
+	for path := range paths {
 		fmt.Printf(`Filtering for path "%s"\n`, path)
 		pathRegexp, err := regexp.Compile(path)
 		if err != nil {

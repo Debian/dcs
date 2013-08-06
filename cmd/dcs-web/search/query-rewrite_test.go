@@ -81,4 +81,29 @@ func TestRewriteQuery(t *testing.T) {
 	if filetype != "c" {
 		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
 	}
+
+	// Verify that accessing the map for a keyword that doesn't exist doesn't cause iterations
+	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM")
+	vmap = rewritten.Query()["some_array"]
+	for v := range vmap {
+		t.Fatalf("Unexpected value in some_array '%s'", v)
+	}
+
+	// Verify that multiple values for some of the keywords can be passed
+	rewritten = rewrite(t, "/search?q=searchterm+-package%3Ai3-WM+-package%3Afoo")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+	}
+	vmap = rewritten.Query()["npackage"]
+	seen = 0
+	for v := range vmap {
+		seen++
+		if v != "i3-WM" && v != "foo" {
+			t.Fatalf("Unexpected value for -package keyword, got '%s'", v)
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("Expected two elements in the hash of the -package keyword, saw %d", seen)
+	}
 }
