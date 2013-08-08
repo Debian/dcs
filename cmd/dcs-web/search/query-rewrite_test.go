@@ -62,7 +62,7 @@ func TestRewriteQuery(t *testing.T) {
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
 	}
-	pkg := rewritten.Query().Get("npackage")
+	pkg = rewritten.Query().Get("npackage")
 	if pkg != "i3-WM" {
 		t.Fatalf("Expected npackage %s, got %s", "i3-WM", pkg)
 	}
@@ -84,8 +84,8 @@ func TestRewriteQuery(t *testing.T) {
 
 	// Verify that accessing the map for a keyword that doesn't exist doesn't cause iterations
 	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM")
-	vmap = rewritten.Query()["some_array"]
-	for v := range vmap {
+	vmap := rewritten.Query()["some_array"]
+	for _, v := range vmap {
 		t.Fatalf("Unexpected value in some_array '%s'", v)
 	}
 
@@ -96,8 +96,8 @@ func TestRewriteQuery(t *testing.T) {
 		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
 	}
 	vmap = rewritten.Query()["npackage"]
-	seen = 0
-	for v := range vmap {
+	seen := 0
+	for _, v := range vmap {
 		seen++
 		if v != "i3-WM" && v != "foo" {
 			t.Fatalf("Unexpected value for -package keyword, got '%s'", v)

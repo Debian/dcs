@@ -403,7 +403,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		files = filtered
 	}
 	// Filter the filenames if the "-package:" keyword was specified.
-	for npkg := range npkgs {
+	for _, npkg := range npkgs {
 		fmt.Printf(`Excluding matches for package "%s"\n`, npkg)
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
@@ -418,7 +418,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		files = filtered
 	}
 
-	for path := range paths {
+	for _, path := range paths {
 		fmt.Printf(`Filtering for path "%s"\n`, path)
 		pathRegexp, err := regexp.Compile(path)
 		if err != nil {
