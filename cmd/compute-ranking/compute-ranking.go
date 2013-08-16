@@ -2,21 +2,21 @@
 package main
 
 import (
-	"compress/bzip2"
 	"database/sql"
 	"flag"
 	"fmt"
 	_ "github.com/lib/pq"
-	"github.com/mstap/godebiancontrol"
+	"github.com/Debian/dcs/utils"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
 var mirrorPath = flag.String("mirror_path",
 	"/media/sdd1/debian-source-mirror/",
 	"Path to the debian source mirror (which contains the 'dists' and 'pool' folder)")
+var dist = flag.String("dist",
+	"sid",
+	"The release to scan")
 var dryRun = flag.Bool("dry_run", false, "Don’t actually write anything to the database.")
 var verbose = flag.Bool("verbose", false, "Print ranking information about every package")
 var popconInstSrc map[string]float32 = make(map[string]float32)
@@ -57,21 +57,6 @@ func fillPopconInst() {
 
 }
 
-func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
-	file, err := os.Open(filepath.Join(*mirrorPath, "dists/sid/main/", name))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	contents, err := godebiancontrol.Parse(bzip2.NewReader(file))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return contents
-}
-
 func main() {
 	flag.Parse()
 
@@ -94,8 +79,8 @@ func main() {
 	}
 	defer update.Close()
 
-	sourcePackages := mustLoadMirroredControlFile("source/Sources.bz2")
-	binaryPackages := mustLoadMirroredControlFile("binary-amd64/Packages.bz2")
+	sourcePackages := utils.MustLoadMirroredControlFile(*mirrorPath, *dist, "source/Sources.bz2")
+	binaryPackages := utils.MustLoadMirroredControlFile(*mirrorPath, *dist, "binary-amd64/Packages.bz2")
 
 	reverseDeps := make(map[string]uint)
 	for _, pkg := range binaryPackages {

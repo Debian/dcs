@@ -1,10 +1,9 @@
 package main
 
 import (
-	"compress/bzip2"
 	"flag"
 	"fmt"
-	"github.com/mstap/godebiancontrol"
+	"github.com/Debian/dcs/utils"
 	"log"
 	"os"
 	"os/exec"
@@ -22,6 +21,9 @@ var oldUnpackPath = flag.String("old_unpacked_path",
 var newUnpackPath = flag.String("new_unpacked_path",
 	"/dcs-ssd/unpacked-new/",
 	"Path to the unpacked debian source mirror")
+var dist = flag.String("dist",
+	"sid",
+	"The release to scan")
 
 // Copies directories by hard-linking all files inside,
 // necessary since hard-links on directories are not possible.
@@ -48,17 +50,7 @@ func linkDirectory(oldPath, newPath string) error {
 func main() {
 	flag.Parse()
 
-	// Walk through all source packages
-	file, err := os.Open(path.Join(*mirrorPath, "/dists/sid/main/source/Sources.bz2"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	sourcePackages, err := godebiancontrol.Parse(bzip2.NewReader(file))
-	if err != nil {
-		log.Fatal(err)
-	}
+	sourcePackages := utils.MustLoadMirroredControlFile(*mirrorPath, *dist, "source/Sources.bz2")
 
 	if err := os.Mkdir(*newUnpackPath, 0775); err != nil && !os.IsExist(err) {
 		log.Fatal(err)
@@ -75,30 +67,30 @@ func main() {
 		oldPath := path.Join(*oldUnpackPath, dir)
 		newPath := path.Join(*newUnpackPath, dir)
 
-		// Check whether the directory exists in the old "unpacked" directory
-		if _, err := os.Stat(oldPath); err == nil {
+		// Check whether the directory exists in the old "unpacked"
+		// directory and hardlink only if the new path doesn't exist
+		// (to avoid wasted time hardlinking in case of partial runs)
+		_, oldErr := os.Stat(oldPath)
+		_, newErr := os.Stat (newPath)
+		if oldErr == nil && newErr != nil {
 			log.Printf("hardlink %s\n", dir)
 			// If so, just hardlink it to save space and computing time.
 			if err := linkDirectory(oldPath, newPath); err != nil {
 				log.Fatal(err)
 			}
-		} else {
+		} else if oldErr != nil && newErr != nil {
 			log.Printf("unpack %s\n", dir)
-			files := strings.Split(pkg["Files"], "\n")
-			filepath := ""
-			for _, line := range files {
-				if !strings.HasSuffix(line, ".dsc") {
-					continue
-				}
-
+                        files := strings.Split(pkg["Files"], "\n")
+                        filepath := ""
+                        for _, line := range files {
+                                if !strings.HasSuffix(line, ".dsc") {
+                                        continue
+                                }
+ 
 				parts := strings.Split(line, " ")
 				file := parts[len(parts)-1]
-				prefix := string(file[0])
-				if strings.HasPrefix(file, "lib") {
-					prefix = "lib" + string(file[3])
-				}
-				filepath = path.Join(*mirrorPath, "pool", "main", prefix, pkg["Package"], file)
-			}
+                                filepath = path.Join(*mirrorPath, pkg["Directory"], file)
+                        }
 
 			if filepath == "" {
 				log.Fatalf("Package %s contains no dsc file, cannot unpack\n", pkg["Package"])
@@ -114,6 +106,8 @@ func main() {
 			if err := cmd.Run(); err != nil {
 				log.Fatal(err)
 			}
+		} else {
+			log.Printf("Skip unpack of %s\n", dir)
 		}
 	}
 }
