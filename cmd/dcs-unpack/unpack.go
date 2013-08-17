@@ -80,17 +80,17 @@ func main() {
 			}
 		} else if oldErr != nil && newErr != nil {
 			log.Printf("unpack %s\n", dir)
-                        files := strings.Split(pkg["Files"], "\n")
-                        filepath := ""
-                        for _, line := range files {
-                                if !strings.HasSuffix(line, ".dsc") {
-                                        continue
-                                }
+				files := strings.Split(pkg["Files"], "\n")
+				filepath := ""
+				for _, line := range files {
+					if !strings.HasSuffix(line, ".dsc") {
+						continue
+					}
  
-				parts := strings.Split(line, " ")
-				file := parts[len(parts)-1]
-                                filepath = path.Join(*mirrorPath, pkg["Directory"], file)
-                        }
+					parts := strings.Split(line, " ")
+					file := parts[len(parts)-1]
+					filepath = path.Join(*mirrorPath, pkg["Directory"], file)
+				}
 
 			if filepath == "" {
 				log.Fatalf("Package %s contains no dsc file, cannot unpack\n", pkg["Package"])
