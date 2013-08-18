@@ -28,7 +28,9 @@ psql < $GOPATH/github.com/Debian/dcs/schema.sql
 
 ## Filling the PostgreSQL tables
 
-The best way is to donwload the udd-popcon dump and import it. In case you
+The best way is to donwload the udd-popcon dump and import it. Note that not a
+full dump of UDD is required, the popcon table is enough. See
+[update-index.sh](../update-index.sh) for where to get such a dump. In case you
 cannot do that, an alternative is to just insert the following rows manually:
 
 ```sql
