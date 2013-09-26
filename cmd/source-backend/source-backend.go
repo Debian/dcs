@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -77,17 +79,52 @@ func Source(w http.ResponseWriter, r *http.Request) {
 
 	querystr := ranking.NewQueryStr(textQuery)
 
-	grep := regexp.Grep{
-		Regexp: re,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+	workers := runtime.NumCPU()
+	numfiles := int(math.Ceil(float64(len(filenames)) / float64(workers)))
+	workerInputs := make([]chan string, workers)
+	workerOutputs := make([]chan []regexp.Match, workers)
+
+	log.Printf("putting %d queries into %d workers each\n", numfiles, workers)
+
+	for i := 0; i < workers; i++ {
+		workerInputs[i] = make(chan string, numfiles)
+		workerOutputs[i] = make(chan []regexp.Match, numfiles)
+		go func(input chan string, output chan []regexp.Match) {
+			// TODO: figure out how to safely clone a dcs/regexp
+			re, err := regexp.Compile(textQuery)
+			if err != nil {
+				log.Printf("%s\n", err)
+				return
+			}
+
+			grep := regexp.Grep{
+				Regexp: re,
+				Stdout: os.Stdout,
+				Stderr: os.Stderr,
+			}
+
+			for filename := range input {
+				output <- grep.File(path.Join(*unpackedPath, filename))
+			}
+			close(output)
+		}(workerInputs[i], workerOutputs[i])
 	}
+
+	for idx, filename := range filenames {
+		//log.Printf("sending idx %d to worker %d\n", idx, idx % workers)
+		workerInputs[idx % workers] <- filename
+	}
+	for i := 0; i < workers; i++ {
+		close(workerInputs[i])
+	}
+
+	fmt.Printf("done, now getting the results\n")
 
 	// TODO: also limit the number of matches per source-package, not only per file
 	var reply SourceReply
 	for idx, filename := range filenames {
 		fmt.Printf("…in %s\n", filename)
-		matches := grep.File(path.Join(*unpackedPath, filename))
+		matches := <-workerOutputs[idx % workers]
 		for idx, match := range matches {
 			if limit > 0 && idx == 5 {
 				// TODO: we somehow need to signal that there are more results
