@@ -94,7 +94,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 				// (if there are more), so that the user can expand this.
 				break
 			}
-			fmt.Printf("match: %s", match)
+			fmt.Printf("match: %s\n", match)
 			match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
 			match.Path = match.Path[len(*unpackedPath):]
 			reply.AllMatches = append(reply.AllMatches, match)
