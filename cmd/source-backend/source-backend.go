@@ -2,20 +2,18 @@
 package main
 
 import (
+	"encoding/json"
+	"flag"
+	"fmt"
 	// This is a forked version of codesearch/regexp which returns the results
 	// in a structure instead of printing to stdout/stderr directly.
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
-	"encoding/json"
-	"flag"
-	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"path"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -79,17 +77,11 @@ func Source(w http.ResponseWriter, r *http.Request) {
 
 	querystr := ranking.NewQueryStr(textQuery)
 
-	workers := runtime.NumCPU()
-	numfiles := int(math.Ceil(float64(len(filenames)) / float64(workers)))
-	workerInputs := make([]chan string, workers)
-	workerOutputs := make([]chan []regexp.Match, workers)
-
-	log.Printf("putting %d queries into %d workers each\n", numfiles, workers)
-
-	for i := 0; i < workers; i++ {
-		workerInputs[i] = make(chan string, numfiles)
-		workerOutputs[i] = make(chan []regexp.Match, numfiles)
-		go func(input chan string, output chan []regexp.Match) {
+	// Create one Goroutine per filename, which means all IO will be done in
+	// parallel.
+	output := make(chan []regexp.Match)
+	for _, filename := range filenames {
+		go func(filename string) {
 			// TODO: figure out how to safely clone a dcs/regexp
 			re, err := regexp.Compile(textQuery)
 			if err != nil {
@@ -103,19 +95,8 @@ func Source(w http.ResponseWriter, r *http.Request) {
 				Stderr: os.Stderr,
 			}
 
-			for filename := range input {
-				output <- grep.File(path.Join(*unpackedPath, filename))
-			}
-			close(output)
-		}(workerInputs[i], workerOutputs[i])
-	}
-
-	for idx, filename := range filenames {
-		//log.Printf("sending idx %d to worker %d\n", idx, idx % workers)
-		workerInputs[idx % workers] <- filename
-	}
-	for i := 0; i < workers; i++ {
-		close(workerInputs[i])
+			output <- grep.File(path.Join(*unpackedPath, filename))
+		}(filename)
 	}
 
 	fmt.Printf("done, now getting the results\n")
@@ -124,7 +105,7 @@ func Source(w http.ResponseWriter, r *http.Request) {
 	var reply SourceReply
 	for idx, filename := range filenames {
 		fmt.Printf("…in %s\n", filename)
-		matches := <-workerOutputs[idx % workers]
+		matches := <-output
 		for idx, match := range matches {
 			if limit > 0 && idx == 5 {
 				// TODO: we somehow need to signal that there are more results
