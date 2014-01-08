@@ -75,6 +75,8 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 		result.Suffixes[".pm"] = 0.75
 		// test-cases, preferred because they usually make for good examples
 		result.Suffixes[".t"] = 0.80
+	case "php":
+		result.Suffixes[".php"] = 0.75
 	case "python":
 		result.Suffixes[".py"] = 0.75
 	case "go":
