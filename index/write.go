@@ -31,6 +31,12 @@ import (
 // allow incremental updating of an existing index when a directory changes.
 // But we have not implemented that.
 
+// sortPost sorts the postentry list.
+// The list is already sorted by fileid (bottom 32 bits)
+// and the top 8 bits are always zero, so there are only
+// 24 bits to sort.  Run two rounds of 12-bit radix sort.
+const sortK = 12
+
 // An IndexWriter creates an on-disk index corresponding to a set of files.
 type IndexWriter struct {
 	LogSkip bool // log information about skipped files
@@ -53,6 +59,9 @@ type IndexWriter struct {
 
 	inbuf []byte     // input buffer
 	main  *bufWriter // main index file
+
+	sortTmp []postEntry
+	sortN [1 << sortK]int
 }
 
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
@@ -60,6 +69,7 @@ const npost = 64 << 20 / 8 // 64 MB worth of post entries
 // Create returns a new IndexWriter that will write the index to file.
 func Create(file string) *IndexWriter {
 	return &IndexWriter{
+		// 1 << 24 = 16777216, how many numbers can be represented by 3 uint8_t’s.
 		trigram:   sparse.NewSet(1 << 24),
 		nameData:  bufCreate(""),
 		nameIndex: bufCreate(""),
@@ -262,7 +272,7 @@ func (ix *IndexWriter) flushPost() {
 	if ix.Verbose {
 		log.Printf("flush %d entries to %s", len(ix.post), w.Name())
 	}
-	sortPost(ix.post)
+	ix.sortPost(ix.post)
 
 	// Write the raw ix.post array to disk as is.
 	// This process is the one reading it back in, so byte order is not a concern.
@@ -288,7 +298,7 @@ func (ix *IndexWriter) mergePost(out *bufWriter) {
 	for _, f := range ix.postFile {
 		h.addFile(f)
 	}
-	sortPost(ix.post)
+	ix.sortPost(ix.post)
 	h.addMem(ix.post)
 
 	npost := 0
@@ -592,58 +602,51 @@ func validUTF8(c1, c2 uint32) bool {
 	return false
 }
 
-// sortPost sorts the postentry list.
-// The list is already sorted by fileid (bottom 32 bits)
-// and the top 8 bits are always zero, so there are only
-// 24 bits to sort.  Run two rounds of 12-bit radix sort.
-const sortK = 12
 
-var sortTmp []postEntry
-var sortN [1 << sortK]int
 
-func sortPost(post []postEntry) {
-	if len(post) > len(sortTmp) {
-		sortTmp = make([]postEntry, len(post))
+func (ix *IndexWriter) sortPost(post []postEntry) {
+	if len(post) > len(ix.sortTmp) {
+		ix.sortTmp = make([]postEntry, len(post))
 	}
-	tmp := sortTmp[:len(post)]
+	tmp := ix.sortTmp[:len(post)]
 
 	const k = sortK
-	for i := range sortN {
-		sortN[i] = 0
+	for i := range ix.sortN {
+		ix.sortN[i] = 0
 	}
 	for _, p := range post {
 		r := uintptr(p>>32) & (1<<k - 1)
-		sortN[r]++
+		ix.sortN[r]++
 	}
 	tot := 0
-	for i, count := range sortN {
-		sortN[i] = tot
+	for i, count := range ix.sortN {
+		ix.sortN[i] = tot
 		tot += count
 	}
 	for _, p := range post {
 		r := uintptr(p>>32) & (1<<k - 1)
-		o := sortN[r]
-		sortN[r]++
+		o := ix.sortN[r]
+		ix.sortN[r]++
 		tmp[o] = p
 	}
 	tmp, post = post, tmp
 
-	for i := range sortN {
-		sortN[i] = 0
+	for i := range ix.sortN {
+		ix.sortN[i] = 0
 	}
 	for _, p := range post {
 		r := uintptr(p>>(32+k)) & (1<<k - 1)
-		sortN[r]++
+		ix.sortN[r]++
 	}
 	tot = 0
-	for i, count := range sortN {
-		sortN[i] = tot
+	for i, count := range ix.sortN {
+		ix.sortN[i] = tot
 		tot += count
 	}
 	for _, p := range post {
 		r := uintptr(p>>(32+k)) & (1<<k - 1)
-		o := sortN[r]
-		sortN[r]++
+		o := ix.sortN[r]
+		ix.sortN[r]++
 		tmp[o] = p
 	}
 }
