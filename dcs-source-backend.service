@@ -2,6 +2,7 @@
 
 [Unit]
 Description=Debian Code Search: source backend
+After=postgresql.service
 
 [Service]
 ExecStart=/usr/bin/source-backend -unpacked_path=/dcs/unpacked/
