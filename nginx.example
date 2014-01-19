@@ -1,0 +1,153 @@
+# vim:ts=4:sw=4:expandtab
+
+# Define a custom log format which includes the upstream latency time plus the
+# contents of our own measurement data:
+#
+# 2001:4d88:100e:23:3a60:77ff:feab:d3ea - - [01/Oct/2012:23:03:41 +0200] "GET
+# /search?q=XCreateWindow HTTP/1.1" 200 upstream 188.111.72.14:28080 response
+# 0.756 request 0.756 t0 19.42ms t1 10.90ms t2 6.45ms t3 10.22ms numfiles 2071
+# numresults 41
+#
+log_format upstream '$remote_addr - - [$time_local] "$request" $status '
+    'upstream [$upstream_addr] [$upstream_response_time]=response request $request_time '
+    't0 $upstream_http_dcs_t0 '
+    't1 $upstream_http_dcs_t1 '
+    't2 $upstream_http_dcs_t2 '
+    't3 $upstream_http_dcs_t3 '
+    'numfiles $upstream_http_dcs_numfiles '
+    'numresults $upstream_http_dcs_numresults';
+
+proxy_cache_path /var/cache/nginx/cache levels=1:2
+    keys_zone=main:50m
+    max_size=500m inactive=15m;
+
+proxy_temp_path /var/cache/nginx/tmp;
+
+upstream dcsweb {
+    # Keep at least 8 connections to the upstream server(s) open.
+    keepalive 8;
+
+    # The instance running on midna.zekjur.net is fast (SSD), but also
+    # low-bandwidth. It might even be offline entirely, in which case we want
+    # to fall-back to the local version (slower, but working).
+    # NOTE: Specifying an IPv6 address didn’t work here :-/ (nginx 1.2.1)
+    #server dyn.zekjur.net:28080;
+
+    # Local backup instance.
+    #server localhost:28080 backup;
+    server localhost:28080;
+}
+
+# Set aside 10MB of RAM to store the req/s for each client IP address.
+# This zone allows an average rate of 1 req/s.
+limit_req_zone $binary_remote_addr zone=one:10m rate=1r/s;
+
+server {
+    listen   80;
+    listen   [::]:80 default_server ipv6only=on;
+
+    root /usr/share/dcs/static;
+    index index.html index.htm;
+
+    server_name codesearch.debian.net;
+
+    access_log /var/log/nginx/dcs-static.log combined;
+
+    # 5s is a reasonably high timeout for connections, but also still low
+    # enough that users might wait that long for a reply.
+    proxy_connect_timeout 5s;
+
+    # Use Keep-Alive to the upstream backend.
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+    set_real_ip_from 79.140.39.219;
+    real_ip_header X-Forwarded-For;
+
+    location /nginx_status {
+        auth_basic off;
+        stub_status on;
+        access_log off;
+        allow 127.0.0.1;
+        deny all;
+    }
+
+    location /stats/ {
+        alias /srv/www/collectd-graphs/;
+        autoindex on;
+    }
+
+    location /collection3/share/ {
+        alias /srv/www/collection3/share/;
+    }
+
+    # Include this file on your nginx.conf to support debian cgi-bin scripts using
+    # fcgiwrap
+    location /collection3/ { 
+      # Disable gzip (it makes scripts feel slower since they have to complete
+      # before getting gzipped)
+      gzip off;
+
+      # Set the root to /usr/lib (inside this location this means that we are
+      # giving access to the files under /usr/lib/cgi-bin)
+      root  /srv/www/;
+
+      # Fastcgi socket
+      fastcgi_pass  unix:/var/run/fcgiwrap.socket;
+
+      # Fastcgi parameters, include the standard ones
+      include /etc/nginx/fastcgi_params;
+
+      # Adjust non standard parameters (SCRIPT_FILENAME)
+      fastcgi_param SCRIPT_FILENAME  /srv/www$fastcgi_script_name;
+    }
+
+    location /research/ {
+        alias /srv/www/research/;
+        autoindex on;
+    }
+
+    # Requests which are directly passed to the dcs-web backend
+    location = /search {
+        # Limit to 1 req/s on average.
+        limit_req zone=one burst=3 nodelay;
+
+        access_log /var/log/nginx/dcs-upstream.log upstream;
+
+        proxy_read_timeout 120s;
+
+        set $cache_key $scheme$host$uri$is_args$args$http_accept_encoding;
+        proxy_cache main;
+        proxy_cache_key $cache_key;
+        proxy_cache_valid 15m;
+
+        proxy_pass http://dcsweb/search;
+    }
+
+    location = /show {
+        # Limit to 1 req/s on average.
+        limit_req zone=one burst=3 nodelay;
+
+        access_log /var/log/nginx/dcs-upstream.log upstream;
+
+        proxy_pass http://dcsweb/show;
+    }
+
+    # Everything else must be a static page, so we directly deliver (with
+    # appropriate caching headers).
+    location / {
+        # Cache static files for 24 hours.
+        expires 24h;
+
+        # First attempt to serve request as file, then
+        # as directory, then fall back to displaying a 404.
+        try_files $uri $uri.html $uri/ /index.html;
+    }
+
+    #error_page 404 /404.html;
+
+    # redirect server error pages to the static page /50x.html
+    error_page 500 502 503 504 /50x.html;
+}
