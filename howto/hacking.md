@@ -13,7 +13,6 @@ you already have one, you can use it).
 ```bash
 apt-get install postgresql
 su - postgres
-createuser udd
 createuser dcs
 createdb -T template0 -E SQL_ASCII udd
 createdb -E utf8 -O dcs dcs
@@ -23,7 +22,7 @@ Afterwards, verify that you, under your own user account, can access that
 database and create the table schema:
 
 ```bash
-psql < $GOPATH/github.com/Debian/dcs/schema.sql
+psql dcs < $GOPATH/github.com/Debian/dcs/schema.sql
 ```
 
 ## Filling the PostgreSQL tables
