@@ -14,7 +14,10 @@ Beware: These steps are untested. Please submit any corrections and/or ask if yo
 Create a PostgreSQL database:
 ```bash
 su - postgres
+createuser dcs
 createdb -O dcs -T template0 -E SQL_ASCII udd
+createdb -E utf8 -O dcs dcs
+psql dcs < schema.sql
 ```
 
 First of all, we need to mirror the Debian archive:
