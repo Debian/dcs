@@ -3,4 +3,5 @@ cmd/source-backend/source-backend
 cmd/dcs-web/dcs-web
 cmd/dcsindex/dcsindex
 cmd/compute-ranking/compute-ranking
+cmd/rs-cleanup/rs-cleanup
 *.swp
