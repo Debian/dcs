@@ -262,7 +262,7 @@ mv /dcs/unpacked-new /dcs/unpacked
 		// TODO: i also think we need some sort of lock here. perhaps let systemd run the updater?
 	}
 
-	log.Printf("Now waiting until /dcs/index.*.idx appear and are > 0 bytes\n")
+	log.Printf("Now waiting until /dcs/NEW/index.*.idx appear and are > 0 bytes\n")
 	start := time.Now()
 	errors := 0
 	for time.Since(start) < 24*time.Hour {
