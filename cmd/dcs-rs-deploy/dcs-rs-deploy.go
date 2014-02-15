@@ -228,8 +228,8 @@ set -e
 [ -e ~/.gnupg/trustedkeys.gpg ] || cp /usr/share/keyrings/debian-archive-keyring.gpg ~/.gnupg/trustedkeys.gpg
 
 GOMAXPROCS=2 /usr/bin/dcs-debmirror -tcp_conns=20 >/tmp/fdm.log 2>&1
-/usr/bin/debmirror --diff=none -a none --source -s main -h deb-mirror.de -r /debian /dcs/source-mirror >/dev/null
-/usr/bin/debmirror --diff=none --exclude-deb-section=.* --include golang-mode --nocleanup -a none --arch amd64 -s main -h deb-mirror.de -r /debian /dcs/source-mirror >/dev/null
+/usr/bin/debmirror --diff=none --method=http -a none --source -s main -h http.debian.net -r /debian /dcs/source-mirror >/dev/null
+/usr/bin/debmirror --diff=none --method=http --exclude-deb-section=.* --include golang-mode --nocleanup -a none --arch amd64 -s main -h http.debian.net -r /debian /dcs/source-mirror >/dev/null
 
 POPCONDUMP=$(mktemp)
 if ! wget -q http://udd.debian.org/udd-popcon.sql.xz -O $POPCONDUMP
