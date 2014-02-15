@@ -253,7 +253,7 @@ rm $POPCONDUMP
 	-unpacked_path=/dcs/unpacked-new/ \
 	-shards 6 >/dev/null
 
-[ -d /dcs/unpacked] && mv /dcs/unpacked /dcs/unpacked-old || true
+[ -d /dcs/unpacked ] && mv /dcs/unpacked /dcs/unpacked-old || true
 mv /dcs/unpacked-new /dcs/unpacked
 `))
 		client.RunOrDie(`chmod +x /dcs/update-index.sh`)
