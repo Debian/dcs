@@ -381,7 +381,7 @@ Environment=GOMAXPROCS=2
 ExecStart=
 ExecStart=/usr/bin/dcs-web \
     -template_pattern=/usr/share/dcs/templates/* \
-	-listen_address=localhost:28080 \
+	-listen_address=`+server.PrivateIPv4()+`:28080 \
 	-use_sources_debian_net=true \
     -index_backends=`+strings.Join(backends, ",")))
 
@@ -402,7 +402,9 @@ ExecStart=/usr/bin/dcs-web \
 	if err != nil {
 		log.Fatal(err)
 	}
-	client.WriteToFileOrDie("/etc/nginx/sites-available/codesearch", nginxHost)
+	// dcs-web is listening on the Rackspace ServiceNet (private) IP address.
+	nginxReplaced := strings.Replace(string(nginxHost), "localhost:28080", server.PrivateIPv4()+":28080", -1)
+	client.WriteToFileOrDie("/etc/nginx/sites-available/codesearch", []byte(nginxReplaced))
 	client.RunOrDie("ln -s /etc/nginx/sites-available/codesearch /etc/nginx/sites-enabled/codesearch")
 	client.RunOrDie("systemctl restart nginx.service")
 
