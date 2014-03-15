@@ -421,21 +421,30 @@ ExecStart=/usr/bin/dcs-web \
 
 	var updates []rackspace.Record
 	for _, record := range records {
-		if record.Name != "codesearch.rackspace.zekjur.net" {
-			continue
+		if record.Name == "codesearch.rackspace.zekjur.net" {
+			log.Printf("record %v\n", record)
+			newIp := server.AccessIPv4
+			if record.Type == "AAAA" {
+				newIp = server.AccessIPv6
+			}
+			updates = append(updates,
+				rackspace.Record{
+					Id:   record.Id,
+					Name: record.Name,
+					Data: newIp,
+				})
+		} else if record.Name == "int-dcs-web.rackspace.zekjur.net" {
+			// This record points to the private IPv4 address, used by our
+			// monitoring.
+			log.Printf("record %v\n", record)
+			newIp := server.PrivateIPv4()
+			updates = append(updates,
+				rackspace.Record{
+					Id:   record.Id,
+					Name: record.Name,
+					Data: newIp,
+				})
 		}
-
-		log.Printf("record %v\n", record)
-		newIp := server.AccessIPv4
-		if record.Type == "AAAA" {
-			newIp = server.AccessIPv6
-		}
-		updates = append(updates,
-			rackspace.Record{
-				Id:   record.Id,
-				Name: record.Name,
-				Data: newIp,
-			})
 	}
 
 	if err := rs.UpdateRecords(domainId, updates); err != nil {
