@@ -135,7 +135,7 @@ func main() {
 	if serverId == "" {
 		serverId = rs.ServerFromSnapshot("dcs-20g-systemd+dcs+psql",
 			rackspace.CreateServerRequest{
-				Name:      "NEW-dcs-0",
+				Name: "NEW-dcs-0",
 				// This is a 4 GB standard instance
 				FlavorRef: "5",
 			})
@@ -277,7 +277,7 @@ mv /dcs/unpacked-new /dcs/unpacked
 		}
 
 		// TODO: flag for the number of shards
-		shardsFound :=`[ $(find /dcs/NEW/ -iname "index.*.idx" -size +0 -mmin +15 | wc -l) -eq 6 ]`
+		shardsFound := `[ $(find /dcs/NEW/ -iname "index.*.idx" -size +0 -mmin +15 | wc -l) -eq 6 ]`
 		if pollclient.Successful(shardsFound) {
 			log.Printf("All shards present.\n")
 			break
@@ -295,7 +295,7 @@ mv /dcs/unpacked-new /dcs/unpacked
 		for i := 0; i < len(indexServerIds); i++ {
 			indexServerIds[i] = rs.ServerFromSnapshot("dcs-20g-systemd+dcs",
 				rackspace.CreateServerRequest{
-					Name:      fmt.Sprintf("NEW-dcs-index-%d", i),
+					Name: fmt.Sprintf("NEW-dcs-index-%d", i),
 					// This is a 2 GB standard instance
 					FlavorRef: "4",
 				})
