@@ -1,0 +1,10 @@
+[Unit]
+Description=Scrapes /varz and puts the timeseries into InfluxDB
+
+[Service]
+ExecStart=/usr/bin/dcs-varz-to-influxdb -target_url=%I
+# To absorb network errors and other transient failures.
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
