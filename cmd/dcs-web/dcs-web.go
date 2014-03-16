@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/goroutinez"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/cmd/dcs-web/index"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
@@ -56,6 +57,7 @@ func main() {
 	})
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/varz", varz.Varz)
+	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.HandleFunc("/search", search.Search)
 	http.HandleFunc("/show", show.Show)
 	http.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
