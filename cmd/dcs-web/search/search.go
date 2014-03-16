@@ -342,7 +342,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	skip64, _ := strconv.ParseInt(query.Get("skip"), 10, 0)
 	skip := int(skip64)
 
-	log.Printf(`Search query for "` + rewritten.String() + `"`)
+	log.Printf("Search query: term %q, URL %q", query.Get("q"), rewritten.String())
 	fmt.Printf("opts: %v\n", rankingopts)
 
 	fmt.Printf("Query parsed after %v\n", time.Now().Sub(tinit))
