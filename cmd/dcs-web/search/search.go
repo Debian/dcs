@@ -493,6 +493,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 		// Close the channel to signal that there are no more values available
 		close(values)
+
+		// Read value from cont goroutine to avoid a blocking write in
+		// sendSourceQuery (effectively leading to goroutine leaks).
+		<-cont
 	}()
 
 	tBeforeSource := time.Now()
