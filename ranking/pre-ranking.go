@@ -11,8 +11,6 @@
 package ranking
 
 import (
-	"database/sql"
-	_ "github.com/lib/pq"
 	"log"
 	"path"
 )
@@ -33,38 +31,17 @@ var storedRanking = make(map[string]StoredRanking)
 // *a lot* of time when ranking queries which have many possible results (such
 // as "smart" with 201043 possible results).
 func init() {
-	db, err := sql.Open("postgres", "dbname=dcs host=/var/run/postgresql/ sslmode=disable")
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	rankQuery, err := db.Prepare("SELECT package, popcon, rdepends FROM pkg_ranking")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	rows, err := rankQuery.Query()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer rows.Close()
-	var inst, rdep float32
-	var pkg string
-	for rows.Next() {
-		if err = rows.Scan(&pkg, &inst, &rdep); err != nil {
-			log.Fatal(err)
-		}
-		storedRanking[pkg] = StoredRanking{inst, rdep}
-	}
+	ReadDB(storedRanking)
 }
 
 // The regular expression trigram index provides us a path to a potential
 // result. This data structure represents such a path and allows for ranking
 // and sorting each path.
 type ResultPath struct {
-	Path string
+	Path         string
 	SourcePkgIdx [2]int
-	Ranking float32
+	Ranking      float32
 }
 
 func (rp *ResultPath) Rank(opts *RankingOpts) {
