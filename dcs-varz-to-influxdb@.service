@@ -5,6 +5,8 @@ Description=Scrapes /varz and puts the timeseries into InfluxDB
 ExecStart=/usr/bin/dcs-varz-to-influxdb -target_url=%I
 # To absorb network errors and other transient failures.
 Restart=always
+# Allow infinite restarts, even within a short time.
+StartLimitInterval=0
 
 [Install]
 WantedBy=multi-user.target
