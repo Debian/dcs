@@ -67,7 +67,8 @@ func main() {
 				// Skip quilt’s .pc directories and "po" directories (localization)
 				if info.IsDir() &&
 					(filename == ".pc" ||
-						filename == "po") {
+						filename == "po" ||
+						filename == ".git") {
 					return filepath.SkipDir
 				}
 
@@ -86,6 +87,7 @@ func main() {
 					filename == "depcomp" ||
 					filename == "aclocal.m4" ||
 					filename == "libtool.m4" ||
+					filename == ".gitignore" ||
 					strings.HasSuffix(filename, ".conf") ||
 					// spell checking dictionaries
 					strings.HasSuffix(filename, ".dic") ||
