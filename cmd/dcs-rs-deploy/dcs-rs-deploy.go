@@ -221,7 +221,7 @@ func main() {
 
 set -e
 
-/bin/rm -rf /dcs/NEW /dcs/OLD
+/bin/rm -rf /dcs/NEW /dcs/OLD /dcs/unpacked-new
 /bin/mkdir /dcs/NEW /dcs/OLD
 
 [ -d ~/.gnupg ] || mkdir ~/.gnupg
