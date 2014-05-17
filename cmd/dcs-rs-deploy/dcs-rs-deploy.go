@@ -155,7 +155,7 @@ func main() {
 		volumeId, err = rs.CreateBlockStorage(
 			rackspace.CreateBlockStorageRequest{
 				DisplayName: "NEW-dcs-src-0",
-				Size:        200,
+				Size:        220,
 				VolumeType:  "SSD",
 			})
 		if err != nil {
