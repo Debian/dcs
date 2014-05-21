@@ -444,6 +444,17 @@ ExecStart=/usr/bin/dcs-web \
 					Name: record.Name,
 					Data: newIp,
 				})
+		} else if record.Name == "int-dcs-source-backend.rackspace.zekjur.net" {
+			// This record points to the private IPv4 address, used by our
+			// monitoring.
+			log.Printf("record %v\n", record)
+			newIp := server.PrivateIPv4()
+			updates = append(updates,
+				rackspace.Record{
+					Id:   record.Id,
+					Name: record.Name,
+					Data: newIp,
+				})
 		}
 	}
 
