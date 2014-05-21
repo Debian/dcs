@@ -7,6 +7,7 @@ import (
 	"fmt"
 	// This is a forked version of codesearch/regexp which returns the results
 	// in a structure instead of printing to stdout/stderr directly.
+	"github.com/Debian/dcs/cmd/dcs-web/varz"
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 	"io"
@@ -141,5 +142,6 @@ func main() {
 
 	http.HandleFunc("/source", Source)
 	http.HandleFunc("/file", File)
+	http.HandleFunc("/varz", varz.Varz)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
