@@ -11,6 +11,7 @@ import (
 	"github.com/influxdb/influxdb-go"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -48,6 +49,14 @@ func scrapeVarz(db *influxdb.Client) {
 		log.Fatal(err)
 	}
 
+	// parse the hostname and append that to the varz name,
+	// e.g. num-goroutines becomes num-goroutines.int-dcs-web
+	url, err := url.Parse(*targetURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	suffix := "." + strings.Split(url.Host, ".")[0]
+
 	var seriesBatch []*influxdb.Series
 	scanner := bufio.NewScanner(resp.Body)
 	for scanner.Scan() {
@@ -66,7 +75,7 @@ func scrapeVarz(db *influxdb.Client) {
 		}
 
 		series := influxdb.Series{
-			Name:    parts[0],
+			Name:    parts[0] + suffix,
 			Columns: []string{"value"},
 			Points:  [][]interface{}{points},
 		}
