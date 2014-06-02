@@ -5,6 +5,7 @@
 package index
 
 import (
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -61,7 +62,7 @@ type IndexWriter struct {
 	main  *bufWriter // main index file
 
 	sortTmp []postEntry
-	sortN [1 << sortK]int
+	sortN   [1 << sortK]int
 }
 
 const npost = 64 << 20 / 8 // 64 MB worth of post entries
@@ -113,19 +114,19 @@ func (ix *IndexWriter) AddPaths(paths []string) {
 
 // AddFile adds the file with the given name (opened using os.Open)
 // to the index.  It logs errors using package log.
-func (ix *IndexWriter) AddFile(name string, indexname string) {
+func (ix *IndexWriter) AddFile(name string, indexname string) error {
 	f, err := os.Open(name)
 	if err != nil {
 		log.Print(err)
-		return
+		return err
 	}
 	defer f.Close()
-	ix.Add(indexname, f)
+	return ix.Add(indexname, f)
 }
 
 // Add adds the file f to the index under the given name.
 // It logs errors using package log.
-func (ix *IndexWriter) Add(name string, f io.Reader) {
+func (ix *IndexWriter) Add(name string, f io.Reader) error {
 	ix.trigram.Reset()
 	var (
 		c       = byte(0)
@@ -145,10 +146,10 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 						break
 					}
 					log.Printf("%s: %v\n", name, err)
-					return
+					return err
 				}
 				log.Printf("%s: 0-length read\n", name)
-				return
+				return errors.New("0-length read")
 			}
 			buf = buf[:n]
 			i = 0
@@ -163,19 +164,19 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 			if ix.LogSkip {
 				log.Printf("%s: invalid UTF-8, ignoring\n", name)
 			}
-			return
+			return errors.New("invalid UTF-8, ignoring")
 		}
 		if n > maxFileLen {
 			if ix.LogSkip {
 				log.Printf("%s: too long, ignoring\n", name)
 			}
-			return
+			return errors.New("too long, ignoring")
 		}
 		if linelen++; linelen > maxLineLen {
 			if ix.LogSkip {
 				log.Printf("%s: very long lines, ignoring\n", name)
 			}
-			return
+			return errors.New("very long lines, ignoring")
 		}
 		if c == '\n' {
 			linelen = 0
@@ -185,7 +186,7 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 		if ix.LogSkip {
 			log.Printf("%s: too many trigrams, probably not text, ignoring\n", name)
 		}
-		return
+		return errors.New("too many trigrams, probably not text, ignoring")
 	}
 	ix.totalBytes += n
 
@@ -200,6 +201,8 @@ func (ix *IndexWriter) Add(name string, f io.Reader) {
 		}
 		ix.post = append(ix.post, makePostEntry(trigram, fileid))
 	}
+
+	return nil
 }
 
 // Flush flushes the index entry to the target file.
@@ -601,8 +604,6 @@ func validUTF8(c1, c2 uint32) bool {
 	}
 	return false
 }
-
-
 
 func (ix *IndexWriter) sortPost(post []postEntry) {
 	if len(post) > len(ix.sortTmp) {
