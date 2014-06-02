@@ -99,6 +99,18 @@ int cPostingOr(const uint8_t *restrict list,
 	return oidx;
 }
 
+int cPostingLast(const uint8_t *restrict list,
+                 uint32_t count,
+                 uint32_t fileid,
+                 uint32_t *totalbytes) {
+    const uint8_t *restrict start = list;
+    while (count--) {
+        fileid += uvarint(&list);
+    }
+    *totalbytes = (list - start);
+    return fileid;
+}
+
 */
 import "C"
 
@@ -164,4 +176,17 @@ func myPostingOr(data []byte, count int, list []uint32, restrict []uint32) []uin
 		C.int(len(restrict)),
 		restrictptr)
 	return result[0:int(num)]
+}
+
+func myPostingLast(data []byte, count uint32, fileid uint32) (int, uint32) {
+	var dataptr *C.uint8_t
+	if count > 0 {
+		dataptr = (*C.uint8_t)(&data[0])
+	}
+	var totalbytes uint32
+	last := int(C.cPostingLast(dataptr,
+		C.uint32_t(count),
+		C.uint32_t(fileid),
+		(*C.uint32_t)(&totalbytes)))
+	return last, totalbytes
 }
