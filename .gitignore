@@ -1,7 +1,10 @@
 cmd/index-backend/index-backend
 cmd/source-backend/source-backend
 cmd/dcs-web/dcs-web
-cmd/dcsindex/dcsindex
+cmd/dcs-index/dcs-index
 cmd/compute-ranking/compute-ranking
-cmd/rs-cleanup/rs-cleanup
+cmd/dcs-rs-cleanup/rs-cleanup
+cmd/dcs-package-importer/dcs-package-importer
+cmd/dcs-rs-deploy/dcs-rs-deploy
+cmd/dcs-varz-to-influxdb/dcs-varz-to-influxdb
 *.swp
