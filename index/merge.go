@@ -26,7 +26,7 @@ package index
 // Now merge the posting lists (this is why they begin with the trigram).
 // During the merge, translate the docid numbers to the new C docid space.
 // Also during the merge, write the posting list index to a temporary file as usual.
-// 
+//
 // Copy the name index and posting list index into C's index and write the trailer.
 // Rename C's index onto the new index.
 
@@ -389,6 +389,40 @@ func (r *postMapReader) nextId() bool {
 
 	r.fileid = ^uint32(0)
 	return false
+}
+
+// Directly writes the entire posting list to w.
+// Useful to avoid function call overhead, and also expects to be called from
+// ConcatN only (i.e. takes shortcuts that may break usage of idmap other than
+// what ConcatN does).
+func (r *postMapReader) writePostingList(w *postDataWriter) {
+	if r.count == 0 {
+		return
+	}
+
+	// The first entry is fully decoded and re-encoded because w may be in the
+	// middle of a posting list and we need to delta-encode _in relation to_
+	// the last entry.
+	r.count--
+	delta64, n := binary.Uvarint(r.d)
+	delta := uint32(delta64)
+	if n <= 0 || delta == 0 {
+		corrupt()
+	}
+	r.d = r.d[n:]
+	r.oldid = r.idmap[0].new + ^uint32(0) + delta
+	w.fileid(r.oldid)
+	w.count += r.count
+
+	// TODO: myPostingLast finds the amount of bytes and the last value. In the
+	// long run, we may want to store the last value of a posting list so that
+	// we don’t need to read the entire thing to copy it properly. The overhead
+	// is 2 * sizeof(uint32) * num_posting_lists. calculate that once we have
+	// the entire index.
+	last, totalbytes := myPostingLast(r.d, r.count, r.oldid)
+	w.out.write(r.d[:totalbytes])
+	w.last = uint32(last)
+	r.fileid = ^uint32(0)
 }
 
 type postDataWriter struct {
