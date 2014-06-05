@@ -11,6 +11,9 @@ import (
 type concatHeap []postMapReader
 
 func (h *concatHeap) Less(i, j int) bool {
+	if (*h)[i].trigram == (*h)[j].trigram {
+		return (*h)[i].idmap[0].new < (*h)[j].idmap[0].new
+	}
 	return (*h)[i].trigram < (*h)[j].trigram
 }
 
