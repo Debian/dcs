@@ -414,6 +414,12 @@ func (r *postMapReader) writePostingList(w *postDataWriter) {
 	w.fileid(r.oldid)
 	w.count += r.count
 
+	// If the posting list has only one entry, we’re done now.
+	if r.count == 0 {
+		r.fileid = ^uint32(0)
+		return
+	}
+
 	// TODO: myPostingLast finds the amount of bytes and the last value. In the
 	// long run, we may want to store the last value of a posting list so that
 	// we don’t need to read the entire thing to copy it properly. The overhead
