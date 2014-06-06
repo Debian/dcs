@@ -34,7 +34,7 @@ var (
 		"write cpu profile to this file")
 
 	ignoredDirnamesList = flag.String("ignored_dirnames",
-		".pc,po,.git",
+		".pc,po,.git,libtool.m4",
 		"(comma-separated list of) names of directories that will be deleted from packages when importing")
 
 	ignoredFilenamesList = flag.String("ignored_filenames",
