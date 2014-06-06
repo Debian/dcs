@@ -151,6 +151,74 @@ func mergeToShard(w http.ResponseWriter, r *http.Request) {
 	log.Printf("merged into shard %s\n", tmpIndexPath.Name())
 }
 
+func indexPackage(pkg string) {
+	unpacked := filepath.Join(tmpdir, pkg, pkg)
+	index := index.Create(filepath.Join(*unpackedPath, pkg+".idx"))
+	stripLen := len(filepath.Join(tmpdir, pkg))
+
+	filepath.Walk(unpacked,
+		func(path string, info os.FileInfo, err error) error {
+			if _, filename := filepath.Split(path); filename != "" {
+				if info.IsDir() && ignoredDirnames[filename] {
+					if err := os.RemoveAll(path); err != nil {
+						log.Fatalf("Could not remove directory %q: %v\n", path, err)
+					}
+					return filepath.SkipDir
+				}
+				// TODO: suffix check
+				// TODO: changelog, readme check
+				// TODO: manpage check
+				if !info.IsDir() && ignoredFilenames[filename] {
+					if err := os.Remove(path); err != nil {
+						log.Fatalf("Could not remove file %q: %v\n", path, err)
+					}
+					return nil
+				}
+			}
+
+			if info == nil || !info.Mode().IsRegular() {
+				return nil
+			}
+
+			// Some filenames (e.g.
+			// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
+			// invalid UTF-8 and will break when sending them via JSON later
+			// on. Filter those out early to avoid breakage.
+			if !utf8.ValidString(path) {
+				log.Printf("Skipping due to invalid UTF-8: %s\n", path)
+				return nil
+			}
+
+			if err := index.AddFile(path, path[stripLen:]); err != nil {
+				if err := os.Remove(path); err != nil {
+					log.Fatalf("Could not remove file %q: %v\n", path, err)
+				}
+			} else {
+				// Copy this file out of /tmp to our unpacked directory.
+				outputPath := filepath.Join(*unpackedPath, path[stripLen:])
+				if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
+					log.Fatalf("Could not create directory: %v\n", err)
+				}
+				output, err := os.Create(outputPath)
+				if err != nil {
+					log.Fatalf("Could not create output file %q: %v\n", outputPath, err)
+				}
+				defer output.Close()
+				input, err := os.Open(path)
+				if err != nil {
+					log.Fatalf("Could not open input file %q: %v\n", path, err)
+				}
+				defer input.Close()
+				if _, err := io.Copy(output, input); err != nil {
+					log.Fatalf("Could not copy %q to %q: %v\n", path, outputPath, err)
+				}
+			}
+			return nil
+		})
+
+	index.Flush()
+}
+
 // This goroutine reads package names from the indexQueue channel, unpacks the
 // package, deletes all unnecessary files and indexes it.
 // By default, the number of simultaneous goroutines running this function is
@@ -171,53 +239,8 @@ func unpackAndIndex() {
 			continue
 		}
 
-		index := index.Create(filepath.Join(tmpdir, pkg+".idx"))
-		stripLen := len(filepath.Join(tmpdir, pkg))
-
-		filepath.Walk(unpacked,
-			func(path string, info os.FileInfo, err error) error {
-				if _, filename := filepath.Split(path); filename != "" {
-					if info.IsDir() && ignoredDirnames[filename] {
-						if err := os.RemoveAll(path); err != nil {
-							log.Fatalf("Could not remove directory %q: %v\n", path, err)
-						}
-						return filepath.SkipDir
-					}
-					// TODO: suffix check
-					// TODO: changelog, readme check
-					// TODO: manpage check
-					if ignoredFilenames[filename] {
-						if err := os.Remove(path); err != nil {
-							log.Fatalf("Could not remove file %q: %v\n", path, err)
-						}
-						return nil
-					}
-				}
-
-				if info == nil || !info.Mode().IsRegular() {
-					return nil
-				}
-
-				// Some filenames (e.g.
-				// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
-				// invalid UTF-8 and will break when sending them via JSON later
-				// on. Filter those out early to avoid breakage.
-				if !utf8.ValidString(path) {
-					log.Printf("Skipping due to invalid UTF-8: %s\n", path)
-					return nil
-				}
-
-				if err := index.AddFile(path, path[stripLen:]); err != nil {
-					if err := os.Remove(path); err != nil {
-						log.Fatalf("Could not remove file %q: %v\n", path, err)
-					}
-				}
-				return nil
-			})
-
-		index.Flush()
-
-		// TODO: schedule a merge? move the data to /dcs/?
+		indexPackage(pkg)
+		os.RemoveAll(filepath.Join(tmpdir, pkg))
 	}
 }
 
