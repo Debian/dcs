@@ -33,22 +33,6 @@ var (
 		"",
 		"write cpu profile to this file")
 
-	ignoredDirnamesList = flag.String("ignored_dirnames",
-		".pc,po,.git,libtool.m4",
-		"(comma-separated list of) names of directories that will be deleted from packages when importing")
-
-	ignoredFilenamesList = flag.String("ignored_filenames",
-		"NEWS,COPYING,LICENSE,CHANGES,Makefile.in,ltmain.sh,config.guess,config.sub,depcomp,aclocal.m4,libtool.m4,.gitignore",
-		"(comma-separated list of) names of files that will be deleted from packages when importing")
-
-	ignoredSuffixesList = flag.String("ignored_suffixes",
-		"conf,dic,cfg,man,xml,xsl,html,sgml,pod,po,txt,tex,rtf,docbook,symbols",
-		"(comma-separated list of) suffixes of files that will be deleted from packages when importing")
-
-	ignoredDirnames  = make(map[string]bool)
-	ignoredFilenames = make(map[string]bool)
-	ignoredSuffixes  = make(map[string]bool)
-
 	tmpdir string
 
 	indexQueue chan string
@@ -158,17 +142,15 @@ func indexPackage(pkg string) {
 
 	filepath.Walk(unpacked,
 		func(path string, info os.FileInfo, err error) error {
-			if _, filename := filepath.Split(path); filename != "" {
-				if info.IsDir() && ignoredDirnames[filename] {
+			if dir, filename := filepath.Split(path); filename != "" {
+				skip := ignored(info, dir, filename)
+				if skip && info.IsDir() {
 					if err := os.RemoveAll(path); err != nil {
 						log.Fatalf("Could not remove directory %q: %v\n", path, err)
 					}
 					return filepath.SkipDir
 				}
-				// TODO: suffix check
-				// TODO: changelog, readme check
-				// TODO: manpage check
-				if !info.IsDir() && ignoredFilenames[filename] {
+				if skip && !info.IsDir() {
 					if err := os.Remove(path); err != nil {
 						log.Fatalf("Could not remove file %q: %v\n", path, err)
 					}
@@ -247,15 +229,7 @@ func unpackAndIndex() {
 func main() {
 	flag.Parse()
 
-	for _, entry := range strings.Split(*ignoredDirnamesList, ",") {
-		ignoredDirnames[entry] = true
-	}
-	for _, entry := range strings.Split(*ignoredFilenamesList, ",") {
-		ignoredFilenames[entry] = true
-	}
-	for _, entry := range strings.Split(*ignoredSuffixesList, ",") {
-		ignoredSuffixes[entry] = true
-	}
+	setupFilters()
 
 	var err error
 	tmpdir, err = ioutil.TempDir("", "dcs-importer")
