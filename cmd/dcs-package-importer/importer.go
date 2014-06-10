@@ -36,6 +36,7 @@ var (
 	tmpdir string
 
 	indexQueue chan string
+	mergeQueue chan bool
 )
 
 // Accepts arbitrary files for a given package and starts unpacking once a .dsc
@@ -82,10 +83,20 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Merges all packages in *unpackedPath into a big index shard.
-func mergeToShard(w http.ResponseWriter, r *http.Request) {
+// Tries to start a merge and errors in case one is already in progress.
+func mergeOrError(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	select {
+	case mergeQueue <- true:
+		fmt.Fprintf(w, "Merge started.")
+	default:
+		http.Error(w, "Merge already in progress, please try again later.", http.StatusInternalServerError)
+	}
+}
+
+// Merges all packages in *unpackedPath into a big index shard.
+func mergeToShard() {
 	file, err := os.Open(*unpackedPath)
 	if err != nil {
 		log.Fatal(err)
@@ -238,13 +249,20 @@ func main() {
 	}
 
 	indexQueue = make(chan string)
+	mergeQueue = make(chan bool)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		go unpackAndIndex()
 	}
 
+	go func() {
+		for _ = range mergeQueue {
+			mergeToShard()
+		}
+	}()
+
 	http.HandleFunc("/import/", importPackage)
-	http.HandleFunc("/merge", mergeToShard)
+	http.HandleFunc("/merge", mergeOrError)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
