@@ -1,0 +1,13 @@
+.include /lib/systemd/system/dcs-common.service
+
+[Unit]
+Description=Debian Code Search: package importer
+
+[Service]
+# Increase the maximum number of file descriptors since we need to open a
+# couple thousand index files when merging them together into a big shard.
+LimitNOFILE=8192
+ExecStart=/usr/bin/dcs-package-importer
+
+[Install]
+WantedBy=multi-user.target
