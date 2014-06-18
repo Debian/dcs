@@ -369,7 +369,7 @@ func (r *postMapReader) nextId() bool {
 		delta64, n := binary.Uvarint(r.d)
 		delta := uint32(delta64)
 		if n <= 0 || delta == 0 {
-			corrupt()
+			corrupt(r.ix.File)
 		}
 		r.d = r.d[n:]
 		r.oldid += delta
@@ -407,7 +407,7 @@ func (r *postMapReader) writePostingList(w *postDataWriter) {
 	delta64, n := binary.Uvarint(r.d)
 	delta := uint32(delta64)
 	if n <= 0 || delta == 0 {
-		corrupt()
+		corrupt(r.ix.File)
 	}
 	r.d = r.d[n:]
 	r.oldid = r.idmap[0].new + ^uint32(0) + delta
