@@ -190,6 +190,9 @@ func mergeToShard() {
 
 func indexPackage(pkg string) {
 	unpacked := filepath.Join(tmpdir, pkg, pkg)
+	if err := os.MkdirAll(*unpackedPath, os.FileMode(0755)); err != nil {
+		log.Fatalf("Could not create directory: %v\n", err)
+	}
 	index := index.Create(filepath.Join(*unpackedPath, pkg+".idx"))
 	stripLen := len(filepath.Join(tmpdir, pkg))
 
