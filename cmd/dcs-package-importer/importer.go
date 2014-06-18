@@ -285,6 +285,9 @@ func unpackAndIndex() {
 func main() {
 	flag.Parse()
 
+	// Allow as many concurrent unpackAndIndex goroutines as we have cores.
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	setupFilters()
 
 	var err error
