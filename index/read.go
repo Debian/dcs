@@ -306,7 +306,7 @@ func (ix *Index) PostingQuery(q *Query) []uint32 {
 // Implements sort.Interface
 type trigramCnt struct {
 	trigram uint32
-	count int
+	count   int
 	listcnt int
 }
 
@@ -323,7 +323,6 @@ func (t trigramCnts) Less(i, j int) bool {
 func (t trigramCnts) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
-
 
 func (ix *Index) postingQuery(q *Query, restrict []uint32) (ret []uint32) {
 	var list []uint32
@@ -364,11 +363,11 @@ func (ix *Index) postingQuery(q *Query, restrict []uint32) (ret []uint32) {
 			withCount[idx].listcnt = len(list)
 			if previous > 0 {
 				minIdx := 0.70 * float32(len(withCount))
-				if (previous - len(list)) < 10 && stoppedAt == 0 && float32(idx) > minIdx {
+				if (previous-len(list)) < 10 && stoppedAt == 0 && float32(idx) > minIdx {
 					stoppedAt = len(list)
 				}
 			}
-			if previous > 0 && (previous - len(list)) < 10 {
+			if previous > 0 && (previous-len(list)) < 10 {
 				//fmt.Printf("difference is %d, break!\n", previous - len(list))
 				break
 			}
