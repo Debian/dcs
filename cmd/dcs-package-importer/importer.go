@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/Debian/dcs/index"
@@ -92,6 +93,47 @@ func mergeOrError(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Merge started.")
 	default:
 		http.Error(w, "Merge already in progress, please try again later.", http.StatusInternalServerError)
+	}
+}
+
+func listPackages(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	var names []string
+
+	file, err := os.Open(*unpackedPath)
+	// If the directory does not yet exist, we just return an empty list of
+	// packages.
+	if err != nil && !os.IsNotExist(err) {
+		log.Fatal(err)
+	}
+	if err == nil {
+		defer file.Close()
+		names, err = file.Readdirnames(-1)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	type ListPackageReply struct {
+		Packages []string
+	}
+
+	var reply ListPackageReply
+	reply.Packages = make([]string, 0, len(names))
+	for _, name := range names {
+		if strings.HasSuffix(name, ".idx") {
+			reply.Packages = append(reply.Packages, name[:len(name)-len(".idx")])
+		}
+	}
+
+	jsonReply, err := json.Marshal(&reply)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Serialization error: %v", err), http.StatusInternalServerError)
+	}
+
+	if _, err := w.Write(jsonReply); err != nil {
+		log.Printf("Could not send listPackages reply: %v\n", err)
 	}
 }
 
@@ -263,6 +305,7 @@ func main() {
 
 	http.HandleFunc("/import/", importPackage)
 	http.HandleFunc("/merge", mergeOrError)
+	http.HandleFunc("/listpkgs", listPackages)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
