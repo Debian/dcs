@@ -64,20 +64,12 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	}
 	t2 := time.Now()
 	fmt.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
-	jsonFiles, err := json.Marshal(files)
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(files); err != nil {
 		log.Printf("%s\n", err)
 		return
 	}
 	t3 := time.Now()
-	fmt.Printf("[%s] marshaling done in %v\n", id, t3.Sub(t2))
-	_, err = w.Write(jsonFiles)
-	if err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
-	t4 := time.Now()
-	fmt.Printf("[%s] written in %v\n", id, t4.Sub(t3))
+	fmt.Printf("[%s] written in %v\n", id, t3.Sub(t2))
 }
 
 func main() {
