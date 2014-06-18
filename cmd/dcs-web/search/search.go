@@ -161,15 +161,9 @@ func sendIndexQuery(query url.URL, backend string, indexResults chan ranking.Res
 		return
 	}
 	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		done <- 1
-		return
-	}
-
+	decoder := json.NewDecoder(resp.Body)
 	var files []string
-	if err := json.Unmarshal(body, &files); err != nil {
+	if err := decoder.Decode(&files); err != nil {
 		// TODO: Better error message
 		log.Printf("Invalid result from backend " + backend)
 		done <- 1
