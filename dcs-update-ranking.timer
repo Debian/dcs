@@ -1,0 +1,9 @@
+[Unit]
+Description=Update ranking every hour
+
+[Timer]
+OnActiveSec=1min
+OnCalendar=hourly
+
+[Install]
+WantedBy=multi-user.target
