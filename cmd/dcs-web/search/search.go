@@ -10,7 +10,6 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/ranking"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -233,14 +232,8 @@ func sendSourceQuery(query url.URL, values chan ranking.ResultPaths, cont chan b
 			}
 			defer resp.Body.Close()
 
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				done <- 0
-				return
-			}
-
 			var reply SourceReply
-			if err := json.Unmarshal(body, &reply); err != nil {
+			if err := json.NewDecoder(resp.Body).Decode(&reply); err != nil {
 				log.Printf("Invalid result from backend (source)")
 				done <- 0
 				return
