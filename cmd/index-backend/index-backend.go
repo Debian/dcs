@@ -2,11 +2,11 @@
 package main
 
 import (
-	"github.com/Debian/dcs/index"
 	"code.google.com/p/codesearch/regexp"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/Debian/dcs/index"
 	"log"
 	"net/http"
 	"os"
@@ -19,9 +19,9 @@ var ix *index.Index
 
 var (
 	listenAddress = flag.String("listen_address", ":28081", "listen address ([host]:port)")
-	indexPath = flag.String("index_path", "", "path to the index shard to serve, e.g. /dcs-ssd/index.0.idx")
-	cpuProfile = flag.String("cpuprofile", "", "write cpu profile to this file")
-	id string
+	indexPath     = flag.String("index_path", "", "path to the index shard to serve, e.g. /dcs-ssd/index.0.idx")
+	cpuProfile    = flag.String("cpuprofile", "", "write cpu profile to this file")
+	id            string
 )
 
 // Handles requests to /index by compiling the q= parameter into a regular
