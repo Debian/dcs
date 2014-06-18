@@ -194,7 +194,8 @@ func indexPackage(pkg string) {
 		log.Fatalf("Could not create directory: %v\n", err)
 	}
 	index := index.Create(filepath.Join(*unpackedPath, pkg+".idx"))
-	stripLen := len(filepath.Join(tmpdir, pkg))
+	// +1 because of the / that should not be included in the index.
+	stripLen := len(filepath.Join(tmpdir, pkg)) + 1
 
 	filepath.Walk(unpacked,
 		func(path string, info os.FileInfo, err error) error {
