@@ -392,6 +392,7 @@ ExecStart=/usr/bin/dcs-web \
 	client.RunOrDie("systemctl restart dcs-web.service")
 
 	// Install and configure nginx.
+	client.RunOrDie("echo deb http://http.debian.net/debian testing main contrib non-free > /etc/apt/sources.list")
 	client.RunOrDie("DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C apt-get update")
 	client.RunOrDie("DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true LC_ALL=C LANGUAGE=C LANG=C apt-get --force-yes -y install nginx")
 	client.RunOrDie("rm /etc/nginx/sites-enabled/*")
