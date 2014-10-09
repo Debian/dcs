@@ -145,8 +145,14 @@ func main() {
 		if *dryRun {
 			continue
 		}
-		if _, err = insert.Exec(srcpkg, packageRank, rdepcount); err != nil {
-			if _, err = update.Exec(srcpkg, packageRank, rdepcount); err != nil {
+		result, err := update.Exec(srcpkg, packageRank, rdepcount)
+		affected := int64(0)
+		// The UPDATE succeeded, but let’s see whether it affected a row.
+		if err == nil {
+			affected, err = result.RowsAffected()
+		}
+		if err != nil || affected == 0 {
+			if _, err = insert.Exec(srcpkg, packageRank, rdepcount); err != nil {
 				log.Fatal(err)
 			}
 		}
