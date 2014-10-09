@@ -186,6 +186,28 @@ func mergeToShard() {
 	//	log.Printf("merged in %v\n", t1.Sub(t0))
 	//}
 	log.Printf("merged into shard %s\n", tmpIndexPath.Name())
+
+	// If full.idx does not exist (i.e. on initial deployment), just move the
+	// new index to full.idx, the dcs-index-backend will not be running anyway.
+	fullIdxPath := filepath.Join(*unpackedPath, "full.idx")
+	if _, err := os.Stat(fullIdxPath); os.IsNotExist(err) {
+		if err := os.Rename(tmpIndexPath.Name(), fullIdxPath); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	// Replace the current index with the newly created index.
+	resp, err := http.Get(fmt.Sprintf("http://localhost:28081/replace?shard=%s", filepath.Base(tmpIndexPath.Name())))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Fatalf("dcs-index-backend /replace response: %+v (body: %s)\n", resp, body)
+	}
 }
 
 func indexPackage(pkg string) {

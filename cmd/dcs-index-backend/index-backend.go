@@ -10,7 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime/pprof"
 	"time"
 )
@@ -72,6 +72,45 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[%s] written in %v\n", id, t3.Sub(t2))
 }
 
+// XXX: theoretically, we need to make sure no Index() call is currently in
+// progress since they may return incorrect result if “ix” suddenly points to a
+// different index.
+func Replace(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	newShard := r.Form.Get("shard")
+
+	file, err := os.Open(filepath.Dir(*indexPath))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	names, err := file.Readdirnames(-1)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, name := range names {
+		if name == newShard {
+			newShard = filepath.Join(filepath.Dir(*indexPath), name)
+			// We verified the given argument refers to an index shard within
+			// this directory, so let’s load this shard.
+			oldIndex := ix
+			log.Printf("Trying to load %q\n", newShard)
+			ix = index.Open(newShard)
+			// Overwrite the old full shard with the new one. This is necessary
+			// so that the state is persistent across restarts and has the nice
+			// side-effect of cleaning up the old full shard.
+			if err := os.Rename(newShard, *indexPath); err != nil {
+				log.Fatal(err)
+			}
+			oldIndex.Close()
+			return
+		}
+	}
+
+	http.Error(w, "No such shard.", http.StatusInternalServerError)
+}
+
 func main() {
 	flag.Parse()
 	if *indexPath == "" {
@@ -79,10 +118,10 @@ func main() {
 	}
 	fmt.Println("Debian Code Search index-backend")
 
-	id = path.Base(*indexPath)
-
+	id = filepath.Base(*indexPath)
 	ix = index.Open(*indexPath)
 
 	http.HandleFunc("/index", Index)
+	http.HandleFunc("/replace", Replace)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
