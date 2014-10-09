@@ -323,6 +323,11 @@ type Volume struct {
 	RawStatus   string `json:"status"`
 }
 
+// Block Storage Volume Attachment (to a specific server)
+type VolumeAttachment struct {
+	Id string `json:"id"`
+}
+
 func (v Volume) Status() string {
 	return strings.ToUpper(v.RawStatus)
 }
@@ -459,12 +464,8 @@ func (rs *RackspaceClient) AttachBlockStorage(serverId string, request VolumeAtt
 		return "", err
 	}
 
-	type volumeAttachment struct {
-		Id string `json:"id"`
-	}
-
 	type attachBlockStorageResponse struct {
-		VolumeAttachment volumeAttachment `json:"volumeAttachment"`
+		VolumeAttachment VolumeAttachment `json:"volumeAttachment"`
 	}
 
 	var decoded attachBlockStorageResponse
@@ -473,7 +474,31 @@ func (rs *RackspaceClient) AttachBlockStorage(serverId string, request VolumeAtt
 	}
 
 	return decoded.VolumeAttachment.Id, nil
+}
 
+func (rs *RackspaceClient) DeleteVolumeAttachment(serverId string, volumeAttachmentId string) error {
+	url := fmt.Sprintf("https://ord.servers.api.rackspacecloud.com/v2/%s/servers/%s/os-volume_attachments/%s", rs.TenantId, serverId, volumeAttachmentId)
+	_, err := rs.request("DELETE", url, nil)
+	return err
+}
+
+func (rs *RackspaceClient) GetVolumeAttachments(serverId string) ([]VolumeAttachment, error) {
+	url := fmt.Sprintf("https://ord.servers.api.rackspacecloud.com/v2/%s/servers/%s/os-volume_attachments", rs.TenantId, serverId)
+	resp, err := rs.request("GET", url, nil)
+	if err != nil {
+		return []VolumeAttachment{}, err
+	}
+
+	type getVolumeAttachmentsResponse struct {
+		VolumeAttachments []VolumeAttachment `json:"volumeAttachments"`
+	}
+
+	var decoded getVolumeAttachmentsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return []VolumeAttachment{}, err
+	}
+
+	return decoded.VolumeAttachments, nil
 }
 
 func (rs *RackspaceClient) GetVolumes() ([]Volume, error) {
@@ -493,7 +518,6 @@ func (rs *RackspaceClient) GetVolumes() ([]Volume, error) {
 	}
 
 	return decoded.Volumes, nil
-
 }
 
 func (rs *RackspaceClient) GetVolume(volumeId string) (Volume, error) {

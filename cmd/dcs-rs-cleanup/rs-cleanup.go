@@ -21,7 +21,7 @@ func main() {
 	var err error
 	rs, err = rackspace.NewClient()
 	if err != nil {
-		log.Fatal("Could not create new rackspace client: %v\n", err)
+		log.Fatalf("Could not create new rackspace client: %v\n", err)
 	}
 
 	servers, err := rs.GetServers()
@@ -49,6 +49,20 @@ func main() {
 	for _, server := range servers {
 		if strings.HasPrefix(server.Name, "NEW-dcs-") &&
 			server.Created().Before(newestCreation) {
+
+			attachments, err := rs.GetVolumeAttachments(server.Id)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			for _, attachment := range attachments {
+				log.Printf("Deleting volume attachment %s\n", attachment.Id)
+				if !*dryrun {
+					if err := rs.DeleteVolumeAttachment(server.Id, attachment.Id); err != nil {
+						log.Fatalf("Could not delete volume attachment: %v\n", err)
+					}
+				}
+			}
 
 			log.Printf("Deleting server %s (created %v, IPv4 %s, ID %s)\n",
 				server.Name, server.Created(), server.AccessIPv4, server.Id)
