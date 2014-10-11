@@ -150,7 +150,7 @@ func mergeToShard() {
 	}
 	indexFiles := make([]string, 0, len(names))
 	for _, name := range names {
-		if strings.HasSuffix(name, ".idx") {
+		if strings.HasSuffix(name, ".idx") && name != "full.idx" {
 			indexFiles = append(indexFiles, filepath.Join(*unpackedPath, name))
 		}
 	}
