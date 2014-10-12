@@ -2,6 +2,7 @@
 # It should not be started directly, it is included from other files.
 
 [Service]
+Environment=GOMAXPROCS=4
 User=dcs
 Group=dcs
 # Redirecting stdout to /dev/null because it’s very verbose.
