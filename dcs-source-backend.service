@@ -5,7 +5,7 @@ Description=Debian Code Search: source backend
 After=postgresql.service
 
 [Service]
-ExecStart=/usr/bin/source-backend -unpacked_path=/dcs/unpacked/
+ExecStart=/usr/bin/dcs-source-backend -unpacked_path=/dcs-ssd/unpacked/
 
 [Install]
 WantedBy=multi-user.target
