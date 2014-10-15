@@ -20,3 +20,5 @@ static/Roboto-Regular.woff
 static/debcodesearch.min.css
 static/instant.min.js
 static/reconnecting-websocket.min.js
+debian/*.debhelper.log
+obj-*
