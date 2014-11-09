@@ -3,21 +3,47 @@
 <head>
 <meta charset="utf-8">
 <title>Debian Code Search</title>
+<!-- TODO: serve these from the debian packages maybe? -->
+<link href='http://fonts.googleapis.com/css?family=Roboto:400,700|Inconsolata' rel='stylesheet' type='text/css'>
 <link rel="stylesheet" href="/debcodesearch.css">
 <style type="text/css">
+body {
+    font-family: 'Roboto', sans-serif;
+    letter-spacing: 0.15px;
+}
+
+h1, h2 {
+    letter-spacing: initial;
+}
+
 pre, code {
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 14px !important;
     margin: 0 !important;
     padding: 0 !important;
 }
 
 a code {
+    font-size: 17px !important;
     color: #00E;
-    font-size: 110%;
 }
 
-#results {
+#results a, #perpackage-results a {
+    text-decoration: none;
+    border-bottom: 1px solid;
+}
+
+#results, #perpackage-results ul {
     list-style-type: none;
     padding-left: 0;
+}
+
+#results li small, #perpackage-results small {
+    opacity: 0;
+}
+
+#results small:hover, #perpackage-results small:hover {
+    opacity: 0.75;
 }
 
 #results li {
@@ -72,6 +98,7 @@ pre {
 #packages span:last-child {
 /* TODO: instead of specifying a percentage, can we make this auto-size? use http://jsfiddle.net/L8S9L/2/ for testing */
     width: 5%;
+    padding-left: 0.5em;
 }
 
 #packages span:last-child a {
@@ -98,7 +125,7 @@ pre {
 #progressbar {
     margin-top: 1em;
     margin-bottom: 1em;
-    height: 20px;
+    height: 30px;
     border-radius: 4px;
     background-color: #f5f5f5;
     overflow: hidden;
@@ -111,7 +138,7 @@ pre {
     display: block;
     width: 100%;
     text-align: center;
-    line-height: 20px;
+    line-height: 28px;
 }
 
 .progressbar-back-text {
@@ -124,7 +151,7 @@ pre {
     color: #fff;
     width: 50%;
     height: 100%;
-    background-color: #c70036;
+    background-color: #cc1446;
     -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
     box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
 }
@@ -188,15 +215,18 @@ pre {
 <input type="checkbox" id="enable-perpackage" disabled="disabled" onclick="changeGrouping()"><label for="enable-perpackage" style="opacity: 0.5">Group search results by Debian source package</label>
 </div>
 
-<div id="pagination">
-</div>
-<div id="perpackage-pagination" style="display: none">
+<div id="normalresults">
+<h2>All results</h2>
+<div id="pagination"></div>
+<ul id="results"></ul>
 </div>
 
-<ul id="results">
-</ul>
-<div id="perpackage-results" style="display: none">
+<div id="perpackage" class="ppanimation" style="display: none">
+<h2>Results by package</h2>
+<div id="perpackage-pagination"></div>
+<div id="perpackage-results"></div>
 </div>
+
 <div id="searchdiv">
 <h1>Debian Code Search</h1>
 <p>Search all 130 GiB of source code within Debian:</p>

@@ -7,6 +7,7 @@
 var packagesPerPage = 5;
 var resultsPerPackage = 2;
 
+var animationFallback;
 var connection = new ReconnectingWebSocket('ws://' + window.location.hostname + ':28080/instantws');
 var searchterm;
 
@@ -288,9 +289,10 @@ function loadPerPkgPage(nr, preload) {
 
 function updatePagination(p, currentpage, resultpages, clickFunc) {
     p.text('');
+    p.append('<strong>Pages:<strong> ');
     if (currentpage > 0) {
-        p.append('<a href="javascript: ' + clickFunc + '(0);">page 1</a> ');
-        p.append('<a href="javascript: ' + clickFunc + '(' + (currentpage - 1) + ');">&lt;</a> ');
+        p.append('<a href="javascript: ' + clickFunc + '(0);">1</a> ');
+        p.append('<span>&lt;</span> ');
     }
     var start = Math.max(currentpage - 5, (currentpage > 0 ? 1 : 0));
     var end = Math.min((currentpage >= 5 ? currentpage + 5 : 10), resultpages);
@@ -299,15 +301,15 @@ function updatePagination(p, currentpage, resultpages, clickFunc) {
         //if (i < 3) {
         //    p.append('<link rel="prerender" href="/results/' + msg.QueryId + '/page_' + i + '.json">');
         //}
-        p.append('<a style="' + (i == currentpage ? "font-weight: bold" : "") + '" href="javascript: ' + clickFunc + '(' + i + ');">page ' + (i + 1) + '</a> ');
+        p.append('<a style="' + (i == currentpage ? "font-weight: bold" : "") + '" href="javascript: ' + clickFunc + '(' + i + ');">' + (i + 1) + '</a> ');
     }
 
     if (currentpage < (resultpages-1)) {
-        p.append('<a href="javascript: ' + clickFunc + '(' + (currentpage + 1) + ');">&gt;</a> ');
+        p.append('<span>&gt;</span> ');
     }
 
     if (end < resultpages) {
-        p.append('… <a href="javascript: ' + clickFunc + '(' + (resultpages - 1) + ');">page ' + resultpages + '</a>');
+        p.append('… <a href="javascript: ' + clickFunc + '(' + (resultpages - 1) + ');">' + resultpages + '</a>');
     }
 }
 
@@ -352,11 +354,11 @@ connection.onmessage = function(e) {
                             // displaying text with “white-space: nowrap” once
                             // it becomes too long.
                             for (var i = 0; i < Math.min(data.Packages.length, 1000); i++) {
-                                packagesList = packagesList + data.Packages[i] + ' ';
+                                packagesList = packagesList + data.Packages[i] + ', ';
                             }
                             p.append('<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
                             if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
-                                p.append('<span><a href="#" onclick="$(\'#packageshint\').show(); return false;">▼</a></span>');
+                                p.append('<span><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
                                 $('#packageshint').text('');
                                 $('#packageshint').append('To see all packages which contain results: <pre>curl -s http://' + window.location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
                             }
@@ -411,29 +413,74 @@ connection.onmessage = function(e) {
     }
 };
 
+function setPositionAbsolute(selector) {
+    var element = $(selector);
+    var pos = element.position();
+    pos.width = element.width();
+    pos.height = element.height();
+    pos.position = 'absolute';
+    element.css(pos);
+}
+
+function setPositionStatic(selector) {
+    $(selector).css({
+        'position': 'static',
+        'left': '',
+        'top': '',
+        'width': '',
+        'height': ''});
+}
+
 // Switch between displaying all results and grouping search results by Debian
 // source package.
 function changeGrouping() {
-    var currentPerPkg = $('#perpackage-results').is(':visible');
+    var ppelements = $('#perpackage');
+
+    var currentPerPkg = ppelements.is(':visible');
     var shouldPerPkg = $('#enable-perpackage').prop('checked');
     if (currentPerPkg === shouldPerPkg) {
         return;
     }
 
-    // TODO: a nice animation could fade this in from the right side of the window, and vice-versa on hide
-    if (shouldPerPkg) {
-        history.pushState({ searchterm: searchterm, nr: currentpage_pkg, perpkg: true }, 'page ' + currentpage_pkg, '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + currentpage_pkg);
-        $('#results').hide();
-        $('#pagination').hide();
-        $('#perpackage-results').show();
-        $('#perpackage-pagination').show();
+    ppelements.data('hideAfterAnimation', !shouldPerPkg);
+
+    if (currentPerPkg) {
+            $('#perpkg').addClass('animation-reverse');
     } else {
-        history.pushState({ searchterm: searchterm, nr: currentpage, perpkg: false }, 'page ' + currentpage, '/results/' + encodeURIComponent(searchterm) + '/page_' + currentpage);
-        $('#perpackage-results').hide();
-        $('#perpackage-pagination').hide();
-        $('#results').show();
-        $('#pagination').show();
+            $('#perpkg').removeClass('animation-reverse');
+            $('#perpkg').show();
     }
+
+    if (shouldPerPkg) {
+        ppelements.removeClass('animation-reverse');
+        history.pushState(
+            { searchterm: searchterm, nr: currentpage_pkg, perpkg: true },
+            'page ' + currentpage_pkg,
+            '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + currentpage_pkg);
+
+        setPositionAbsolute('#footer');
+        setPositionAbsolute('#normalresults');
+        $('#perpackage').show();
+    } else {
+        ppelements.addClass('animation-reverse');
+        history.pushState(
+            { searchterm: searchterm, nr: currentpage, perpkg: false },
+            'page ' + currentpage,
+            '/results/' + encodeURIComponent(searchterm) + '/page_' + currentpage);
+        $('#normalresults').show();
+        // For browsers that don’t support animations, we need to have a fallback.
+        // The timer will be cancelled in the animationstart event handler.
+        animationFallback = setTimeout(function() {
+            $('#perpackage').hide();
+            setPositionStatic('#footer, #normalresults');
+        }, 50);
+    }
+
+    ppelements.removeClass('ppanimation');
+    // Trigger a reflow, otherwise removing/adding the animation class does not
+    // lead to restarting the animation.
+    ppelements[0].offsetWidth = ppelements[0].offsetWidth;
+    ppelements.addClass('ppanimation');
 }
 
 // Restore autocomplete from localstorage. This is necessary because the form
@@ -483,6 +530,30 @@ $(window).load(function() {
     fixProgressbar();
 
     $(window).resize(fixProgressbar);
+
+    function bindAnimationEvent(element, name, cb) {
+        var prefixes = ["webkit", "MS", "moz", "o", ""];
+        for (var i = 0; i < prefixes.length; i++) {
+            if (i >= 3) {
+                element.bind(prefixes[i] + name.toLowerCase(), cb);
+            } else {
+                element.bind(prefixes[i] + name, cb);
+            }
+        }
+    }
+
+    var ppresults = $('#perpackage');
+    bindAnimationEvent(ppresults, 'AnimationStart', function(e) {
+        clearTimeout(animationFallback);
+    });
+    bindAnimationEvent(ppresults, 'AnimationEnd',  function(e) {
+            if (ppresults.data('hideAfterAnimation')) {
+                    ppresults.hide();
+                    setPositionStatic('#footer, #normalresults');
+            } else {
+                    $('#normalresults').hide();
+            }
+    });
 
     if (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
         window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
