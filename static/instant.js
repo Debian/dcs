@@ -214,9 +214,12 @@ function addSearchResult(results, result) {
 }
 
 function loadPage(nr) {
-    // TODO: can we skip the progress indicator if the site is already loaded (prerendering)?
-
-    progress(0, true, 'Loading search result page ' + nr + '…');
+    // Start the progress bar after 20ms. If the page was in the cache, this
+    // timer will be cancelled by the load callback below. If it wasn’t, 20ms
+    // is short enough of a delay to not be noticed by the user.
+    var progress_bar_start = setTimeout(function() {
+        progress(0, true, 'Loading search result page ' + nr + '…');
+    }, 20);
 
     var pathname = '/results/' + encodeURIComponent(searchterm) + '/page_' + nr;
     if (location.pathname != pathname) {
@@ -224,6 +227,7 @@ function loadPage(nr) {
     }
     $.ajax('/results/' + queryid + '/page_' + nr + '.json')
         .done(function(data, textStatus, xhr) {
+            clearTimeout(progress_bar_start);
             // TODO: maybe a nice animation?
             currentpage = nr;
             updatePagination($('#pagination'), currentpage, resultpages, 'loadPage');
@@ -242,10 +246,15 @@ function loadPage(nr) {
 // If preload is true, the current URL will not be updated, as the data is
 // preloaded and inserted into (hidden) DOM elements.
 function loadPerPkgPage(nr, preload) {
-    // TODO: can we skip the progress indicator if the site is already loaded (prerendering)?
-
+    var progress_bar_start;
     if (!preload) {
-        progress(0, true, 'Loading search result page ' + nr + '…');
+        // Start the progress bar after 20ms. If the page was in the cache,
+        // this timer will be cancelled by the load callback below. If it
+        // wasn’t, 20ms is short enough of a delay to not be noticed by the
+        // user.
+        progress_bar_start = setTimeout(function() {
+            progress(0, true, 'Loading search result page ' + nr + '…');
+        }, 20);
         var pathname = '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + nr;
         if (location.pathname != pathname) {
             history.pushState({ searchterm: searchterm, nr: nr, perpkg: true }, 'page ' + nr, pathname);
@@ -253,6 +262,9 @@ function loadPerPkgPage(nr, preload) {
     }
     $.ajax('/perpackage-results/' + queryid + '/2/page_' + nr + '.json')
         .done(function(data, textStatus, xhr) {
+            if (progress_bar_start !== undefined) {
+                clearTimeout(progress_bar_start);
+            }
             currentpage_pkg = nr;
             updatePagination($('#perpackage-pagination'), currentpage_pkg, Math.trunc(packages.length / packagesPerPage), 'loadPerPkgPage');
             var pp = $('#perpackage-results');
