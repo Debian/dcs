@@ -2,6 +2,26 @@
  * and then include debian.css first, debcodesearch.css last */
 @import url("debian.css");
 
-#searchform {
+#searchdiv {
 	text-align: center;
+}
+
+/* from bootstrap; consider using the entire bootstrap */
+.alert {
+	padding: 15px;
+	margin-bottom: 20px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+}
+
+.alert-warning {
+	color: #8a6d3b;
+	background-color: #fcf8e3;
+	border-color: #faebcc;
+}
+
+.alert-danger {
+	color: #a94442;
+	background-color: #f2dede;
+	border-color: #ebccd1;
 }

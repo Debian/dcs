@@ -3,36 +3,207 @@
 <head>
 <meta charset="utf-8">
 <title>Debian Code Search</title>
-<link rel="stylesheet" href="debcodesearch.css">
+<link rel="stylesheet" href="/debcodesearch.css">
+<style type="text/css">
+pre, code {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+a code {
+    color: #00E;
+    font-size: 110%;
+}
+
+#results {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+#results li {
+    margin-bottom: 1em;
+}
+
+#results small {
+    opacity: 0.4;
+}
+
+#pagination, #perpackage-pagination {
+    margin-top: 2em;
+    margin-bottom: 2em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+pre {
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: em;
+}
+
+#packages {
+    display: table;
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+}
+
+#packages span {
+    display: table-cell;
+}
+
+#packages span:first-child {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+#packages span:last-child {
+/* TODO: instead of specifying a percentage, can we make this auto-size? use http://jsfiddle.net/L8S9L/2/ for testing */
+    width: 5%;
+}
+
+#packages span:last-child a {
+   text-decoration: none;
+}
+
+@-webkit-keyframes progress-bar-stripes {
+  from {
+    background-position: 40px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@keyframes progress-bar-stripes {
+  from {
+    background-position: 40px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+#progressbar {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    height: 20px;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    overflow: hidden;
+    position: relative;
+    -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progressbar-back-text, .progressbar-front-text {
+    display: block;
+    width: 100%;
+    text-align: center;
+    line-height: 20px;
+}
+
+.progressbar-back-text {
+    position: absolute;
+}
+
+.progress-bar {
+    position: absolute;
+    overflow: hidden;
+    color: #fff;
+    width: 50%;
+    height: 100%;
+    background-color: #c70036;
+    -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+
+.progress-active {
+    background-image: -webkit-linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-image: -o-linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-size: 40px 40px;
+    -webkit-animation: progress-bar-stripes 2s linear infinite;
+    -o-animation: progress-bar-stripes 2s linear infinite;
+    animation: progress-bar-stripes 2s linear infinite;
+}
+</style>
+<script type="text/javascript" src="//code.jquery.com/jquery-2.1.1.min.js"></script>
+<script type="text/javascript" src="http://tinysort.sjeiti.com/dist/jquery.tinysort.min.js"></script>
+<script type="text/javascript" src="/reconnecting-websocket.js"></script>
+<script type="text/javascript" src="/instant.js"></script>
 </head>
 <body>
 
 <div id="header">
    <div id="upperheader">
    <div id="logo">
-  <a href="./" title="Debian Home"><img src="./Pics/openlogo-50.png" alt="Debian" width="50" height="61"></a>
+  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.png" alt="Debian" width="50" height="61"></a>
   </div> <!-- end logo -->
   <p class="section"><a href="/">Code Search</a></p>
+  <div id="searchbox">
+  <div class="formplaceholder"></div>
+  </div>
  </div> <!-- end upperheader -->
 <!--UdmComment-->
 <div id="navbar">
 <p class="hidecss"><a href="#content">Skip Quicknav</a></p>
 <ul>
-   <li><a href="./">Search</a></li>
-   <li><a href="./about">About Code Search</a></li>
-   <li><a href="./faq">FAQ</a></li>
+   <li><a href="/">Search</a></li>
+   <li><a href="/about">About Code Search</a></li>
+   <li><a href="/faq">FAQ</a></li>
 </ul>
 </div> <!-- end navbar -->
-	<p id="breadcrumbs">&nbsp; </p>
+    <p id="breadcrumbs">&nbsp; </p>
 </div> <!-- end header -->
 <!--/UdmComment-->
 <div id="content">
 
-<div id="searchform">
+<div id="progressbar" style="display: none">
+  <span class="progressbar-back-text">50 / 100</span>
+  <div class="progress-bar progress-active">
+    <span class="progressbar-front-text">50 / 100</span>
+  </div>
+</div>
+<div id="errors">
+</div>
+
+<div id="packages">
+</div>
+<div id="packageshint" style="display: none">
+</div>
+
+<div id="options" style="display: none">
+<input type="checkbox" id="enable-perpackage" disabled="disabled" onclick="changeGrouping()"><label for="enable-perpackage" style="opacity: 0.5">Group search results by Debian source package</label>
+</div>
+
+<div id="pagination">
+</div>
+<div id="perpackage-pagination" style="display: none">
+</div>
+
+<ul id="results">
+</ul>
+<div id="perpackage-results" style="display: none">
+</div>
+<div id="searchdiv">
 <h1>Debian Code Search</h1>
 <p>Search all 130 GiB of source code within Debian:</p>
-<form action="/search" method="get">
-<input type="text" name="q" autofocus="autofocus">
+<div class="formplaceholder"></div>
+<form id="searchform" action="/search" method="get" style="display: inline-block">
+<input type="text" name="q" autofocus="autofocus" list="autocomplete">
+<datalist id="autocomplete"></datalist>
 <input type="submit" value="Search">
 </form>
 <p>
