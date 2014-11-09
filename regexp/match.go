@@ -414,7 +414,8 @@ type Match struct {
 	Ctxn2 string
 
 	// This will be filled in by the source backend
-	Ranking float32
+	PathRank float32
+	Ranking  float32
 }
 
 func (g *Grep) Reader(r io.Reader, name string) []Match {
