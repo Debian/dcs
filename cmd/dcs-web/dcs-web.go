@@ -2,6 +2,8 @@
 package main
 
 import (
+	"code.google.com/p/go.net/websocket"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
@@ -11,6 +13,8 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/cmd/dcs-web/varz"
+	"hash/fnv"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -27,6 +31,69 @@ var (
 		"./static/",
 		"Path to static assets such as *.css")
 )
+
+func InstantServer(ws *websocket.Conn) {
+	src := ws.Request().RemoteAddr
+	log.Printf("Accepted websocket connection from %q\n", src)
+
+	type Query struct {
+		Query string
+	}
+	var q Query
+	for {
+		err := json.NewDecoder(ws).Decode(&q)
+		if err != nil {
+			log.Printf("[%s] error reading query: %v\n", src, err)
+			return
+		}
+		log.Printf("[%s] Received query %v\n", src, q)
+
+		// Uniquely (well, good enough) identify this query for a couple of minutes
+		// (as long as we want to cache results). We could try to normalize the
+		// query before hashing it, but that seems hardly worth the complexity.
+		h := fnv.New64()
+		io.WriteString(h, q.Query)
+		identifier := fmt.Sprintf("%x", h.Sum64())
+
+		getQuery(identifier, src, q.Query)
+		lastseen := -1
+		for {
+			message, sequence := getEvent(identifier, lastseen)
+			lastseen = sequence
+			// This message was obsoleted by a more recent one, e.g. a more
+			// recent progress update obsoletes all earlier progress updates.
+			if *message.obsolete {
+				continue
+			}
+			if len(message.data) == 0 {
+				// TODO: tell the client that a new query can be sent
+				break
+			}
+			written, err := ws.Write(message.data)
+			if err != nil {
+				log.Printf("[%s] Error writing to websocket, closing: %v\n", src, err)
+				return
+			}
+			if written != len(message.data) {
+				log.Printf("[%s] Could only write %d of %d bytes to websocket, closing.\n", src, written, len(message.data))
+				return
+			}
+		}
+		log.Printf("[%s] query done. waiting for a new one\n", src)
+	}
+}
+
+func ResultsHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: ideally, this would also start the search in the background to avoid waiting for the round-trip to the client.
+
+	// TODO: also, what about non-javascript clients?
+
+	// While this just serves index.html, the javascript part of index.html
+	// realizes the path starts with /results/ and starts the search, then
+	// requests the specified page on search completion.
+	http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
+	return
+}
 
 func main() {
 	flag.Parse()
@@ -72,5 +139,11 @@ func main() {
 			return
 		}
 	})
+
+	http.HandleFunc("/results/", ResultsHandler)
+	http.HandleFunc("/perpackage-results/", PerPackageResultsHandler)
+
+	http.Handle("/instantws", websocket.Handler(InstantServer))
+
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
