@@ -10,7 +10,6 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/goroutinez"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/cmd/dcs-web/index"
-	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/cmd/dcs-web/varz"
 	"hash/fnv"
@@ -101,8 +100,6 @@ func main() {
 
 	fmt.Println("Debian Code Search webapp")
 
-	search.OpenTimingFiles()
-
 	health.StartChecking()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +122,7 @@ func main() {
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
-	http.HandleFunc("/search", search.Search)
+	http.HandleFunc("/search", Search)
 	http.HandleFunc("/show", show.Show)
 	http.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("writing memprof")

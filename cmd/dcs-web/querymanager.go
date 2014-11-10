@@ -103,6 +103,7 @@ func (s ByRanking) Swap(i, j int) {
 type queryState struct {
 	events   []event
 	newEvent *sync.Cond
+	done     bool
 
 	results  [10]Result
 	resultMu *sync.Mutex

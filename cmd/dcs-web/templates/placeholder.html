@@ -59,6 +59,7 @@ pre {
 </style>
 <link rel="stylesheet" href="http://yandex.st/highlightjs/7.0/styles/default.min.css">
 <script src="http://yandex.st/highlightjs/7.0/highlight.min.js"></script>
+<meta http-equiv="refresh" content="5">
 </head>
 <body>
 
@@ -89,28 +90,15 @@ pre {
 <!--/UdmComment-->
 <div id="content">
 
-<h2>Search Results for "{{.q}}"</h2>
-
 <p>
-<strong>Filter by package:</strong>
-{{range .packages}}
-{{.}},
-{{end}}
+Still searching. This page will refresh itself every 5 seconds until the search
+results are available.
 </p>
 
 <p>
-{{.pagination}}
+Note that you are seeing this page because you have JavaScript disabled. For a
+much better user experience with Debian Code Search, enable JavaScript.
 </p>
-
-<ul id="results">
-{{range .results}}
-<li><a href="/show?file={{.Path}}&line={{.Line}}#L{{.Line}}"><code><strong>{{.SourcePackage}}</strong>{{.RelativePath}}</code>:{{.Line}}</a><br>
-<pre>
-{{.Context}}
-</pre>
-
-PathRank: {{.PathRank}}, Rank: {{.Ranking}}</li>
-{{end}}
 
 <script type="text/javascript">
 <!--

@@ -43,6 +43,10 @@ func addEvent(queryid string, data []byte, origdata interface{}) {
 		data:     data,
 		obsolete: new(bool),
 		original: original})
+	// An empty message marks the query as finished, but further errors can
+	// occur, so we store whether we’ve seen an empty message for use in
+	// queryCompleted().
+	s.done = s.done || (len(data) == 0)
 	state[queryid] = s
 
 	state[queryid].newEvent.Broadcast()
@@ -92,4 +96,8 @@ func getEvent(queryid string, lastseen int) (event, int) {
 	}
 	state[queryid].newEvent.L.Unlock()
 	return state[queryid].events[lastseen+1], lastseen + 1
+}
+
+func queryCompleted(queryid string) bool {
+	return state[queryid].done
 }
