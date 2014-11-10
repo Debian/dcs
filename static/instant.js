@@ -246,7 +246,9 @@ function loadPage(nr) {
     $.ajax('/results/' + queryid + '/page_' + nr + '.json')
         .done(function(data, textStatus, xhr) {
             clearTimeout(progress_bar_start);
-            // TODO: maybe a nice animation?
+            // TODO: experiment and see whether animating the results works
+            // well. Fade them in one after the other, see:
+            // http://www.google.com/design/spec/animation/meaningful-transitions.html#meaningful-transitions-hierarchical-timing
             currentpage = nr;
             updatePagination($('#pagination'), currentpage, resultpages, 'loadPage');
             $('ul#results>li').remove();
