@@ -87,14 +87,20 @@ function animateSearchForm() {
     });
 }
 
-function sendQuery() {
-    $('#errors div.alert-danger').remove();
+function showResultsPage() {
     $('#results li').remove();
+    $('#normalresults').show();
+    $('#progressbar').show();
     $('#options').hide();
     $('#packageshint').hide();
-    $('#packages').text('');
     $('#pagination').text('');
     $('#perpackage-pagination').text('');
+}
+
+function sendQuery() {
+    showResultsPage();
+    $('#packages').text('');
+    $('#errors div.alert-danger').remove();
     var query = {
         "Query": "q=" + encodeURIComponent(searchterm),
     };
@@ -135,15 +141,26 @@ connection.onopen = function() {
     // pages that were created using history.pushState().
     $(window).bind("popstate", function(ev) {
         var state = ev.originalEvent.state;
+        console.log('popstate', state);
         if (state == null) {
             // Restore the original page.
-            $('#results').hide();
-            $('#progressbar').hide();
-            $('#pagination').hide();
+            $('#normalresults, #perpackage, #progressbar, #errors, #packages, #options').hide();
             $('#searchdiv').show();
-            // TODO: re-insert the search box into its place
+            $('#searchdiv .formplaceholder').after($('#searchform'));
+            $('#searchform').css('position', 'static');
             restoreAutocomplete();
         } else {
+            if (!$('#normalresults').is(':visible') &&
+                !$('#perpackage').is(':visible')) {
+                showResultsPage();
+                animateSearchForm();
+                // The following are necessary because we don’t send the query
+                // anew and don’t get any progress messages (the final progress
+                // message triggers displaying certain elements).
+                $('#packages, #errors, #options').show();
+            }
+            $('#enable-perpackage').prop('checked', state.perpkg);
+            changeGrouping();
             if (state.perpkg) {
                 loadPerPkgPage(state.nr);
             } else {
@@ -453,20 +470,26 @@ function changeGrouping() {
 
     if (shouldPerPkg) {
         ppelements.removeClass('animation-reverse');
-        history.pushState(
-            { searchterm: searchterm, nr: currentpage_pkg, perpkg: true },
-            'page ' + currentpage_pkg,
-            '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + currentpage_pkg);
+        var pathname = '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + currentpage_pkg;
+        if (location.pathname != pathname) {
+            history.pushState(
+                { searchterm: searchterm, nr: currentpage_pkg, perpkg: true },
+                'page ' + currentpage_pkg,
+                pathname);
+        }
 
         setPositionAbsolute('#footer');
         setPositionAbsolute('#normalresults');
         $('#perpackage').show();
     } else {
         ppelements.addClass('animation-reverse');
-        history.pushState(
-            { searchterm: searchterm, nr: currentpage, perpkg: false },
-            'page ' + currentpage,
-            '/results/' + encodeURIComponent(searchterm) + '/page_' + currentpage);
+        var pathname = '/results/' + encodeURIComponent(searchterm) + '/page_' + currentpage;
+        if (location.pathname != pathname) {
+            history.pushState(
+                { searchterm: searchterm, nr: currentpage, perpkg: false },
+                'page ' + currentpage,
+                pathname);
+        }
         $('#normalresults').show();
         // For browsers that don’t support animations, we need to have a fallback.
         // The timer will be cancelled in the animationstart event handler.
