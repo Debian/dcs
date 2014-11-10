@@ -8,6 +8,7 @@ var packagesPerPage = 5;
 var resultsPerPackage = 2;
 
 var animationFallback;
+var showConnectProgress;
 var connection = new ReconnectingWebSocket('ws://' + window.location.hostname + ':28080/instantws');
 var searchterm;
 
@@ -122,6 +123,9 @@ function sendQuery() {
 }
 
 connection.onopen = function() {
+    clearTimeout(showConnectProgress);
+    $('#searchform input').attr('disabled', false);
+
     // The URL dictates a search query, so start it.
     if (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
         window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
@@ -367,17 +371,14 @@ connection.onmessage = function(e) {
                         if (data.Packages.length === 1) {
                             p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
                         } else if (data.Packages.length > 1) {
-                            var packagesList = '';
                             // We are limiting the amount of packages because
                             // some browsers (e.g. Chrome 40) will stop
                             // displaying text with “white-space: nowrap” once
                             // it becomes too long.
-                            for (var i = 0; i < Math.min(data.Packages.length, 1000); i++) {
-                                packagesList = packagesList + data.Packages[i] + ', ';
-                            }
+                            var packagesList = data.Packages.slice(0, 1000).join(', ');
                             p.append('<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
                             if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
-                                p.append('<span><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
+                                p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
                                 $('#packageshint').text('');
                                 $('#packageshint').append('To see all packages which contain results: <pre>curl -s http://' + window.location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
                             }
@@ -582,9 +583,18 @@ $(window).load(function() {
 
     if (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
         window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
-        // TODO: disable it, show a progress indicator while the connection is being established…?
         var parts = new RegExp("results/([^/]+)").exec(window.location.pathname);
         $('#searchform input[name=q]').val(decodeURIComponent(parts[1]));
+
+        // If the websocket is not connected within 100ms, indicate progress.
+        if (connection.readyState != WebSocket.OPEN) {
+            $('#searchform input').attr('disabled', true);
+            showConnectProgress = setTimeout(function() {
+                $('#progressbar').show();
+                fixProgressbar();
+                progress(0, true, 'Connecting…');
+            }, 100);
+        }
     }
 });
 
