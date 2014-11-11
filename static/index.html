@@ -3,13 +3,29 @@
 <head>
 <meta charset="utf-8">
 <title>Debian Code Search</title>
-<!-- TODO: serve these from the debian packages maybe? -->
-<link href='http://fonts.googleapis.com/css?family=Roboto:400,700|Inconsolata' rel='stylesheet' type='text/css'>
-<link rel="stylesheet" href="/debcodesearch.css">
-<script type="text/javascript" src="//code.jquery.com/jquery-2.1.1.min.js"></script>
+<style type="text/css">
+@font-face {
+  font-family: 'Inconsolata';
+  src: local('Inconsolata'), url(/Inconsolata.woff) format('woff');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Roboto Regular'), local('Roboto-Regular'), url(/Roboto-Regular.woff) format('woff');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 700;
+  src: local('Roboto Bold'), local('Roboto-Bold'), url(/Roboto-Bold.woff) format('woff');
+}
+</style>
+<link rel="stylesheet" href="/debcodesearch.min.css">
+<script type="text/javascript" src="/jquery.min.js"></script>
 <script type="text/javascript" src="http://tinysort.sjeiti.com/dist/jquery.tinysort.min.js"></script>
-<script type="text/javascript" src="/reconnecting-websocket.js"></script>
-<script type="text/javascript" src="/instant.js"></script>
+<script type="text/javascript" src="/reconnecting-websocket.min.js"></script>
+<script type="text/javascript" src="/instant.min.js"></script>
 </head>
 <body>
 
