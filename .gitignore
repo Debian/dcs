@@ -8,3 +8,15 @@ cmd/dcs-package-importer/dcs-package-importer
 cmd/dcs-rs-deploy/dcs-rs-deploy
 cmd/dcs-varz-to-influxdb/dcs-varz-to-influxdb
 *.swp
+cmd/dcs-debmirror/dcs-debmirror
+cmd/dcs-feeder/dcs-feeder
+cmd/dcs-rs-cleanup/dcs-rs-cleanup
+cmd/dcs-index-backend/dcs-index-backend
+cmd/dcs-tail-fedmsg/dcs-tail-fedmsg
+cmd/dcs-source-backend/dcs-source-backend
+static/Inconsolata.woff
+static/Roboto-Bold.woff
+static/Roboto-Regular.woff
+static/debcodesearch.min.css
+static/instant.min.js
+static/reconnecting-websocket.min.js
