@@ -74,6 +74,7 @@ body {
 	color: #222;
 	background-color: white;
 	background-image:url('Pics/gradient.png');
+	background-image: linear-gradient(to bottom, #d7d9e2, #fff 70px);
 	background-position: 0 0;
 	background-repeat: repeat-x;
 	/* Uncomment to show baseline grid 
