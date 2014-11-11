@@ -221,7 +221,9 @@ function addSearchResult(results, result) {
 
     // Append the new search result, then sort the results.
     results.append('<li data-ranking="' + result.Ranking + '"><a href="/show?file=' + encodeURIComponent(result.Path) + '&line=' + result.Line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.PathRank + ', Final: ' + result.Ranking + '</small></li>');
-    $('ul#results>li').tsort({data:'ranking', order:'desc'});
+    $('ul#results').append($('ul#results>li').detach().sort(function(a, b) {
+        return b.getAttribute('data-ranking') - a.getAttribute('data-ranking');
+    }));
 
     // For performance reasons, we always keep the amount of displayed
     // results at 10. With (typically rather generic) queries where the top
