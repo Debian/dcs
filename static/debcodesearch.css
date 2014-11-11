@@ -139,3 +139,163 @@
 	-o-animation-direction: reverse;
 	animation-direction: reverse;
 }
+
+body {
+    font-family: 'Roboto', sans-serif;
+    letter-spacing: 0.15px;
+}
+
+h1, h2 {
+    letter-spacing: initial;
+}
+
+pre, code {
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+a code {
+    font-size: 17px !important;
+    color: #00E;
+}
+
+#results a, #perpackage-results a {
+    text-decoration: none;
+    border-bottom: 1px solid;
+}
+
+#results, #perpackage-results ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+#results li small, #perpackage-results small {
+    opacity: 0;
+}
+
+#results small:hover, #perpackage-results small:hover {
+    opacity: 0.75;
+}
+
+#results li {
+    margin-bottom: 1em;
+}
+
+#results small {
+    opacity: 0.4;
+}
+
+#pagination, #perpackage-pagination {
+    margin-top: 2em;
+    margin-bottom: 2em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+pre {
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: em;
+}
+
+#packages {
+    display: table;
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+}
+
+#packages span {
+    display: table-cell;
+}
+
+#packages span:first-child {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+#packages span.showhint {
+/* TODO: instead of specifying a percentage, can we make this auto-size? use http://jsfiddle.net/L8S9L/2/ for testing */
+    width: 5%;
+    padding-left: 0.5em;
+}
+
+#packages span.showhint a {
+   text-decoration: none;
+}
+
+@-webkit-keyframes progress-bar-stripes {
+  from {
+    background-position: 40px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@keyframes progress-bar-stripes {
+  from {
+    background-position: 40px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+#progressbar {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    height: 30px;
+    border-radius: 4px;
+    background-color: #f5f5f5;
+    overflow: hidden;
+    position: relative;
+    -webkit-box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progressbar-back-text, .progressbar-front-text {
+    display: block;
+    width: 100%;
+    text-align: center;
+    line-height: 28px;
+}
+
+.progressbar-back-text {
+    position: absolute;
+}
+
+.progress-bar {
+    position: absolute;
+    overflow: hidden;
+    color: #fff;
+    width: 50%;
+    height: 100%;
+    background-color: #cc1446;
+    -webkit-box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+}
+
+.progress-active {
+    background-image: -webkit-linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-image: -o-linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+    background-size: 40px 40px;
+    -webkit-animation: progress-bar-stripes 2s linear infinite;
+    -o-animation: progress-bar-stripes 2s linear infinite;
+    animation: progress-bar-stripes 2s linear infinite;
+}
+
