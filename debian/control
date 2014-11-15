@@ -16,8 +16,8 @@ Build-Depends:
  woff-tools,
  yui-compressor
 Standards-Version: 3.9.2
-#Vcs-Git: git://git.debian.org/collab-maint/dcs.git
-#Vcs-Browser: http://git.debian.org/?p=collab-maint/dcs.git;a=summary
+Vcs-Browser: https://github.com/Debian/dcs/
+Vcs-Git: https://github.com/Debian/dcs/
 
 Package: dcs
 Architecture: any
