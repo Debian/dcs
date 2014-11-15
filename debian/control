@@ -2,14 +2,29 @@ Source: dcs
 Section: net
 Priority: extra
 Maintainer: Michael Stapelberg <stapelberg@debian.org>
-Build-Depends: debhelper (>= 8.0.0), golang-go, golang-pq-dev, golang-codesearch-dev, golang-godebiancontrol-dev, golang-go.crypto-dev, dh-golang (>= 1.1), libjs-jquery, fonts-roboto, fonts-inconsolata, yui-compressor, woff-tools
+Build-Depends:
+ debhelper (>= 8.0.0),
+ dh-golang (>= 1.1),
+ fonts-inconsolata,
+ fonts-roboto,
+ golang-codesearch-dev,
+ golang-go,
+ golang-go.crypto-dev,
+ golang-godebiancontrol-dev,
+ golang-pq-dev,
+ libjs-jquery,
+ woff-tools,
+ yui-compressor
 Standards-Version: 3.9.2
 #Vcs-Git: git://git.debian.org/collab-maint/dcs.git
 #Vcs-Browser: http://git.debian.org/?p=collab-maint/dcs.git;a=summary
 
 Package: dcs
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, dpkg-dev
+Depends:
+ dpkg-dev,
+ ${misc:Depends},
+ ${shlibs:Depends}
 Built-Using: ${misc:Built-Using}
 Description: Debian Code Search
  Server binaries, tools and templates/static assets to run Debian Code Search.
