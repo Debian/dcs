@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/pebbe/zmq4"
+	"github.com/pebbe/zmq3"
 	"log"
 	"net/http"
 	"net/url"
@@ -31,7 +31,7 @@ type uploadDetails struct {
 }
 
 func main() {
-	subscriber, _ := zmq4.NewSocket(zmq4.SUB)
+	subscriber, _ := zmq3.NewSocket(zmq3.SUB)
 	defer subscriber.Close()
 	subscriber.SetSubscribe("org.debian.dev.debmessenger.package.upload")
 	subscriber.Connect("tcp://fedmsg.debian.net:9940")
