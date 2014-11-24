@@ -9,7 +9,6 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/goroutinez"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
-	"github.com/Debian/dcs/cmd/dcs-web/index"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/cmd/dcs-web/varz"
 	"hash/fnv"
@@ -117,7 +116,7 @@ func main() {
 			return
 		}
 
-		index.Index(w, r)
+		http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
 	})
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/varz", varz.Varz)
