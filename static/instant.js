@@ -265,7 +265,7 @@ function loadPage(nr) {
             progress(100, true, null);
         })
         .fail(function(xhr, textStatus, errorThrown) {
-            error(true, true, null, 'Could not load search query results ("' + errorThrown + '").');
+            error(true, true, null, 'Could not load search query results: ' + errorThrown);
         });
 }
 
@@ -397,7 +397,7 @@ connection.onmessage = function(e) {
                         }
                     })
                     .fail(function(xhr, textStatus, errorThrown) {
-                        error(true, true, null, 'Loading search result package list failed ("' + errorThrown + '").');
+                        error(true, true, null, 'Loading search result package list failed: ' + errorThrown);
                     });
             }
         }
