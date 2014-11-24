@@ -453,6 +453,17 @@ function setPositionStatic(selector) {
         'height': ''});
 }
 
+function animationSupported() {
+    var elm = $('#perpackage')[0];
+    var prefixes = ["webkit", "MS", "moz", "o", ""];
+    for (var i = 0; i < prefixes.length; i++) {
+        if (elm.style[prefixes[i] + 'AnimationName'] !== undefined) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Switch between displaying all results and grouping search results by Debian
 // source package.
 function changeGrouping() {
@@ -467,10 +478,10 @@ function changeGrouping() {
     ppelements.data('hideAfterAnimation', !shouldPerPkg);
 
     if (currentPerPkg) {
-            $('#perpkg').addClass('animation-reverse');
+        $('#perpackage').addClass('animation-reverse');
     } else {
-            $('#perpkg').removeClass('animation-reverse');
-            $('#perpkg').show();
+        $('#perpackage').removeClass('animation-reverse');
+        $('#perpackage').show();
     }
 
     if (shouldPerPkg) {
@@ -498,10 +509,12 @@ function changeGrouping() {
         $('#normalresults').show();
         // For browsers that don’t support animations, we need to have a fallback.
         // The timer will be cancelled in the animationstart event handler.
-        animationFallback = setTimeout(function() {
-            $('#perpackage').hide();
-            setPositionStatic('#footer, #normalresults');
-        }, 50);
+        if (!animationSupported()) {
+            animationFallback = setTimeout(function() {
+                $('#perpackage').hide();
+                setPositionStatic('#footer, #normalresults');
+            }, 100);
+        }
     }
 
     ppelements.removeClass('ppanimation');
@@ -575,12 +588,12 @@ $(window).load(function() {
         clearTimeout(animationFallback);
     });
     bindAnimationEvent(ppresults, 'AnimationEnd',  function(e) {
-            if (ppresults.data('hideAfterAnimation')) {
-                    ppresults.hide();
-                    setPositionStatic('#footer, #normalresults');
-            } else {
-                    $('#normalresults').hide();
-            }
+        if (ppresults.data('hideAfterAnimation')) {
+            ppresults.hide();
+            setPositionStatic('#footer, #normalresults');
+        } else {
+            $('#normalresults').hide();
+        }
     });
 
     if (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
