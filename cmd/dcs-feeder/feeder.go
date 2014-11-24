@@ -20,6 +20,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	net_url "net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -311,7 +312,7 @@ func checkSources() {
 			continue
 		}
 		status := packages[shard][p]
-		log.Printf("package %s: shard %d (%s), status %v\n", p, shardIdx, shard, status)
+		//log.Printf("package %s: shard %d (%s), status %v\n", p, shardIdx, shard, status)
 		if status == Present {
 			packages[shard][p] = Confirmed
 		} else if status == NotPresent {
@@ -338,15 +339,31 @@ func checkSources() {
 	}
 
 	// Garbage-collect all packages that have not been confirmed.
+	queuedForMerge := make(map[string]bool)
 	for _, shard := range shards {
 		for p, status := range packages[shard] {
 			if status != Present {
 				continue
 			}
 
-			log.Printf("garbage-collecting %s on shard %s\n", p, shard)
-			// TODO: send garbage collect request
+			log.Printf("garbage-collecting %q on shard %s\n", p, shard)
+
+			shard := shards[taskIdxForPackage(p, len(shards))]
+			url := fmt.Sprintf("http://%s/garbagecollect", shard)
+			resp, err := http.PostForm(url, net_url.Values{"package": {p}})
+			if err != nil {
+				log.Printf("Could not garbage-collect package %q on shard %s: %v\n", p, shard, err)
+				continue
+			}
+			if resp.StatusCode == 200 {
+				queuedForMerge[shard] = true
+			}
 		}
+	}
+
+	for shard, _ := range queuedForMerge {
+		log.Printf("requesting merge on shard %s after garbage collection\n", shard)
+		requestMerge(shard)
 	}
 }
 

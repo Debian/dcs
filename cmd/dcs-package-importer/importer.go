@@ -96,9 +96,7 @@ func mergeOrError(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func listPackages(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func packageNames() []string {
 	var names []string
 
 	file, err := os.Open(*unpackedPath)
@@ -115,6 +113,14 @@ func listPackages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return names
+}
+
+func listPackages(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	names := packageNames()
+
 	type ListPackageReply struct {
 		Packages []string
 	}
@@ -130,6 +136,7 @@ func listPackages(w http.ResponseWriter, r *http.Request) {
 	jsonReply, err := json.Marshal(&reply)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Serialization error: %v", err), http.StatusInternalServerError)
+		return
 	}
 
 	if _, err := w.Write(jsonReply); err != nil {
@@ -137,17 +144,48 @@ func listPackages(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func garbageCollect(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+
+	pkg := r.FormValue("package")
+	if pkg == "" {
+		http.Error(w, "No ?package= provided", http.StatusInternalServerError)
+		return
+	}
+
+	names := packageNames()
+	found := false
+	for _, name := range names {
+		// Note that the logic is inverted in comparison to earlier in the
+		// code: for listPackages, we want to only return packages that have
+		// been unpacked and indexed (so we strip .idx), but for garbage
+		// collection, we also want to garbage collect packages that were not
+		// indexed for some reason, so we ignore .idx.
+		if name == pkg && !strings.HasSuffix(name, ".idx") {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		http.Error(w, "No such package", http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.RemoveAll(filepath.Join(*unpackedPath, pkg)); err != nil {
+		http.Error(w, fmt.Sprintf("Could not garbage collect package %q: %v", pkg, err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.Remove(filepath.Join(*unpackedPath, pkg+".idx")); err != nil {
+		http.Error(w, fmt.Sprintf("Could not garbage collect package index for %q: %v", pkg, err), http.StatusInternalServerError)
+		return
+	}
+}
+
 // Merges all packages in *unpackedPath into a big index shard.
 func mergeToShard() {
-	file, err := os.Open(*unpackedPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-	names, err := file.Readdirnames(-1)
-	if err != nil {
-		log.Fatal(err)
-	}
+	names := packageNames()
 	indexFiles := make([]string, 0, len(names))
 	for _, name := range names {
 		if strings.HasSuffix(name, ".idx") && name != "full.idx" {
@@ -335,6 +373,7 @@ func main() {
 	http.HandleFunc("/import/", importPackage)
 	http.HandleFunc("/merge", mergeOrError)
 	http.HandleFunc("/listpkgs", listPackages)
+	http.HandleFunc("/garbagecollect", garbageCollect)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
