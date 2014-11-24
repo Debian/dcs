@@ -339,7 +339,6 @@ func checkSources() {
 	}
 
 	// Garbage-collect all packages that have not been confirmed.
-	queuedForMerge := make(map[string]bool)
 	for _, shard := range shards {
 		for p, status := range packages[shard] {
 			if status != Present {
@@ -350,20 +349,11 @@ func checkSources() {
 
 			shard := shards[taskIdxForPackage(p, len(shards))]
 			url := fmt.Sprintf("http://%s/garbagecollect", shard)
-			resp, err := http.PostForm(url, net_url.Values{"package": {p}})
-			if err != nil {
+			if _, err := http.PostForm(url, net_url.Values{"package": {p}}); err != nil {
 				log.Printf("Could not garbage-collect package %q on shard %s: %v\n", p, shard, err)
 				continue
 			}
-			if resp.StatusCode == 200 {
-				queuedForMerge[shard] = true
-			}
 		}
-	}
-
-	for shard, _ := range queuedForMerge {
-		log.Printf("requesting merge on shard %s after garbage collection\n", shard)
-		requestMerge(shard)
 	}
 }
 
