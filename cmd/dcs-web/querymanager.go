@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -295,6 +296,60 @@ func finishQuery(queryid string) {
 	addEvent(queryid, []byte{}, nil)
 }
 
+type ByModTime []os.FileInfo
+
+func (s ByModTime) Len() int {
+	return len(s)
+}
+
+func (s ByModTime) Less(i, j int) bool {
+	return s[i].ModTime().Before(s[j].ModTime())
+}
+
+func (s ByModTime) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func availableBytes(path string) uint64 {
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(path, &stat); err != nil {
+		log.Fatal("Could not stat filesystem for %q: %v\n", path, err)
+	}
+	log.Printf("Available bytes on %q: %d\n", path, stat.Bavail*uint64(stat.Bsize))
+	return stat.Bavail * uint64(stat.Bsize)
+}
+
+func ensureEnoughSpaceAvailable() {
+	headroom := uint64(2 * 1024 * 1024 * 1024)
+	if availableBytes(*queryResultsPath) >= headroom {
+		return
+	}
+
+	log.Printf("Deleting an old query...\n")
+	dir, err := os.Open(*queryResultsPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer dir.Close()
+	infos, err := dir.Readdir(-1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sort.Sort(ByModTime(infos))
+	for _, info := range infos {
+		if !info.IsDir() {
+			continue
+		}
+		log.Printf("Removing query results for %q to make enough space\n", info.Name())
+		if err := os.RemoveAll(filepath.Join(*queryResultsPath, info.Name())); err != nil {
+			log.Fatal(err)
+		}
+		if availableBytes(*queryResultsPath) >= headroom {
+			break
+		}
+	}
+}
+
 func writeToDisk(queryid string) {
 	// Get the slice with results and unset it on the state so that processing can continue.
 	stateMu.Lock()
@@ -322,6 +377,10 @@ func writeToDisk(queryid string) {
 	log.Printf("[%s] packages: %v\n", queryid, packages)
 
 	sort.Sort(ByRanking(results))
+
+	// TODO: it’d be so much better if we would correctly handle ESPACE errors
+	// in the code below, but for that we need to carefully test it.
+	ensureEnoughSpaceAvailable()
 
 	resultsPerPage := 10
 	dir := filepath.Join(*queryResultsPath, queryid)
