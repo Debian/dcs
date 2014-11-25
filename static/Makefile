@@ -1,7 +1,13 @@
-all:
-	yui-compressor -o instant.min.js instant.js
-	yui-compressor -o reconnecting-websocket.min.js reconnecting-websocket.js
-	(cat debian.css debcodesearch.css) | yui-compressor --type css > debcodesearch.min.css
-	sfnt2woff Roboto-Regular.ttf
-	sfnt2woff Roboto-Bold.ttf
-	sfnt2woff Inconsolata.otf
+all: instant.min.js reconnecting-websocket.min.js Roboto-Regular.woff Roboto-Bold.woff Inconsolata.woff debcodesearch.min.css
+
+%.woff: %.?tf
+	echo "WOFF $<"
+	sfnt2woff $<
+
+%.min.js: %.js
+	echo "MINIFY $<"
+	slimit -m $< > $@ || yui-compressor -o $@ $<
+
+debcodesearch.min.css: debian.css debcodesearch.css
+	echo "MINIFY $^"
+	(cat $^) | yui-compressor --type css > $@ || (cat $^) | perl -MCSS::Minifier -E 'open(IN, "<", "/dev/stdin"); say CSS::Minifier::minify(input => *IN)' > $@
