@@ -302,6 +302,8 @@ function loadPerPkgPage(nr, preload) {
                 $.each(meta.Results, function(idx, result) {
                     addSearchResult(ul, result);
                 });
+                var allResultsURL = '/results/' + encodeURIComponent(searchterm + ' package:' + meta.Package) + '/page_0';
+                ul.append('<li><a href="' + allResultsURL + '">show all results in package <span class="packagename">' + meta.Package + '</span></a></li>');
                 if (!preload) {
                     progress(100, true, null);
                 }

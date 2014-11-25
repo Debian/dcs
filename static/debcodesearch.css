@@ -73,6 +73,10 @@
 	margin-top: 1.5em;
 }
 
+#perpackage-results .packagename {
+	text-transform: uppercase;
+}
+
 #perpackage-results ul {
 	margin-top: 0;
 }
