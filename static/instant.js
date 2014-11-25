@@ -85,6 +85,8 @@ function animateSearchForm() {
 
     sf.animate($('#searchbox').position(), 'fast', function() {
         $('#searchdiv').hide();
+        // Unset focus
+        $('#searchform input[name=q]').blur();
     });
 }
 
