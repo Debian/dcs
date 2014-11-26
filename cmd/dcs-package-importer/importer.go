@@ -134,7 +134,7 @@ func listPackages(w http.ResponseWriter, r *http.Request) {
 	var reply ListPackageReply
 	reply.Packages = make([]string, 0, len(names))
 	for _, name := range names {
-		if strings.HasSuffix(name, ".idx") {
+		if strings.HasSuffix(name, ".idx") && name != "full.idx" {
 			reply.Packages = append(reply.Packages, name[:len(name)-len(".idx")])
 		}
 	}
