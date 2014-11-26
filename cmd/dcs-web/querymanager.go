@@ -192,7 +192,7 @@ func queryBackend(queryid string, backend string, backendidx int, query string) 
 	}
 }
 
-func maybeStartQuery(queryid, src, query string) {
+func maybeStartQuery(queryid, src, query string) bool {
 	stateMu.Lock()
 	defer stateMu.Unlock()
 	querystate, running := state[queryid]
@@ -220,7 +220,10 @@ func maybeStartQuery(queryid, src, query string) {
 		for idx, backend := range backends {
 			go queryBackend(queryid, backend, idx, query)
 		}
+		return false
 	}
+
+	return true
 }
 
 // Caller needs to hold s.clientsMu

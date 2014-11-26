@@ -18,6 +18,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"strings"
+	"time"
 )
 
 var (
@@ -28,6 +30,11 @@ var (
 	staticPath = flag.String("static_path",
 		"./static/",
 		"Path to static assets such as *.css")
+	accessLogPath = flag.String("access_log_path",
+		"",
+		"Where to write access.log entries (in Apache Common Log Format). Disabled if empty.")
+
+	accessLog *os.File
 )
 
 func InstantServer(ws *websocket.Conn) {
@@ -45,6 +52,10 @@ func InstantServer(ws *websocket.Conn) {
 			return
 		}
 		log.Printf("[%s] Received query %v\n", src, q)
+		if strings.TrimSpace(q.Query) == "" || strings.TrimSpace(q.Query) == "?q=" {
+			log.Printf("[%s] Refusing empty query\n", src)
+			return
+		}
 
 		// Uniquely (well, good enough) identify this query for a couple of minutes
 		// (as long as we want to cache results). We could try to normalize the
@@ -53,7 +64,22 @@ func InstantServer(ws *websocket.Conn) {
 		io.WriteString(h, q.Query)
 		identifier := fmt.Sprintf("%x", h.Sum64())
 
-		maybeStartQuery(identifier, src, q.Query)
+		cached := maybeStartQuery(identifier, src, q.Query)
+
+		// Create an apache common log format entry.
+		if accessLog != nil {
+			responseCode := 200
+			if cached {
+				responseCode = 304
+			}
+			remoteIP := src
+			if idx := strings.LastIndex(remoteIP, ":"); idx > -1 {
+				remoteIP = remoteIP[:idx]
+			}
+			fmt.Fprintf(accessLog, "%s - - [%s] \"GET /instantws?%s HTTP/1.1\" %d -\n",
+				remoteIP, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q.Query, responseCode)
+		}
+
 		lastseen := -1
 		for {
 			message, sequence := getEvent(identifier, lastseen)
@@ -96,6 +122,13 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 	common.LoadTemplates()
+	if *accessLogPath != "" {
+		var err error
+		accessLog, err = os.OpenFile(*accessLogPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 
 	fmt.Println("Debian Code Search webapp")
 
