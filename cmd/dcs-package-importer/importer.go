@@ -261,11 +261,17 @@ func mergeToShard() {
 }
 
 func indexPackage(pkg string) {
+	log.Printf("Indexing %s\n", pkg)
 	unpacked := filepath.Join(tmpdir, pkg, pkg)
 	if err := os.MkdirAll(*unpackedPath, os.FileMode(0755)); err != nil {
 		log.Fatalf("Could not create directory: %v\n", err)
 	}
-	index := index.Create(filepath.Join(*unpackedPath, pkg+".idx"))
+
+	// Write to a temporary file first so that merges can happen at the same
+	// time. If we don’t do that, merges will try to use incomplete index
+	// files, which are interpreted as corrupted.
+	tmpIndexPath := filepath.Join(*unpackedPath, pkg+".tmp")
+	index := index.Create(tmpIndexPath)
 	// +1 because of the / that should not be included in the index.
 	stripLen := len(filepath.Join(tmpdir, pkg)) + 1
 
@@ -328,6 +334,11 @@ func indexPackage(pkg string) {
 		})
 
 	index.Flush()
+
+	finalIndexPath := filepath.Join(*unpackedPath, pkg+".idx")
+	if err := os.Rename(tmpIndexPath, finalIndexPath); err != nil {
+		log.Fatal(err)
+	}
 	varz.Increment("successful-package-indexes")
 }
 
