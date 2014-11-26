@@ -383,10 +383,6 @@ func writeToDisk(queryid string) {
 
 	sort.Sort(ByRanking(results))
 
-	// TODO: it’d be so much better if we would correctly handle ESPACE errors
-	// in the code below, but for that we need to carefully test it.
-	ensureEnoughSpaceAvailable()
-
 	resultsPerPage := 10
 	dir := filepath.Join(*queryResultsPath, queryid)
 	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
@@ -394,6 +390,10 @@ func writeToDisk(queryid string) {
 		log.Printf("[%s] could not create %q: %v\n", queryid, dir, err)
 		return
 	}
+
+	// TODO: it’d be so much better if we would correctly handle ESPACE errors
+	// in the code below (and above), but for that we need to carefully test it.
+	ensureEnoughSpaceAvailable()
 
 	f, err := os.Create(filepath.Join(dir, "packages.json"))
 	if err != nil {
