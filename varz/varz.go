@@ -6,10 +6,13 @@ import (
 	"net/http"
 	"runtime"
 	"sync"
+	"time"
 )
 
 var (
 	counters = make(map[string]*counter)
+
+	started = time.Now()
 )
 
 // A counter which is safe to use from multiple goroutines.
@@ -29,6 +32,7 @@ func (c *counter) Value() uint64 {
 }
 
 func Varz(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Uptime", fmt.Sprintf("%d", time.Since(started)))
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	fmt.Fprintf(w, "num-goroutine %d\n", runtime.NumGoroutine())
