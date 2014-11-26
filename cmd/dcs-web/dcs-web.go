@@ -53,7 +53,7 @@ func InstantServer(ws *websocket.Conn) {
 		io.WriteString(h, q.Query)
 		identifier := fmt.Sprintf("%x", h.Sum64())
 
-		getQuery(identifier, src, q.Query)
+		maybeStartQuery(identifier, src, q.Query)
 		lastseen := -1
 		for {
 			message, sequence := getEvent(identifier, lastseen)

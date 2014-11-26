@@ -102,6 +102,7 @@ func (s ByRanking) Swap(i, j int) {
 }
 
 type queryState struct {
+	started  time.Time
 	events   []event
 	newEvent *sync.Cond
 	done     bool
@@ -191,13 +192,17 @@ func queryBackend(queryid string, backend string, backendidx int, query string) 
 	}
 }
 
-// TODO: rename
-func getQuery(queryid, src, query string) {
+func maybeStartQuery(queryid, src, query string) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	if _, running := state[queryid]; !running {
+	querystate, running := state[queryid]
+	// XXX: Starting a new query while there may still be clients reading that
+	// query is not a great idea. Best fix may be to make getEvent() use a
+	// querystate instead of the string identifier.
+	if !running || time.Since(querystate.started) > 15*time.Minute {
 		backends := strings.Split(*common.SourceBackends, ",")
 		state[queryid] = queryState{
+			started:        time.Now(),
 			newEvent:       sync.NewCond(&sync.Mutex{}),
 			resultMu:       &sync.Mutex{},
 			filesTotal:     make([]int, len(backends)),

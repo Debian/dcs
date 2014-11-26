@@ -122,7 +122,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("getquery(%q, %q, %q)\n", queryid, src, q)
 
-	getQuery(queryid, src, q)
+	maybeStartQuery(queryid, src, q)
 	if !queryCompleted(queryid) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"q":       r.Form.Get("q"),
