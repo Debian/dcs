@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/varz"
 	"io"
 	"io/ioutil"
 	"log"
@@ -62,18 +63,21 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	err := os.Mkdir(filepath.Join(tmpdir, pkg), 0755)
 	if err != nil && !os.IsExist(err) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		varz.Increment("failed-package-imports")
 		return
 	}
 
 	file, err := os.Create(filepath.Join(tmpdir, path))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		varz.Increment("failed-package-imports")
 		return
 	}
 	defer file.Close()
 	written, err := io.Copy(file, r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		varz.Increment("failed-package-imports")
 		return
 	}
 	log.Printf("Wrote %d bytes into %s\n", written, path)
@@ -82,6 +86,8 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(filename, ".dsc") {
 		indexQueue <- path
 	}
+
+	varz.Increment("successful-package-imports")
 }
 
 // Tries to start a merge and errors in case one is already in progress.
@@ -181,6 +187,8 @@ func garbageCollect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Could not garbage collect package index for %q: %v", pkg, err), http.StatusInternalServerError)
 		return
 	}
+
+	varz.Increment("successful-garbage-collects")
 }
 
 // Merges all packages in *unpackedPath into a big index shard.
@@ -192,6 +200,8 @@ func mergeToShard() {
 			indexFiles = append(indexFiles, filepath.Join(*unpackedPath, name))
 		}
 	}
+
+	varz.Set("index-files", uint64(len(indexFiles)))
 
 	log.Printf("Got %d index files\n", len(indexFiles))
 	if len(indexFiles) == 1 {
@@ -234,6 +244,8 @@ func mergeToShard() {
 		}
 		return
 	}
+
+	varz.Increment("successful-merges")
 
 	// Replace the current index with the newly created index.
 	resp, err := http.Get(fmt.Sprintf("http://localhost:28081/replace?shard=%s", filepath.Base(tmpIndexPath.Name())))
@@ -316,6 +328,7 @@ func indexPackage(pkg string) {
 		})
 
 	index.Flush()
+	varz.Increment("successful-package-indexes")
 }
 
 // This goroutine reads package names from the indexQueue channel, unpacks the
@@ -335,9 +348,11 @@ func unpackAndIndex() {
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			log.Printf("Skipping package %s: %v\n", pkg, err)
+			varz.Increment("failed-dpkg-source-extracts")
 			continue
 		}
 
+		varz.Increment("successful-dpkg-source-extracts")
 		indexPackage(pkg)
 		os.RemoveAll(filepath.Join(tmpdir, pkg))
 	}
@@ -374,6 +389,7 @@ func main() {
 	http.HandleFunc("/merge", mergeOrError)
 	http.HandleFunc("/listpkgs", listPackages)
 	http.HandleFunc("/garbagecollect", garbageCollect)
+	http.HandleFunc("/varz", varz.Varz)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
