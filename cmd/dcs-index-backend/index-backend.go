@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/varz"
 	"log"
 	"net/http"
 	"os"
@@ -123,5 +124,6 @@ func main() {
 
 	http.HandleFunc("/index", Index)
 	http.HandleFunc("/replace", Replace)
+	http.HandleFunc("/varz", varz.Varz)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
