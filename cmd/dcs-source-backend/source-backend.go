@@ -5,22 +5,20 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
-	"sort"
-	"sync"
-	// This is a forked version of codesearch/regexp which returns the results
-	// in a structure instead of printing to stdout/stderr directly.
-	"github.com/Debian/dcs/cmd/dcs-web/varz"
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
+	"github.com/Debian/dcs/varz"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 var (

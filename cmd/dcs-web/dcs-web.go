@@ -10,7 +10,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/goroutinez"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
-	"github.com/Debian/dcs/cmd/dcs-web/varz"
+	"github.com/Debian/dcs/varz"
 	"hash/fnv"
 	"io"
 	"log"

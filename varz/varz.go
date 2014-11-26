@@ -47,4 +47,12 @@ func Increment(key string) {
 	}
 }
 
+func Set(key string, value uint64) {
+	if c, ok := counters[key]; ok {
+		c.value = value
+	} else {
+		counters[key] = &counter{value: value}
+	}
+}
+
 // vim:ts=4:sw=4:noexpandtab
