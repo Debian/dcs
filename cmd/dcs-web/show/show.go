@@ -2,9 +2,10 @@
 package show
 
 import (
+	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
-	"fmt"
+	"github.com/Debian/dcs/shardmapping"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -31,9 +32,18 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	idx := strings.Index(filename, "/")
+	if idx == -1 {
+		http.Error(w, "Filename does not contain a package", http.StatusInternalServerError)
+		return
+	}
+	pkg := filename[:idx]
+	shards := strings.Split(*common.SourceBackends, ",")
+	shard := shards[shardmapping.TaskIdxForPackage(pkg, len(shards))]
+
 	queryCopy := query
 	queryCopy.Scheme = "http"
-	queryCopy.Host = *common.SourceBackends
+	queryCopy.Host = shard
 	queryCopy.Path = "/file"
 
 	log.Printf("Asking source backend: %s\n", queryCopy.String())

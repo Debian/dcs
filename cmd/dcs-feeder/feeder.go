@@ -11,10 +11,10 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/md5"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/Debian/dcs/shardmapping"
 	"github.com/stapelberg/godebiancontrol"
 	"io"
 	"log"
@@ -22,7 +22,6 @@ import (
 	"net/http"
 	net_url "net/url"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -51,16 +50,6 @@ var (
 	mergeStates   = make(map[string]mergeState)
 	mergeStatesMu sync.Mutex
 )
-
-func taskIdxForPackage(pkg string, tasks int) int {
-	h := md5.New()
-	io.WriteString(h, pkg)
-	i, err := strconv.ParseInt(fmt.Sprintf("%x", h.Sum(nil)[:6]), 16, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return int(i) % tasks
-}
 
 // Calls /merge on the specified shard in a period of inactivity (2 minutes
 // after being called), or after 10 minutes in case there is continuous
@@ -107,7 +96,7 @@ func requestMerge(shard string) {
 
 // feed uploads the file to the corresponding dcs-package-importer.
 func feed(pkg, filename string, reader io.Reader) error {
-	shard := shards[taskIdxForPackage(pkg, len(shards))]
+	shard := shards[shardmapping.TaskIdxForPackage(pkg, len(shards))]
 	url := fmt.Sprintf("http://%s/import/%s/%s", shard, pkg, filename)
 	request, err := http.NewRequest("PUT", url, reader)
 	if err != nil {
@@ -305,7 +294,7 @@ func checkSources() {
 			continue
 		}
 		p := pkg["Package"] + "_" + pkg["Version"]
-		shardIdx := taskIdxForPackage(p, len(shards))
+		shardIdx := shardmapping.TaskIdxForPackage(p, len(shards))
 		shard := shards[shardIdx]
 		// Skip shards that are offline (= for which we have no package list).
 		if _, online := packages[shard]; !online {
@@ -347,7 +336,7 @@ func checkSources() {
 
 			log.Printf("garbage-collecting %q on shard %s\n", p, shard)
 
-			shard := shards[taskIdxForPackage(p, len(shards))]
+			shard := shards[shardmapping.TaskIdxForPackage(p, len(shards))]
 			url := fmt.Sprintf("http://%s/garbagecollect", shard)
 			if _, err := http.PostForm(url, net_url.Values{"package": {p}}); err != nil {
 				log.Printf("Could not garbage-collect package %q on shard %s: %v\n", p, shard, err)
