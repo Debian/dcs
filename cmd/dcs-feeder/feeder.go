@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Debian/dcs/shardmapping"
+	"github.com/Debian/dcs/varz"
 	"github.com/stapelberg/godebiancontrol"
 	"io"
 	"log"
@@ -169,6 +170,7 @@ func lookfor(dscName string) {
 		// goroutines from piling up. The periodic sanity check will find the
 		// package a bit later then.
 		if time.Since(startedLooking) > 25*time.Minute {
+			varz.Increment("failed-lookfor")
 			log.Printf("Not looking for %q anymore. Sanity check will catch it.\n", dscName)
 			return
 		}
@@ -226,12 +228,14 @@ func lookfor(dscName string) {
 			log.Printf("Could not feed %q: %v\n", dscName, err)
 		}
 		log.Printf("Fed %q.\n", dscName)
+		varz.Increment("successful-lookfor")
 		return
 	}
 }
 
 func checkSources() {
 	log.Printf("checking sources\n")
+	varz.Set("last-sanity-check-started", uint64(time.Now().Unix()))
 
 	// Store packages by shard.
 	type pkgStatus int
@@ -368,6 +372,7 @@ func main() {
 	}()
 
 	http.HandleFunc("/lookfor", lookforHandler)
+	http.HandleFunc("/varz", varz.Varz)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
