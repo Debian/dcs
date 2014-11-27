@@ -2,14 +2,20 @@
 package varz
 
 import (
+	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 )
 
 var (
+	availFS = flag.String("varz_avail_fs",
+		"/dcs-ssd",
+		"If non-empty, /varz will contain the amount of available bytes on the specified filesystem")
 	counters = make(map[string]*counter)
 
 	started = time.Now()
@@ -40,6 +46,14 @@ func Varz(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "last-gc-absolute-ns %d\n", m.LastGC)
 	for key, counter := range counters {
 		fmt.Fprintf(w, "%s %d\n", key, counter.Value())
+	}
+	if *availFS != "" {
+		var stat syscall.Statfs_t
+		if err := syscall.Statfs(*availFS, &stat); err != nil {
+			log.Printf("Could not stat filesystem for %q: %v\n", *availFS, err)
+		} else {
+			fmt.Fprintf(w, "available-bytes %d\n", stat.Bavail*uint64(stat.Bsize))
+		}
 	}
 }
 
