@@ -355,6 +355,9 @@ func main() {
 
 	shards = strings.Split(*shardsStr, ",")
 
+	varz.Set("failed-lookfor", 0)
+	varz.Set("successful-lookfor", 0)
+
 	log.Printf("Configuration: %d shards:\n", len(shards))
 	for _, shard := range shards {
 		log.Printf("  %q\n", shard)

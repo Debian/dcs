@@ -375,6 +375,14 @@ func main() {
 	// Allow as many concurrent unpackAndIndex goroutines as we have cores.
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	varz.Set("failed-dpkg-source-extracts", 0)
+	varz.Set("failed-package-imports", 0)
+	varz.Set("successful-dpkg-source-extracts", 0)
+	varz.Set("successful-garbage-collects", 0)
+	varz.Set("successful-merges", 0)
+	varz.Set("successful-package-imports", 0)
+	varz.Set("successful-package-indexes", 0)
+
 	setupFilters()
 
 	var err error
