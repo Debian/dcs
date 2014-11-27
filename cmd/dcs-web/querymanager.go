@@ -8,6 +8,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	dcsregexp "github.com/Debian/dcs/regexp"
+	"github.com/influxdb/influxdb-go"
 	"io"
 	"log"
 	"math"
@@ -29,6 +30,19 @@ var (
 	queryResultsPath = flag.String("query_results_path",
 		"/tmp/qr/",
 		"TODO")
+	influxDBHost = flag.String("influx_db_host",
+		"",
+		"host:port of the InfluxDB to store time series in")
+	influxDBDatabase = flag.String("influx_db_database",
+		"dcs",
+		"InfluxDB database name")
+	influxDBUsername = flag.String("influx_db_username",
+		"root",
+		"InfluxDB username")
+	influxDBPassword = flag.String("influx_db_password",
+		"root",
+		"InfluxDB password")
+
 	perPackagePathRe = regexp.MustCompile(`^/perpackage-results/([^/]+)/` +
 		strconv.Itoa(resultsPerPackage) + `/page_([0-9]+).json$`)
 )
@@ -106,6 +120,7 @@ type queryState struct {
 	events   []event
 	newEvent *sync.Cond
 	done     bool
+	query    string
 
 	results  [10]Result
 	resultMu *sync.Mutex
@@ -203,6 +218,7 @@ func maybeStartQuery(queryid, src, query string) bool {
 		backends := strings.Split(*common.SourceBackends, ",")
 		state[queryid] = queryState{
 			started:        time.Now(),
+			query:          query,
 			newEvent:       sync.NewCond(&sync.Mutex{}),
 			resultMu:       &sync.Mutex{},
 			filesTotal:     make([]int, len(backends)),
@@ -302,6 +318,41 @@ func storeResult(queryid string, result Result) {
 func finishQuery(queryid string) {
 	log.Printf("[%s] done, closing all client channels.\n", queryid)
 	addEvent(queryid, []byte{}, nil)
+
+	if *influxDBHost != "" {
+		go func() {
+			db, err := influxdb.NewClient(&influxdb.ClientConfig{
+				Host:     *influxDBHost,
+				Database: *influxDBDatabase,
+				Username: *influxDBUsername,
+				Password: *influxDBPassword,
+			})
+			if err != nil {
+				log.Printf("Cannot log query-finished timeseries: %v\n", err)
+				return
+			}
+
+			var seriesBatch []*influxdb.Series
+			series := influxdb.Series{
+				Name:    "query-finished.int-dcsi-web",
+				Columns: []string{"queryid", "searchterm", "milliseconds", "results"},
+				Points: [][]interface{}{
+					[]interface{}{
+						queryid,
+						state[queryid].query,
+						time.Since(state[queryid].started) / time.Millisecond,
+						state[queryid].numResults,
+					},
+				},
+			}
+			seriesBatch = append(seriesBatch, &series)
+
+			if err := db.WriteSeries(seriesBatch); err != nil {
+				log.Printf("Cannot log query-finished timeseries: %v\n", err)
+				return
+			}
+		}()
+	}
 }
 
 type ByModTime []os.FileInfo
