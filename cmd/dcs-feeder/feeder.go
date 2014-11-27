@@ -328,6 +328,8 @@ func checkSources() {
 				}
 			}
 			feedfiles(p, pkgfiles)
+
+			varz.Increment("successful-sanity-feed")
 		}
 	}
 
@@ -346,6 +348,8 @@ func checkSources() {
 				log.Printf("Could not garbage-collect package %q on shard %s: %v\n", p, shard, err)
 				continue
 			}
+
+			varz.Increment("successful-garbage-collect")
 		}
 	}
 }
@@ -356,7 +360,9 @@ func main() {
 	shards = strings.Split(*shardsStr, ",")
 
 	varz.Set("failed-lookfor", 0)
+	varz.Set("successful-garbage-collect", 0)
 	varz.Set("successful-lookfor", 0)
+	varz.Set("successful-sanity-feed", 0)
 
 	log.Printf("Configuration: %d shards:\n", len(shards))
 	for _, shard := range shards {
