@@ -317,6 +317,11 @@ func storeResult(queryid string, result Result) {
 
 func finishQuery(queryid string) {
 	log.Printf("[%s] done, closing all client channels.\n", queryid)
+	stateMu.Lock()
+	s := state[queryid]
+	s.done = true
+	state[queryid] = s
+	stateMu.Unlock()
 	addEvent(queryid, []byte{}, nil)
 
 	if *influxDBHost != "" {
@@ -592,6 +597,21 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
+	}
+	if !s.done {
+		started := time.Now()
+		for time.Since(started) < 60*time.Second {
+			if state[queryid].done {
+				s = state[queryid]
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if !s.done {
+			log.Printf("[%s] query not yet finished, cannot produce per-package results\n", queryid)
+			http.Error(w, "Query not finished yet.", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	pages := int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
