@@ -1,0 +1,11 @@
+.include /lib/systemd/system/dcs-common.service
+
+[Unit]
+Description=Debian Code Search: package feeder
+
+[Service]
+ExecStart=/usr/bin/dcs-feeder \
+	-shards=int-dcsi-importer-0.rackspace.zekjur.net:21010,int-dcsi-importer-1.rackspace.zekjur.net:21010,int-dcsi-importer-2.rackspace.zekjur.net:21010,int-dcsi-importer-3.rackspace.zekjur.net:21010,int-dcsi-importer-4.rackspace.zekjur.net:21010,int-dcsi-importer-5.rackspace.zekjur.net:21010
+
+[Install]
+WantedBy=multi-user.target
