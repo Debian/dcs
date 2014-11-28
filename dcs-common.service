@@ -11,3 +11,5 @@ StandardOutput=null
 StandardError=journal
 RestartSec=1
 Restart=on-failure
+# Allow infinite restarts, even within a short time.
+StartLimitInterval=0
