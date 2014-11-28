@@ -8,14 +8,18 @@
 
 #pagination a:link
 , #perpackage-pagination a:link
+, #packages a:link
 , #pagination a:visited
-, #perpackage-pagination a:visited {
+, #perpackage-pagination a:visited
+, #packages a:visited {
 	text-decoration: none;
 }
 #pagination a:hover
 , #perpackage-pagination a:hover
+, #packages a:hover
 , #perpackage-pagination a:visited:hover
-, #pagination a:visited:hover {
+, #pagination a:visited:hover
+, #packages a:visited:hover {
 	text-decoration: underline;
 }
 

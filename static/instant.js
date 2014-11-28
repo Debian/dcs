@@ -381,7 +381,11 @@ connection.onmessage = function(e) {
                             // some browsers (e.g. Chrome 40) will stop
                             // displaying text with “white-space: nowrap” once
                             // it becomes too long.
-                            var packagesList = data.Packages.slice(0, 1000).join(', ');
+                            var pkgLink = function(packageName) {
+                                var url = '/results/' + encodeURIComponent(searchterm + ' package:' + packageName) + '/page_0';
+                                return '<a href="' + url + '">' + packageName + '</a>';
+                            };
+                            var packagesList = data.Packages.slice(0, 1000).map(pkgLink).join(', ');
                             p.append('<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
                             if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
                                 p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
