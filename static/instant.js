@@ -258,7 +258,7 @@ function loadPage(nr) {
             // well. Fade them in one after the other, see:
             // http://www.google.com/design/spec/animation/meaningful-transitions.html#meaningful-transitions-hierarchical-timing
             currentpage = nr;
-            updatePagination($('#pagination'), currentpage, resultpages, 'loadPage');
+            updatePagination(currentpage, resultpages, false);
             $('ul#results>li').remove();
             var ul = $('ul#results');
             $.each(data, function(idx, element) {
@@ -294,7 +294,7 @@ function loadPerPkgPage(nr, preload) {
                 clearTimeout(progress_bar_start);
             }
             currentpage_pkg = nr;
-            updatePagination($('#perpackage-pagination'), currentpage_pkg, Math.trunc(packages.length / packagesPerPage), 'loadPerPkgPage');
+            updatePagination(currentpage_pkg, Math.trunc(packages.length / packagesPerPage), true);
             var pp = $('#perpackage-results');
             pp.text('');
             $.each(data, function(idx, meta) {
@@ -316,30 +316,39 @@ function loadPerPkgPage(nr, preload) {
         });
 }
 
-function updatePagination(p, currentpage, resultpages, clickFunc) {
-    p.text('');
-    p.append('<strong>Pages:<strong> ');
+function pageUrl(page, perpackage) {
+    if (perpackage) {
+        return '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + page;
+    } else {
+        return '/results/' + encodeURIComponent(searchterm) + '/page_' + page;
+    }
+}
+
+function updatePagination(currentpage, resultpages, perpackage) {
+    var clickFunc = (perpackage ? 'loadPerPkgPage' : 'loadPage');
+    var html = '<strong>Pages:</strong> ';
     if (currentpage > 0) {
-        p.append('<a href="javascript: ' + clickFunc + '(0);">1</a> ');
-        p.append('<span>&lt;</span> ');
+        html += '<a href="' + pageUrl(0, perpackage) + '" onclick="' + clickFunc + '(0);return false;">1</a> ';
+        html += '<a href="' + pageUrl(currentpage-1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage-1) + ');return false;" rel="prev">&lt;</a> ';
     }
     var start = Math.max(currentpage - 5, (currentpage > 0 ? 1 : 0));
     var end = Math.min((currentpage >= 5 ? currentpage + 5 : 10), resultpages);
 
     for (var i = start; i < end; i++) {
-        //if (i < 3) {
-        //    p.append('<link rel="prerender" href="/results/' + msg.QueryId + '/page_' + i + '.json">');
-        //}
-        p.append('<a style="' + (i == currentpage ? "font-weight: bold" : "") + '" href="javascript: ' + clickFunc + '(' + i + ');">' + (i + 1) + '</a> ');
+        html += '<a style="' + (i == currentpage ? "font-weight: bold" : "") + '" ' +
+                'href="' + pageUrl(i, perpackage) + '" ' +
+                'onclick="' + clickFunc + '(' + i + ');return false;">' + (i + 1) + '</a> ';
     }
 
     if (currentpage < (resultpages-1)) {
-        p.append('<span>&gt;</span> ');
+        html += '<link rel="prerender" href="' + pageUrl(currentpage+1, perpackage) + '">';
+        html += '<a href="' + pageUrl(currentpage+1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage+1) + ');return false;" rel="next">&gt;</a> ';
     }
 
     if (end < resultpages) {
-        p.append('… <a href="javascript: ' + clickFunc + '(' + (resultpages - 1) + ');">' + resultpages + '</a>');
+        html += '… <a href="' + pageUrl(resultpages-1, perpackage) + '" onclick="' + clickFunc + '(' + (resultpages - 1) + ');return false;">' + resultpages + '</a>';
     }
+    $((perpackage ? '#perpackage-pagination' : '#pagination')).html(html);
 }
 
 function escapeForHTML(input) {
@@ -373,7 +382,7 @@ connection.onmessage = function(e) {
                         var p = $('#packages');
                         p.text('');
                         packages = data.Packages;
-                        updatePagination($('#perpackage-pagination'), currentpage_pkg, Math.trunc(packages.length / packagesPerPage), 'loadPerPkgPage');
+                        updatePagination(currentpage_pkg, Math.trunc(packages.length / packagesPerPage), true);
                         if (data.Packages.length === 1) {
                             p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
                         } else if (data.Packages.length > 1) {
@@ -418,7 +427,7 @@ connection.onmessage = function(e) {
         queryid = msg.QueryId;
         currentpage = 0;
         currentpage_pkg = 0;
-        updatePagination($('#pagination'), currentpage, resultpages, 'loadPage');
+        updatePagination(currentpage, resultpages, false);
 
         if (window.location.pathname.lastIndexOf('/results/', 0) === 0) {
             var parts = new RegExp("/results/([^/]+)/page_([0-9]+)").exec(window.location.pathname);

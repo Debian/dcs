@@ -23,7 +23,7 @@
 	text-decoration: underline;
 }
 
-#perpackage-pagination a, #pagination a, #pagination span, #perpackage-pagination span {
+#perpackage-pagination a, #pagination a {
 	margin-left:  0.2em;
 	margin-right: 0.2em;
 }
