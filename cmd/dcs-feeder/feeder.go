@@ -69,6 +69,7 @@ func merge() {
 					log.Printf("/merge for shard %s failed (retry in 10s): %v\n", shard, err)
 					continue
 				}
+				resp.Body.Close()
 				if resp.StatusCode != 200 {
 					log.Printf("/merge for shard %s failed (retry in 10s): %+v\n", shard, resp)
 					continue
