@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/index"
 	"github.com/Debian/dcs/varz"
 	"io"
@@ -409,6 +410,7 @@ func main() {
 	http.HandleFunc("/listpkgs", listPackages)
 	http.HandleFunc("/garbagecollect", garbageCollect)
 	http.HandleFunc("/varz", varz.Varz)
+	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

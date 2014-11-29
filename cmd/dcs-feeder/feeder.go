@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/shardmapping"
 	"github.com/Debian/dcs/varz"
 	"github.com/stapelberg/godebiancontrol"
@@ -382,6 +383,7 @@ func main() {
 
 	http.HandleFunc("/lookfor", lookforHandler)
 	http.HandleFunc("/varz", varz.Varz)
+	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
