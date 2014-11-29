@@ -244,7 +244,7 @@ function loadPage(nr) {
     // timer will be cancelled by the load callback below. If it wasn’t, 20ms
     // is short enough of a delay to not be noticed by the user.
     var progress_bar_start = setTimeout(function() {
-        progress(0, true, 'Loading search result page ' + nr + '…');
+        progress(0, true, 'Loading search result page ' + (nr+1) + '…');
     }, 20);
 
     var pathname = '/results/' + encodeURIComponent(searchterm) + '/page_' + nr;
@@ -281,7 +281,7 @@ function loadPerPkgPage(nr, preload) {
         // wasn’t, 20ms is short enough of a delay to not be noticed by the
         // user.
         progress_bar_start = setTimeout(function() {
-            progress(0, true, 'Loading search result page ' + nr + '…');
+            progress(0, true, 'Loading search result page ' + (nr+1) + '…');
         }, 20);
         var pathname = '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + nr;
         if (location.pathname != pathname) {
