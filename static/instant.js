@@ -9,7 +9,9 @@ var resultsPerPackage = 2;
 
 var animationFallback;
 var showConnectProgress;
-var connection = new ReconnectingWebSocket('ws://' + window.location.hostname + ':28080/instantws');
+var tryHTTPS = true;
+var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
+var connection = new ReconnectingWebSocket(websocket_url);
 var searchterm;
 
 // fatal (bool): Whether all ongoing operations should be cancelled.
@@ -181,6 +183,15 @@ connection.onerror = function(e) {
     // gracefully, why would the user be concerned if the search takes a tiny
     // bit longer than usual?
     // error(false, true, 'websocket_broken', 'Could not open WebSocket connection to ' + e.target.URL);
+
+    // Some transparent proxies don’t support WebSockets, e.g. Orange (big
+    // mobile provider in Switzerland) removes “Upgrade: ” headers from the
+    // HTTP requests. Therefore, we try to use wss:// if the connection was
+    // being made via ws://.
+    if (tryHTTPS) {
+        connection.url = websocket_url.replace('ws://', 'wss://');
+        tryHTTPS = false;
+    }
 };
 
 connection.onclose = function(e) {

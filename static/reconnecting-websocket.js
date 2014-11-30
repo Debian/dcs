@@ -93,7 +93,7 @@
         };
 
         function connect(reconnectAttempt) {
-            ws = new WebSocket(url, protocols);
+            ws = new WebSocket(self.url, protocols);
             
             if(!reconnectAttempt)
                 self.onconnecting();
