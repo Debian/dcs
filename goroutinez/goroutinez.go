@@ -1,4 +1,4 @@
-// Exports runtime variables in a machine-readable format for monitoring.
+// Provides the current goroutine stacks via HTTP.
 package goroutinez
 
 import (
