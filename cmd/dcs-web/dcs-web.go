@@ -38,7 +38,12 @@ var (
 )
 
 func InstantServer(ws *websocket.Conn) {
-	src := ws.Request().RemoteAddr
+	src := ws.Request().Header.Get("X-Forwarded-For")
+	remoteaddr := ws.Request().RemoteAddr
+	if src == "" || (!strings.HasPrefix(remoteaddr, "[::1]:") &&
+		!strings.HasPrefix(remoteaddr, "127.0.0.1:")) {
+		src = remoteaddr
+	}
 	log.Printf("Accepted websocket connection from %q\n", src)
 
 	type Query struct {
