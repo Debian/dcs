@@ -13,6 +13,7 @@ var tryHTTPS = true;
 var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
 var connection = new ReconnectingWebSocket(websocket_url);
 var searchterm;
+var queryDone = false;
 
 // fatal (bool): Whether all ongoing operations should be cancelled.
 //
@@ -124,6 +125,7 @@ function sendQuery() {
     animateSearchForm();
 
     progress(0, false, 'Checking which files to grep…');
+    queryDone = false;
 }
 
 connection.onopen = function() {
@@ -131,8 +133,9 @@ connection.onopen = function() {
     $('#searchform input').attr('disabled', false);
 
     // The URL dictates a search query, so start it.
-    if (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
-        window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
+    if (!queryDone &&
+        (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
+         window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0)) {
         var parts = new RegExp("results/([^/]+)").exec(window.location.pathname);
         searchterm = decodeURIComponent(parts[1]);
         sendQuery();
@@ -376,6 +379,7 @@ connection.onmessage = function(e) {
                  false,
                  msg.FilesProcessed + ' / ' + msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
         if (msg.FilesProcessed == msg.FilesTotal) {
+            queryDone = true;
             if (msg.Results === 0) {
                 error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you read the FAQ?');
             } else {
