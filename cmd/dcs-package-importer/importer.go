@@ -354,6 +354,11 @@ func unpackAndIndex() {
 		log.Printf("Unpacking %s\n", pkg)
 		unpacked := filepath.Join(tmpdir, pkg, pkg)
 
+		// Delete previous attempts, if any.
+		if err := os.RemoveAll(unpacked); err != nil {
+			log.Printf("removing unpacked dir: %v\n", err)
+		}
+
 		cmd := exec.Command("dpkg-source", "--no-copy", "--no-check", "-x",
 			filepath.Join(tmpdir, dscPath), unpacked)
 		// Just display dpkg-source’s stderr in our process’s stderr.
