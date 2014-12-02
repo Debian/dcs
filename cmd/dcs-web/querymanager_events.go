@@ -65,6 +65,13 @@ func addEventMarshal(queryid string, data interface{}) {
 		stateMu.Lock()
 		defer stateMu.Unlock()
 
+		// We cannot obsolete events once the query is done, because then all
+		// events before the done marker may get obsoleted (e.g. all progress
+		// updates, for a query with 0 files).
+		if state[queryid].done {
+			return
+		}
+
 		// Consider all events before the just added event for obsoletion. At
 		// most one event will be obsoleted.
 		events := state[queryid].events
