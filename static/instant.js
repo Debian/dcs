@@ -401,6 +401,8 @@ connection.onmessage = function(e) {
                         updatePagination(currentpage_pkg, Math.trunc(packages.length / packagesPerPage), true);
                         if (data.Packages.length === 1) {
                             p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
+                            $('#enable-perpackage').attr('disabled', 'disabled');
+                            $('label[for=enable-perpackage]').css('opacity', '0.5');
                         } else if (data.Packages.length > 1) {
                             // We are limiting the amount of packages because
                             // some browsers (e.g. Chrome 40) will stop
