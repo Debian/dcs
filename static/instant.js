@@ -50,6 +50,7 @@ function error(fatal, permanent, unique_id, message) {
 // Setting temporary to true will reset the text to the last non-temporary text
 // upon completion (which is a call with percentage == 100).
 function progress(percentage, temporary, text) {
+    fixProgressbar();
     if (percentage == 0) {
         $('#progressbar span').text(text);
         $('#progressbar .progress-bar').css('width', '10%');
@@ -638,7 +639,6 @@ $(window).load(function() {
             $('#searchform input').attr('disabled', true);
             showConnectProgress = setTimeout(function() {
                 $('#progressbar').show();
-                fixProgressbar();
                 progress(0, true, 'Connecting…');
             }, 100);
         }
