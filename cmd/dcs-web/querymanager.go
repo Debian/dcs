@@ -397,7 +397,6 @@ func finishQuery(queryid string) {
 	log.Printf("[%s] done, closing all client channels.\n", queryid)
 	stateMu.Lock()
 	s := state[queryid]
-	s.done = true
 	for _, f := range s.tempFiles {
 		f.Close()
 	}
