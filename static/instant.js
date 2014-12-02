@@ -343,12 +343,17 @@ function pageUrl(page, perpackage) {
 function updatePagination(currentpage, resultpages, perpackage) {
     var clickFunc = (perpackage ? 'loadPerPkgPage' : 'loadPage');
     var html = '<strong>Pages:</strong> ';
-    if (currentpage > 0) {
-        html += '<a href="' + pageUrl(0, perpackage) + '" onclick="' + clickFunc + '(0);return false;">1</a> ';
-        html += '<a href="' + pageUrl(currentpage-1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage-1) + ');return false;" rel="prev">&lt;</a> ';
-    }
     var start = Math.max(currentpage - 5, (currentpage > 0 ? 1 : 0));
     var end = Math.min((currentpage >= 5 ? currentpage + 5 : 10), resultpages);
+
+    if (currentpage > 0) {
+        html += '<a href="' + pageUrl(currentpage-1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage-1) + ');return false;" rel="prev">&lt;</a> ';
+        html += '<a href="' + pageUrl(0, perpackage) + '" onclick="' + clickFunc + '(0);return false;">1</a> ';
+    }
+
+    if (start > 1) {
+        html += '… ';
+    }
 
     for (var i = start; i < end; i++) {
         html += '<a style="' + (i == currentpage ? "font-weight: bold" : "") + '" ' +
@@ -356,14 +361,19 @@ function updatePagination(currentpage, resultpages, perpackage) {
                 'onclick="' + clickFunc + '(' + i + ');return false;">' + (i + 1) + '</a> ';
     }
 
+    if (end < (resultpages-1)) {
+        html += '… ';
+    }
+
+    if (end < resultpages) {
+        html += '<a href="' + pageUrl(resultpages-1, perpackage) + '" onclick="' + clickFunc + '(' + (resultpages - 1) + ');return false;">' + resultpages + '</a>';
+    }
+
     if (currentpage < (resultpages-1)) {
         html += '<link rel="prerender" href="' + pageUrl(currentpage+1, perpackage) + '">';
         html += '<a href="' + pageUrl(currentpage+1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage+1) + ');return false;" rel="next">&gt;</a> ';
     }
 
-    if (end < resultpages) {
-        html += '… <a href="' + pageUrl(resultpages-1, perpackage) + '" onclick="' + clickFunc + '(' + (resultpages - 1) + ');return false;">' + resultpages + '</a>';
-    }
     $((perpackage ? '#perpackage-pagination' : '#pagination')).html(html);
 }
 
