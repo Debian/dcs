@@ -32,6 +32,7 @@ function error(fatal, permanent, unique_id, message) {
     }
     if (fatal) {
         progress(100, false, 'Error: ' + message);
+        return;
     }
 
     var div = $('<div class="alert alert-' + (permanent ? 'danger' : 'warning') + '" role="alert"></div>');
