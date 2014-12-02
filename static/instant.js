@@ -382,7 +382,8 @@ connection.onmessage = function(e) {
         if (msg.FilesProcessed == msg.FilesTotal) {
             queryDone = true;
             if (msg.Results === 0) {
-                error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you read the FAQ?');
+                progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
+                error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you read the FAQ to make sure your syntax is correct?');
             } else {
                 $('#options').show();
 
