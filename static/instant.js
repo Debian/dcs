@@ -154,7 +154,6 @@ connection.onopen = function() {
     // pages that were created using history.pushState().
     $(window).bind("popstate", function(ev) {
         var state = ev.originalEvent.state;
-        console.log('popstate', state);
         if (state == null) {
             // Restore the original page.
             $('#normalresults, #perpackage, #progressbar, #errors, #packages, #options').hide();
