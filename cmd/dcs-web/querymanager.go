@@ -252,6 +252,20 @@ func maybeStartQuery(queryid, src, query string) bool {
 	// query is not a great idea. Best fix may be to make getEvent() use a
 	// querystate instead of the string identifier.
 	if !running || time.Since(querystate.started) > 30*time.Minute {
+		// See if we can garbage-collect old queries.
+		if !running && len(state) >= 10 {
+			log.Printf("Trying to garbage collect queries (currently %d)\n", len(state))
+			for queryid, s := range state {
+				if len(state) < 10 {
+					break
+				}
+				if !s.done {
+					continue
+				}
+				delete(state, queryid)
+			}
+			log.Printf("Garbage collection done. %d queries remaining", len(state))
+		}
 		backends := strings.Split(*common.SourceBackends, ",")
 		state[queryid] = queryState{
 			started:        time.Now(),
@@ -649,7 +663,7 @@ func storeProgress(queryid string, backendidx int, progress Result) {
 	}
 
 	if allSet && filesProcessed == filesTotal {
-		log.Printf("[%s] query done on all backends, writing to disk.\n", queryid)
+		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", queryid, backendidx)
 		writeToDisk(queryid)
 	}
 
