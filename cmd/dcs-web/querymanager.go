@@ -533,7 +533,6 @@ func writeToDisk(queryid string) {
 	if len(pointers) == 0 {
 		log.Printf("[%s] not writing, no results.\n", queryid)
 		stateMu.Unlock()
-		finishQuery(queryid)
 		return
 	}
 	s.resultPointers = nil
