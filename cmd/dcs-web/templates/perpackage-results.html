@@ -89,7 +89,7 @@ pre {
 <!--/UdmComment-->
 <div id="content">
 
-<h2>Search Results for "{{.q}}"</h2>
+<h2>Search Results by package for "{{.q}}"</h2>
 
 <p>
 <strong>Filter by package:</strong>
@@ -99,15 +99,13 @@ pre {
 </p>
 
 <p>
-<a href="{{.perpkgurl}}">Group results by source package</a>
-</p>
-
-<p>
 {{.pagination}}
 </p>
 
-<ul id="results">
 {{range .results}}
+<h2>{{.Package}}</h2>
+<ul id="results">
+{{range .Results}}
 <li><a href="/show?file={{.Path}}&line={{.Line}}#L{{.Line}}"><code><strong>{{.SourcePackage}}</strong>{{.RelativePath}}</code>:{{.Line}}</a><br>
 <pre>
 {{.Context}}
@@ -116,6 +114,7 @@ pre {
 PathRank: {{.PathRank}}, Rank: {{.Ranking}}</li>
 {{end}}
 </ul>
+{{end}}
 
 <script type="text/javascript">
 <!--
