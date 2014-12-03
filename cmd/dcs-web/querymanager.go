@@ -9,6 +9,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	"github.com/Debian/dcs/stringpool"
+	"github.com/Debian/dcs/varz"
 	"github.com/influxdb/influxdb-go"
 	"hash/fnv"
 	"io"
@@ -286,8 +287,8 @@ func maybeStartQuery(queryid, src, query string) bool {
 		var err error
 		dir := filepath.Join(*queryResultsPath, queryid)
 		if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-			// TODO: mark the query as failed
 			log.Printf("[%s] could not create %q: %v\n", queryid, dir, err)
+			failQuery(queryid)
 			return false
 		}
 
@@ -301,7 +302,8 @@ func maybeStartQuery(queryid, src, query string) bool {
 			state[queryid].tempFiles[i], err = os.Create(path)
 			if err != nil {
 				log.Printf("[%s] could not create %q: %v\n", queryid, path, err)
-				// TODO: mark query as failed
+				failQuery(queryid)
+				return false
 			}
 		}
 		log.Printf("initial results = %v\n", state[queryid])
@@ -452,19 +454,20 @@ func storeResult(queryid string, backendidx int, result Result) {
 	tmpOffset, err := state[queryid].tempFiles[backendidx].Seek(0, os.SEEK_CUR)
 	if err != nil {
 		log.Printf("[%s] could not seek: %v\n", queryid, err)
-		// TODO: mark query as failed
+		failQuery(queryid)
 		return
 	}
 
 	if err := json.NewEncoder(s.tempFiles[backendidx]).Encode(result); err != nil {
 		log.Printf("[%s] could not write %v: %v\n", queryid, result, err)
-		// TODO: mark query as failed
+		failQuery(queryid)
+		return
 	}
 
 	offsetAfterWriting, err := state[queryid].tempFiles[backendidx].Seek(0, os.SEEK_CUR)
 	if err != nil {
 		log.Printf("[%s] could not seek: %v\n", queryid, err)
-		// TODO: mark query as failed
+		failQuery(queryid)
 		return
 	}
 
@@ -484,6 +487,15 @@ func storeResult(queryid string, backendidx int, result Result) {
 	s.numResults++
 	state[queryid] = s
 	stateMu.Unlock()
+}
+
+func failQuery(queryid string) {
+	varz.Increment("failed-queries")
+	addEventMarshal(queryid, &Error{
+		Type:      "error",
+		ErrorType: "failed",
+	})
+	finishQuery(queryid)
 }
 
 func finishQuery(queryid string) {
@@ -617,7 +629,7 @@ func createFromPointers(queryid string, name string, pointers []resultPointer) e
 	return nil
 }
 
-func writeToDisk(queryid string) {
+func writeToDisk(queryid string) error {
 	// Get the slice with results and unset it on the state so that processing can continue.
 	stateMu.Lock()
 	s := state[queryid]
@@ -625,7 +637,7 @@ func writeToDisk(queryid string) {
 	if len(pointers) == 0 {
 		log.Printf("[%s] not writing, no results.\n", queryid)
 		stateMu.Unlock()
-		return
+		return nil
 	}
 	s.resultPointers = nil
 	idx := 0
@@ -647,9 +659,7 @@ func writeToDisk(queryid string) {
 	resultsPerPage := 10
 	dir := filepath.Join(*queryResultsPath, queryid)
 	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-		// TODO: mark the query as failed
-		log.Printf("[%s] could not create %q: %v\n", queryid, dir, err)
-		return
+		return err
 	}
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
@@ -658,13 +668,10 @@ func writeToDisk(queryid string) {
 
 	f, err := os.Create(filepath.Join(dir, "packages.json"))
 	if err != nil {
-		log.Printf("[%s] could not create %q: %v\n", queryid, f, err)
-		// TODO: mark query as failed
-		return
+		return err
 	}
 	if err := json.NewEncoder(f).Encode(struct{ Packages []string }{packages}); err != nil {
-		log.Printf("[%s] could not write %v: %v\n", queryid, packages, err)
-		// TODO: mark query as failed
+		return err
 	}
 	f.Close()
 
@@ -678,9 +685,7 @@ func writeToDisk(queryid string) {
 
 		name := filepath.Join(dir, fmt.Sprintf("page_%d.json", page))
 		if err := createFromPointers(queryid, name, pointers[start:end]); err != nil {
-			log.Printf("[%s] could not create %q from pointers: %v\n", queryid, name, err)
-			// TODO: mark query as failed
-			return
+			return err
 		}
 	}
 
@@ -698,9 +703,7 @@ func writeToDisk(queryid string) {
 	for pkg, pkgresults := range bypkg {
 		name := filepath.Join(dir, fmt.Sprintf("pkg_%s.json", pkg))
 		if err := createFromPointers(queryid, name, pkgresults); err != nil {
-			log.Printf("[%s] could not create %q from pointers: %v\n", queryid, name, err)
-			// TODO: mark query as failed
-			return
+			return err
 		}
 	}
 
@@ -711,6 +714,7 @@ func writeToDisk(queryid string) {
 	stateMu.Unlock()
 
 	sendPaginationUpdate(queryid, s)
+	return nil
 }
 
 func storeProgress(queryid string, backendidx int, progress Result) {
@@ -743,7 +747,10 @@ func storeProgress(queryid string, backendidx int, progress Result) {
 
 	if allSet && filesProcessed == filesTotal {
 		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", queryid, backendidx)
-		writeToDisk(queryid)
+		if err := writeToDisk(queryid); err != nil {
+			log.Printf("[%s] writeToDisk() failed: %v\n", queryid)
+			failQuery(queryid)
+		}
 	}
 
 	if allSet {

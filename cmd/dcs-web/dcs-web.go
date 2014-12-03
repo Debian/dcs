@@ -135,6 +135,8 @@ func main() {
 		}
 	}
 
+	varz.Set("failed-queries", 0)
+
 	fmt.Println("Debian Code Search webapp")
 
 	health.StartChecking()
