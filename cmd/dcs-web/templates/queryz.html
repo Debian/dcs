@@ -91,14 +91,14 @@ pre {
 
 {{range .queries}}
 <h3>{{.Searchterm}}</h3>
-<ul>
-<li><strong>started</strong>: {{.Started}} ({{.Duration}} ago)</li>
-<li><strong>done</strong>: {{.Done}}</li>
-<li><strong>events</strong>: {{.NumEvents}}</li>
-<li><strong>results</strong>: {{.NumResults}} (in {{.NumPackages}} source packages) (on {{.NumResultPages}} pages)</li>
-<li><strong>files processed</strong>: {{.FilesProcessed}}</li>
-<li><strong>files total</strong>: {{.FilesTotal}}</li>
-</ul>
+<table>
+<tr><th>started</th><td>{{.Started}} ({{.Duration}} ago)</td></tr>
+<tr><th>done</th><td>{{.Done}}</td></tr>
+<tr><th>events</th><td>{{.NumEvents}}</td></tr>
+<tr><th>results</th><td>{{.NumResults}} (in {{.NumPackages}} source packages) (on {{.NumResultPages}} pages)</td></tr>
+<tr><th>files processed</th><td><code>{{.FilesProcessed}}</code></td></tr>
+<tr><th>files total</th><td><code>{{.FilesTotal}}</code></td></tr>
+</table>
 {{end}}
 
 {{ template "footer.html" }}
