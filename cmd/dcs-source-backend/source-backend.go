@@ -10,6 +10,7 @@ import (
 	"github.com/Debian/dcs/varz"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -19,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -346,18 +348,13 @@ func streamingQuery(conn net.Conn) {
 
 	go func() {
 		cnt := 0
+		var lastProgressUpdate time.Time
+		progressInterval := 2*time.Second + time.Duration(rand.Int63n(int64(500*time.Millisecond)))
 		for cnt < len(files) {
 			add := <-progress
 			cnt += add
 
-			// Send exactly one progress update for 10%, 20%, …
-			// TODO: make the amount of updates depend on the amount of files
-			// to go through. e.g. searching for “main” has 513467 files, and
-			// updating only every 10% is a bit slow.
-			percentage := int(float32(cnt) / float32(len(files)) * 100)
-			if percentage%10 == 0 &&
-				percentage < 100 &&
-				int(float32(cnt-1)/float32(len(files))*100)%10 != 0 {
+			if time.Since(lastProgressUpdate) > progressInterval {
 				if err := encoder.Encode(&progressUpdate{
 					Type:           "progress",
 					FilesProcessed: cnt,
@@ -366,6 +363,7 @@ func streamingQuery(conn net.Conn) {
 					// TODO: relax
 					log.Fatal(err)
 				}
+				lastProgressUpdate = time.Now()
 			}
 		}
 
@@ -445,6 +443,7 @@ func streamingQuery(conn net.Conn) {
 
 func main() {
 	flag.Parse()
+	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Debian Code Search source-backend")
 
 	listener, err := net.Listen("tcp", ":26082")
