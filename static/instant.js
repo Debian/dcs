@@ -143,7 +143,7 @@ connection.onopen = function() {
         sendQuery();
     }
 
-    $('#searchform').submit(function(ev) {
+    $('#searchform').off('submit').on('submit', function(ev) {
         searchterm = $('#searchform input[name=q]').val();
         sendQuery();
         history.pushState({ searchterm: searchterm, nr: 0, perpkg: false }, 'page ' + 0, '/results/' + encodeURIComponent(searchterm) + '/page_0');
@@ -152,7 +152,7 @@ connection.onopen = function() {
 
     // This is triggered when the user navigates (e.g. via back button) between
     // pages that were created using history.pushState().
-    $(window).bind("popstate", function(ev) {
+    $(window).off('popstate').on('popstate', function(ev) {
         var state = ev.originalEvent.state;
         if (state == null) {
             // Restore the original page.
