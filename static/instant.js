@@ -14,6 +14,7 @@ var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + wind
 var connection = new ReconnectingWebSocket(websocket_url);
 var searchterm;
 var queryDone = false;
+var queryStarted = false;
 
 // fatal (bool): Whether all ongoing operations should be cancelled.
 //
@@ -106,6 +107,14 @@ function showResultsPage() {
 }
 
 function sendQuery() {
+    if (queryStarted && !queryDone) {
+        // We need to cancel the current query and start a new one. The best
+        // way to this (currently) is to force the browser to restart the
+        // entire client code by navigating to the results URL of the new
+        // query.
+        window.location.replace(pageUrl(0, false));
+    }
+
     showResultsPage();
     $('#packages').text('');
     $('#errors div.alert-danger').remove();
@@ -128,6 +137,7 @@ function sendQuery() {
 
     progress(0, false, 'Checking which files to grep…');
     queryDone = false;
+    queryStarted = true;
 }
 
 connection.onopen = function() {
