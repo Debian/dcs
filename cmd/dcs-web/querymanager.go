@@ -185,7 +185,7 @@ var (
 	stateMu sync.Mutex
 )
 
-func queryBackend(queryid string, backend string, backendidx int, query string) {
+func queryBackend(queryid string, backend string, backendidx int, sourceQuery []byte) {
 	// TODO: switch in the config
 	log.Printf("[%s] [src:%s] connecting...\n", queryid, backend)
 	conn, err := net.DialTimeout("tcp", strings.Replace(backend, "28082", "26082", -1), 5*time.Second)
@@ -205,27 +205,14 @@ func queryBackend(queryid string, backend string, backendidx int, query string) 
 		return
 	}
 	defer conn.Close()
-	// TODO: we should move that code out of the per-backend function, it’s common.
-	fakeUrl, err := url.Parse("?" + query)
-	if err != nil {
-		log.Fatal(err)
-	}
-	rewritten := search.RewriteQuery(*fakeUrl)
-	type streamingRequest struct {
-		Query string
-		URL   string
-	}
-	request := streamingRequest{
-		Query: rewritten.Query().Get("q"),
-		URL:   rewritten.String(),
-	}
-	log.Printf("[%s] querying for %q\n", queryid, request.Query)
-	if err := json.NewEncoder(conn).Encode(&request); err != nil {
-		log.Fatal(err)
+	if _, err := conn.Write(sourceQuery); err != nil {
+		log.Printf("[%s] [src:%s] could not send query: %v\n", queryid, backend, err)
+		return
 	}
 	decoder := json.NewDecoder(conn)
 	r := Result{Type: "result"}
 	for {
+		// TODO: add a timeout
 		if err := decoder.Decode(&r); err != nil {
 			if err == io.EOF {
 				return
@@ -303,8 +290,29 @@ func maybeStartQuery(queryid, src, query string) bool {
 			}
 		}
 		log.Printf("initial results = %v\n", state[queryid])
+
+		// Rewrite the query into a query for source backends.
+		fakeUrl, err := url.Parse("?" + query)
+		if err != nil {
+			log.Fatal(err)
+		}
+		rewritten := search.RewriteQuery(*fakeUrl)
+		type streamingRequest struct {
+			Query string
+			URL   string
+		}
+		request := streamingRequest{
+			Query: rewritten.Query().Get("q"),
+			URL:   rewritten.String(),
+		}
+		log.Printf("[%s] querying for %q\n", queryid, request.Query)
+		sourceQuery, err := json.Marshal(&request)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		for idx, backend := range backends {
-			go queryBackend(queryid, backend, idx, query)
+			go queryBackend(queryid, backend, idx, sourceQuery)
 		}
 		return false
 	}
