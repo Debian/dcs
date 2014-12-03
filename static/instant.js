@@ -319,7 +319,7 @@ function loadPerPkgPage(nr, preload) {
                 clearTimeout(progress_bar_start);
             }
             currentpage_pkg = nr;
-            updatePagination(currentpage_pkg, Math.trunc(packages.length / packagesPerPage), true);
+            updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
             var pp = $('#perpackage-results');
             pp.text('');
             $.each(data, function(idx, meta) {
@@ -419,7 +419,7 @@ connection.onmessage = function(e) {
                         var p = $('#packages');
                         p.text('');
                         packages = data.Packages;
-                        updatePagination(currentpage_pkg, Math.trunc(packages.length / packagesPerPage), true);
+                        updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
                         if (data.Packages.length === 1) {
                             p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
                             $('#enable-perpackage').attr('disabled', 'disabled');
