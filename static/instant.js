@@ -313,7 +313,7 @@ function loadPerPkgPage(nr, preload) {
             history.pushState({ searchterm: searchterm, nr: nr, perpkg: true }, 'page ' + nr, pathname);
         }
     }
-    $.ajax('/perpackage-results/' + queryid + '/2/page_' + nr + '.json')
+    $.ajax('/results/' + queryid + '/perpackage_2_page_' + nr + '.json')
         .done(function(data, textStatus, xhr) {
             if (progress_bar_start !== undefined) {
                 clearTimeout(progress_bar_start);

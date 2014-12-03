@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -604,13 +603,7 @@ func ensureEnoughSpaceAvailable() {
 	}
 }
 
-func createFromPointers(queryid string, name string, pointers []resultPointer) error {
-	log.Printf("[%s] writing %q\n", queryid, name)
-	f, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) error {
 	if _, err := f.Write([]byte("[")); err != nil {
 		return err
 	}
@@ -689,9 +682,16 @@ func writeToDisk(queryid string) error {
 		}
 
 		name := filepath.Join(dir, fmt.Sprintf("page_%d.json", page))
-		if err := createFromPointers(queryid, name, pointers[start:end]); err != nil {
+		log.Printf("[%s] writing %q\n", queryid, name)
+		f, err := os.Create(name)
+		if err != nil {
 			return err
 		}
+		if err := writeFromPointers(queryid, f, pointers[start:end]); err != nil {
+			f.Close()
+			return err
+		}
+		f.Close()
 	}
 
 	// Now save the results into their package-specific files.
@@ -705,11 +705,36 @@ func writeToDisk(queryid string) error {
 		bypkg[*pointer.packageName] = pkgresults
 	}
 
-	for pkg, pkgresults := range bypkg {
-		name := filepath.Join(dir, fmt.Sprintf("pkg_%s.json", pkg))
-		if err := createFromPointers(queryid, name, pkgresults); err != nil {
+	perPkgPages := int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
+	for page := 0; page < perPkgPages; page++ {
+		start := page * packagesPerPage
+		end := (page + 1) * packagesPerPage
+		if end > len(s.allPackagesSorted) {
+			end = len(s.allPackagesSorted)
+		}
+
+		name := filepath.Join(dir, fmt.Sprintf("perpackage_2_page_%d.json", page))
+		log.Printf("[%s] writing %q\n", queryid, name)
+		f, err := os.Create(name)
+		if err != nil {
 			return err
 		}
+		f.Write([]byte("["))
+
+		for idx, pkg := range s.allPackagesSorted[start:end] {
+			if idx == 0 {
+				fmt.Fprintf(f, `{"Package": "%s", "Results":`, pkg)
+			} else {
+				fmt.Fprintf(f, `,{"Package": "%s", "Results":`, pkg)
+			}
+			if err := writeFromPointers(queryid, f, bypkg[pkg]); err != nil {
+				f.Close()
+				return err
+			}
+			f.Write([]byte("}"))
+		}
+		f.Write([]byte("]"))
+		f.Close()
 	}
 
 	stateMu.Lock()
@@ -785,6 +810,8 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
 		return
 	}
+
+
 	queryid := matches[1]
 	pagenr, err := strconv.Atoi(matches[2])
 	if err != nil {
@@ -811,65 +838,10 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	pages := int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
-	if pagenr >= pages {
-		log.Printf("[%s] page %d not found (total %d pages)\n", queryid, pagenr, pages)
-		http.Error(w, "No such page.", http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	// Advise the client to cache the results for one hour. This needs to match
-	// the nginx configuration for serving static files (the not-per-package
-	// results are served directly by nginx).
-	utc := time.Now().UTC()
-	cacheSince := utc.Format(http.TimeFormat)
-	cacheUntil := utc.Add(1 * time.Hour).Format(http.TimeFormat)
-	w.Header().Set("Cache-Control", "max-age=3600, public")
-	w.Header().Set("Last-Modified", cacheSince)
-	w.Header().Set("Expires", cacheUntil)
-
-	log.Printf("[%s] Computing per-package results for page %d\n", queryid, pagenr)
-	dir := filepath.Join(*queryResultsPath, queryid)
-
-	start := pagenr * packagesPerPage
-	end := (pagenr + 1) * packagesPerPage
-	if end > len(s.allPackagesSorted) {
-		end = len(s.allPackagesSorted)
-	}
-
-	// We concatenate a JSON reply that essentially contains multiple JSON
-	// files by directly writing to a buffer in order to avoid
-	// decoding/encoding the same data. We cannot write directly to the
-	// ResponseWriter because we may still need to use http.Error(), which must
-	// be called before sending any content.
-	//
-	// Perhaps a better way would be to use HTTP2 and send multiple files to
-	// the client.
-	var buffer bytes.Buffer
-	buffer.Write([]byte("["))
-
-	for _, pkg := range s.allPackagesSorted[start:end] {
-		if buffer.Len() == 1 {
-			fmt.Fprintf(&buffer, `{"Package": "%s", "Results":`, pkg)
-		} else {
-			fmt.Fprintf(&buffer, `,{"Package": "%s", "Results":`, pkg)
-		}
-		f, err := os.Open(filepath.Join(dir, "pkg_"+pkg+".json"))
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Could not open %q: %v", "pkg_"+pkg+".json", err), http.StatusInternalServerError)
-			return
-		}
-		if _, err := io.Copy(&buffer, f); err != nil {
-			http.Error(w, fmt.Sprintf("Could not read %q: %v", "pkg_"+pkg+".json", err), http.StatusInternalServerError)
-			return
-		}
-		f.Close()
-		fmt.Fprintf(&buffer, `}`)
-	}
-
-	buffer.Write([]byte("]"))
-	if _, err := io.Copy(w, &buffer); err != nil {
-		log.Printf("[%s] Could not send response: %v\n", queryid, err)
-	}
+	// For compatibility with old versions, we serve the files that are
+	// directly served by nginx as well by now.
+	// This can be removed after 2015-06-01, when all old clients should be
+	// long expired from any caches.
+	name := filepath.Join(*queryResultsPath, queryid, fmt.Sprintf("perpackage_2_page_%d.json", pagenr))
+	http.ServeFile(w, r, name)
 }
