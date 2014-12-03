@@ -119,7 +119,7 @@ function sendQuery() {
     $('#packages').text('');
     $('#errors div.alert-danger').remove();
     var query = {
-        "Query": "q=" + encodeURIComponent(searchterm),
+        "Query": "q=" + encodeURIComponent(searchterm)
     };
     connection.send(JSON.stringify(query));
     document.title = searchterm + ' · Debian Code Search';
