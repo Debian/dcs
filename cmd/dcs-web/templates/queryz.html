@@ -1,0 +1,104 @@
+<!--
+vim:ts=4:sw=4:expandtab
+--><!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Debian Code Search: Current queries</title>
+<link rel="stylesheet" href="debcodesearch.css">
+<style type="text/css">
+pre, code {
+    /* We need to make sure that the line numbers and the code itself have
+    no padding/margin so the positions match. The !important is to
+    overwrite the style set by highlight.js’s stylesheet. */
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+a code {
+    color: #00E;
+    font-size: 110%;
+}
+
+#results {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+#results li {
+    margin-bottom: 1em;
+}
+
+#results small {
+    opacity: 0.4;
+}
+
+#pagination {
+    margin-top: 2em;
+    margin-bottom: 2em;
+    margin-left: auto;
+    margin-right: auto;
+    width: 300px;
+}
+
+pre {
+    white-space: pre-wrap;       /* css-3 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -pre-wrap;      /* Opera 4-6 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: {{.lnrwidth}}em;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+   <div id="upperheader">
+   <div id="logo">
+  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
+  </div> <!-- end logo -->
+  <p class="section"><a href="/">Code Search</a></p>
+  <div id="searchbox">
+<form action="/search" method="get">
+<input type="text" name="q" value="{{.q}}">
+<input type="submit" value="Search">
+</form>
+  </div>
+ </div> <!-- end upperheader -->
+<!--UdmComment-->
+<div id="navbar">
+<p class="hidecss"><a href="#content">Skip Quicknav</a></p>
+<ul>
+   <li><a href="./">Search</a></li>
+   <li><a href="./about">About Code Search</a></li>
+   <li><a href="./faq">FAQ</a></li>
+</ul>
+</div> <!-- end navbar -->
+	<p id="breadcrumbs">&nbsp; current queries</p>
+</div> <!-- end header -->
+<!--/UdmComment-->
+<div id="content">
+
+<h2>Current queries</h2>
+
+{{range .queries}}
+<h3>{{.Searchterm}}</h3>
+<ul>
+<li><strong>started</strong>: {{.Started}} ({{.Duration}} ago)</li>
+<li><strong>done</strong>: {{.Done}}</li>
+<li><strong>events</strong>: {{.NumEvents}}</li>
+<li><strong>results</strong>: {{.NumResults}} (in {{.NumPackages}} source packages) (on {{.NumResultPages}} pages)</li>
+<li><strong>files processed</strong>: {{.FilesProcessed}}</li>
+<li><strong>files total</strong>: {{.FilesTotal}}</li>
+</ul>
+{{end}}
+
+{{ template "footer.html" }}

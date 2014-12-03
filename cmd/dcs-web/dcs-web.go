@@ -176,6 +176,7 @@ func main() {
 
 	http.HandleFunc("/results/", ResultsHandler)
 	http.HandleFunc("/perpackage-results/", PerPackageResultsHandler)
+	http.HandleFunc("/queryz", QueryzHandler)
 
 	http.Handle("/instantws", websocket.Handler(InstantServer))
 

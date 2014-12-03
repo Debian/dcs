@@ -312,6 +312,49 @@ func maybeStartQuery(queryid, src, query string) bool {
 	return true
 }
 
+func QueryzHandler(w http.ResponseWriter, r *http.Request) {
+	type queryStats struct {
+		Searchterm     string
+		NumEvents      int
+		NumResults     int
+		NumResultPages int
+		NumPackages    int
+		Done           bool
+		Started        time.Time
+		Duration       time.Duration
+		FilesTotal     []int
+		FilesProcessed []int
+	}
+	stateMu.Lock()
+	stats := make([]queryStats, len(state))
+	idx := 0
+	for _, s := range state {
+		stats[idx] = queryStats{
+			Searchterm:     s.query,
+			NumEvents:      len(s.events),
+			Done:           s.done,
+			Started:        s.started,
+			Duration:       time.Since(s.started),
+			NumResults:     len(s.resultPointers),
+			NumPackages:    len(s.allPackages),
+			NumResultPages: s.resultPages,
+			FilesTotal:     s.filesTotal,
+			FilesProcessed: s.filesProcessed,
+		}
+		if stats[idx].NumResults == 0 && stats[idx].Done {
+			stats[idx].NumResults = s.numResults
+		}
+		idx++
+	}
+	stateMu.Unlock()
+	if err := common.Templates.ExecuteTemplate(w, "queryz.html", map[string]interface{}{
+		"queries": stats,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 // Caller needs to hold s.clientsMu
 func sendPaginationUpdate(queryid string, s queryState) {
 	type Pagination struct {
