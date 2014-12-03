@@ -255,12 +255,12 @@ function addSearchResult(results, result) {
 }
 
 function loadPage(nr) {
-    // Start the progress bar after 20ms. If the page was in the cache, this
-    // timer will be cancelled by the load callback below. If it wasn’t, 20ms
+    // Start the progress bar after 200ms. If the page was in the cache, this
+    // timer will be cancelled by the load callback below. If it wasn’t, 200ms
     // is short enough of a delay to not be noticed by the user.
     var progress_bar_start = setTimeout(function() {
         progress(0, true, 'Loading search result page ' + (nr+1) + '…');
-    }, 20);
+    }, 200);
 
     var pathname = '/results/' + encodeURIComponent(searchterm) + '/page_' + nr;
     if (location.pathname != pathname) {
@@ -296,7 +296,7 @@ function loadPerPkgPage(nr, preload) {
         // wasn’t, 20ms is short enough of a delay to not be noticed by the
         // user.
         progress_bar_start = setTimeout(function() {
-            progress(0, true, 'Loading search result page ' + (nr+1) + '…');
+            progress(0, true, 'Loading per-package search result page ' + (nr+1) + '…');
         }, 20);
         var pathname = '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + nr;
         if (location.pathname != pathname) {
