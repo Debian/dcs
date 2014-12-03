@@ -130,4 +130,8 @@ func ConcatN(dst string, sources ...string) {
 
 	os.Remove(nameIndexFile.name)
 	os.Remove(w.postIndexFile.name)
+
+	for i, _ := range sources {
+		ixes[i].Close()
+	}
 }
