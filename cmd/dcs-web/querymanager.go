@@ -186,22 +186,37 @@ var (
 )
 
 func queryBackend(queryid string, backend string, backendidx int, sourceQuery []byte) {
-	// TODO: switch in the config
-	log.Printf("[%s] [src:%s] connecting...\n", queryid, backend)
-	conn, err := net.DialTimeout("tcp", strings.Replace(backend, "28082", "26082", -1), 5*time.Second)
-	if err != nil {
-		log.Printf("[%s] [src:%s] Connection failed: %v\n", queryid, backend, err)
+	// When exiting this function, check that all results were processed. If
+	// not, the backend query must have failed for some reason. Send a progress
+	// update to prevent the query from running forever.
+	defer func() {
+		filesTotal := state[queryid].filesTotal[backendidx]
+
+		if state[queryid].filesProcessed[backendidx] == filesTotal {
+			return
+		}
+
+		if filesTotal == -1 {
+			filesTotal = 0
+		}
 
 		// TODO: use a more specific type (progressupdate)
 		storeProgress(queryid, backendidx, Result{
 			Type:           "progress",
-			FilesProcessed: 0,
-			FilesTotal:     0})
+			FilesProcessed: filesTotal,
+			FilesTotal:     filesTotal})
 
 		addEventMarshal(queryid, &Error{
 			Type:      "error",
 			ErrorType: "backendunavailable",
 		})
+	}()
+
+	// TODO: switch in the config
+	log.Printf("[%s] [src:%s] connecting...\n", queryid, backend)
+	conn, err := net.DialTimeout("tcp", strings.Replace(backend, "28082", "26082", -1), 5*time.Second)
+	if err != nil {
+		log.Printf("[%s] [src:%s] Connection failed: %v\n", queryid, backend, err)
 		return
 	}
 	defer conn.Close()
@@ -211,8 +226,8 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 	}
 	decoder := json.NewDecoder(conn)
 	r := Result{Type: "result"}
-	for {
-		// TODO: add a timeout
+	for !state[queryid].done {
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		if err := decoder.Decode(&r); err != nil {
 			if err == io.EOF {
 				return
