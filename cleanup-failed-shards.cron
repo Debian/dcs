@@ -1,0 +1,2 @@
+#!/bin/sh
+exec find /dcs-ssd/unpacked -maxdepth 1 -name "newshard*" -mtime +1 -delete
