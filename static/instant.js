@@ -471,6 +471,8 @@ connection.onmessage = function(e) {
         case "error":
         if (msg.ErrorType == "backendunavailable") {
             error(false, true, msg.ErrorType, "The results may be incomplete, not all Debian Code Search servers are okay right now.");
+        } else if (msg.ErrorType == "cancelled") {
+            error(false, true, msg.ErrorType, "This query has been cancelled by the server administrator (to preserve overall service health).");
         } else {
             error(msg.ErrorType);
         }

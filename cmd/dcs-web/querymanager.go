@@ -336,8 +336,20 @@ func maybeStartQuery(queryid, src, query string) bool {
 }
 
 func QueryzHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	if cancel := r.PostFormValue("cancel"); cancel != "" {
+		addEventMarshal(cancel, &Error{
+			Type:      "error",
+			ErrorType: "cancelled",
+		})
+		finishQuery(cancel)
+		http.Redirect(w, r, "/queryz", http.StatusFound)
+		return
+	}
+
 	type queryStats struct {
 		Searchterm     string
+		QueryId        string
 		NumEvents      int
 		NumResults     int
 		NumResultPages int
@@ -351,9 +363,10 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	stateMu.Lock()
 	stats := make([]queryStats, len(state))
 	idx := 0
-	for _, s := range state {
+	for queryid, s := range state {
 		stats[idx] = queryStats{
 			Searchterm:     s.query,
+			QueryId:        queryid,
 			NumEvents:      len(s.events),
 			Done:           s.done,
 			Started:        s.started,
