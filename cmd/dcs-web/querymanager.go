@@ -32,7 +32,7 @@ import (
 var (
 	queryResultsPath = flag.String("query_results_path",
 		"/tmp/qr/",
-		"TODO")
+		"Path where query results files (page_0.json etc.) are stored")
 	influxDBHost = flag.String("influx_db_host",
 		"",
 		"host:port of the InfluxDB to store time series in")
