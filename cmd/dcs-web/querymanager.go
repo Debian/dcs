@@ -152,6 +152,7 @@ func (s pointerByRanking) Swap(i, j int) {
 
 type queryState struct {
 	started  time.Time
+	ended    time.Time
 	events   []event
 	newEvent *sync.Cond
 	done     bool
@@ -358,6 +359,8 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		NumPackages    int
 		Done           bool
 		Started        time.Time
+		Ended          time.Time
+		StartedFromNow time.Duration
 		Duration       time.Duration
 		FilesTotal     []int
 		FilesProcessed []int
@@ -372,7 +375,9 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 			NumEvents:      len(s.events),
 			Done:           s.done,
 			Started:        s.started,
-			Duration:       time.Since(s.started),
+			Ended:          s.ended,
+			StartedFromNow: time.Since(s.started),
+			Duration:       s.ended.Sub(s.started),
 			NumResults:     len(s.resultPointers),
 			NumPackages:    len(s.allPackages),
 			NumResultPages: s.resultPages,

@@ -92,7 +92,8 @@ pre {
 {{range .queries}}
 <h3>{{.Searchterm}}</h3>
 <table>
-<tr><th>started</th><td>{{.Started}} ({{.Duration}} ago)</td></tr>
+<tr><th>started</th><td>{{.Started}} ({{.StartedFromNow}} ago)</td></tr>
+<tr><th>ended</th><td>{{.Ended}} (ran for {{.Duration}})</td></tr>
 <tr><th>done</th><td>{{.Done}}</td></tr>
 <tr><th>events</th><td>{{.NumEvents}}</td></tr>
 <tr><th>results</th><td>{{.NumResults}} (in {{.NumPackages}} source packages) (on {{.NumResultPages}} pages)</td></tr>

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"time"
 )
 
 // Since multiple users can perform the same query at (roughly) the same time
@@ -46,7 +47,10 @@ func addEvent(queryid string, data []byte, origdata interface{}) {
 	// An empty message marks the query as finished, but further errors can
 	// occur, so we store whether we’ve seen an empty message for use in
 	// queryCompleted().
-	s.done = s.done || (len(data) == 0)
+	if !s.done && len(data) == 0 {
+		s.done = true
+		s.ended = time.Now()
+	}
 	state[queryid] = s
 
 	state[queryid].newEvent.Broadcast()
