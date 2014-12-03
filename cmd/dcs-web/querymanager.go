@@ -418,7 +418,7 @@ func sendPaginationUpdate(queryid string, s queryState) {
 func storeResult(queryid string, backendidx int, result Result) {
 	result.Type = "result"
 
-	result.Package = result.Path[:strings.Index(result.Path, "_")]
+	result.Package = result.Path[:strings.Index(result.Path, "/")]
 
 	// Without acquiring a lock, just check if we need to consider this result
 	// for the top 10 at all.
@@ -639,12 +639,30 @@ func writeToDisk(queryid string) error {
 	}
 	s.resultPointers = nil
 	idx := 0
-	packages := make([]string, len(s.allPackages))
-	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s first result, first stored)
+
+	// For each full package (i3-wm_4.8-1), store only the newest version.
+	packageVersions := make(map[string]string)
 	for pkg, _ := range s.allPackages {
+		underscore := strings.Index(pkg, "_")
+		name := pkg[:underscore]
+		version := pkg[underscore+1:]
+
+		if bestversion, ok := packageVersions[name]; ok {
+			// TODO: use Debian version comparison for this instead!
+			if version > bestversion {
+				packageVersions[name] = version
+			}
+		} else {
+			packageVersions[name] = version
+		}
+	}
+
+	packages := make([]string, len(packageVersions))
+	for pkg, _ := range packageVersions {
 		packages[idx] = pkg
 		idx++
 	}
+	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s first result, first stored)
 	s.allPackagesSorted = packages
 	state[queryid] = s
 	stateMu.Unlock()
@@ -697,12 +715,19 @@ func writeToDisk(queryid string) error {
 	// Now save the results into their package-specific files.
 	bypkg := make(map[string][]resultPointer)
 	for _, pointer := range pointers {
-		pkgresults := bypkg[*pointer.packageName]
+		pkg := *pointer.packageName
+		underscore := strings.Index(pkg, "_")
+		name := pkg[:underscore]
+		// Skip this result if it’s not in the newest version of the package.
+		if packageVersions[name] != pkg[underscore+1:] {
+			continue
+		}
+		pkgresults := bypkg[name]
 		if len(pkgresults) >= resultsPerPackage {
 			continue
 		}
 		pkgresults = append(pkgresults, pointer)
-		bypkg[*pointer.packageName] = pkgresults
+		bypkg[name] = pkgresults
 	}
 
 	perPkgPages := int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
@@ -810,7 +835,6 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
 		return
 	}
-
 
 	queryid := matches[1]
 	pagenr, err := strconv.Atoi(matches[2])
