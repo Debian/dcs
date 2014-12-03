@@ -208,6 +208,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		"packages":   packages,
 		"pagination": template.HTML(pagination),
 		"q":          r.Form.Get("q"),
+		"page":       page,
 		"version":    common.Version,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -340,6 +341,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"packages":   packages,
 		"pagination": template.HTML(pagination),
 		"q":          r.Form.Get("q"),
+		"page":       page,
 		"version":    common.Version,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
