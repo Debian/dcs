@@ -170,9 +170,11 @@ type queryState struct {
 	// One file per backend, containing JSON-serialized results. When writing,
 	// we keep the offsets, so that we can later sort the pointers and write
 	// the resulting files.
-	tempFiles      []*os.File
-	packagePool    *stringpool.StringPool
-	resultPointers []resultPointer
+	tempFiles           []*os.File
+	tempFilesMu         *sync.Mutex
+	packagePool         *stringpool.StringPool
+	resultPointers      []resultPointer
+	resultPointersByPkg map[string][]resultPointer
 
 	allPackages       map[string]bool
 	allPackagesSorted []string
@@ -265,6 +267,9 @@ func maybeStartQuery(queryid, src, query string) bool {
 				if !s.done {
 					continue
 				}
+				for _, f := range s.tempFiles {
+					f.Close()
+				}
 				delete(state, queryid)
 			}
 			log.Printf("Garbage collection done. %d queries remaining", len(state))
@@ -279,6 +284,7 @@ func maybeStartQuery(queryid, src, query string) bool {
 			filesProcessed: make([]int, len(backends)),
 			filesMu:        &sync.Mutex{},
 			tempFiles:      make([]*os.File, len(backends)),
+			tempFilesMu:    &sync.Mutex{},
 			allPackages:    make(map[string]bool),
 			allPackagesMu:  &sync.Mutex{},
 			packagePool:    stringpool.NewStringPool(),
@@ -524,9 +530,6 @@ func finishQuery(queryid string) {
 	log.Printf("[%s] done, closing all client channels.\n", queryid)
 	stateMu.Lock()
 	s := state[queryid]
-	for _, f := range s.tempFiles {
-		f.Close()
-	}
 	state[queryid] = s
 	stateMu.Unlock()
 	addEvent(queryid, []byte{}, nil)
@@ -622,6 +625,9 @@ func ensureEnoughSpaceAvailable() {
 }
 
 func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) error {
+	state[queryid].tempFilesMu.Lock()
+	defer state[queryid].tempFilesMu.Unlock()
+
 	if _, err := f.Write([]byte("[")); err != nil {
 		return err
 	}
@@ -685,52 +691,21 @@ func writeToDisk(queryid string) error {
 	state[queryid] = s
 	stateMu.Unlock()
 
-	log.Printf("[%s] writing, %d results.\n", queryid, len(pointers))
-	log.Printf("[%s] packages: %v\n", queryid, packages)
-
+	log.Printf("[%s] sorting, %d results, %d packages.\n", queryid, len(pointers), len(packages))
+	pointerSortingStarted := time.Now()
 	sort.Sort(pointerByRanking(pointers))
+	log.Printf("[%s] pointer sorting done (%v).\n", queryid, time.Since(pointerSortingStarted))
 
 	resultsPerPage := 10
-	dir := filepath.Join(*queryResultsPath, queryid)
-	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-		return err
-	}
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.
 	ensureEnoughSpaceAvailable()
 
-	f, err := os.Create(filepath.Join(dir, "packages.json"))
-	if err != nil {
-		return err
-	}
-	if err := json.NewEncoder(f).Encode(struct{ Packages []string }{packages}); err != nil {
-		return err
-	}
-	f.Close()
-
 	pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
-	for page := 0; page < pages; page++ {
-		start := page * resultsPerPage
-		end := (page + 1) * resultsPerPage
-		if end > len(pointers) {
-			end = len(pointers)
-		}
-
-		name := filepath.Join(dir, fmt.Sprintf("page_%d.json", page))
-		log.Printf("[%s] writing %q\n", queryid, name)
-		f, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		if err := writeFromPointers(queryid, f, pointers[start:end]); err != nil {
-			f.Close()
-			return err
-		}
-		f.Close()
-	}
 
 	// Now save the results into their package-specific files.
+	byPkgSortingStarted := time.Now()
 	bypkg := make(map[string][]resultPointer)
 	for _, pointer := range pointers {
 		pkg := *pointer.packageName
@@ -747,41 +722,12 @@ func writeToDisk(queryid string) error {
 		pkgresults = append(pkgresults, pointer)
 		bypkg[name] = pkgresults
 	}
-
-	perPkgPages := int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
-	for page := 0; page < perPkgPages; page++ {
-		start := page * packagesPerPage
-		end := (page + 1) * packagesPerPage
-		if end > len(s.allPackagesSorted) {
-			end = len(s.allPackagesSorted)
-		}
-
-		name := filepath.Join(dir, fmt.Sprintf("perpackage_2_page_%d.json", page))
-		log.Printf("[%s] writing %q\n", queryid, name)
-		f, err := os.Create(name)
-		if err != nil {
-			return err
-		}
-		f.Write([]byte("["))
-
-		for idx, pkg := range s.allPackagesSorted[start:end] {
-			if idx == 0 {
-				fmt.Fprintf(f, `{"Package": "%s", "Results":`, pkg)
-			} else {
-				fmt.Fprintf(f, `,{"Package": "%s", "Results":`, pkg)
-			}
-			if err := writeFromPointers(queryid, f, bypkg[pkg]); err != nil {
-				f.Close()
-				return err
-			}
-			f.Write([]byte("}"))
-		}
-		f.Write([]byte("]"))
-		f.Close()
-	}
+	log.Printf("[%s] by-pkg sorting done (%v).\n", queryid, time.Since(byPkgSortingStarted))
 
 	stateMu.Lock()
 	s = state[queryid]
+	s.resultPointers = pointers
+	s.resultPointersByPkg = bypkg
 	s.resultPages = pages
 	state[queryid] = s
 	stateMu.Unlock()
