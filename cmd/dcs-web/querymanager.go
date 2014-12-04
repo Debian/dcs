@@ -337,6 +337,36 @@ func maybeStartQuery(queryid, src, query string) bool {
 	return true
 }
 
+type queryStats struct {
+	Searchterm     string
+	QueryId        string
+	NumEvents      int
+	NumResults     int
+	NumResultPages int
+	NumPackages    int
+	Done           bool
+	Started        time.Time
+	Ended          time.Time
+	StartedFromNow time.Duration
+	Duration       time.Duration
+	FilesTotal     []int
+	FilesProcessed []int
+}
+
+type byStarted []queryStats
+
+func (s byStarted) Len() int {
+	return len(s)
+}
+
+func (s byStarted) Less(i, j int) bool {
+	return s[i].Started.After(s[j].Started)
+}
+
+func (s byStarted) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
 func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
@@ -349,21 +379,6 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type queryStats struct {
-		Searchterm     string
-		QueryId        string
-		NumEvents      int
-		NumResults     int
-		NumResultPages int
-		NumPackages    int
-		Done           bool
-		Started        time.Time
-		Ended          time.Time
-		StartedFromNow time.Duration
-		Duration       time.Duration
-		FilesTotal     []int
-		FilesProcessed []int
-	}
 	stateMu.Lock()
 	stats := make([]queryStats, len(state))
 	idx := 0
@@ -389,6 +404,9 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		idx++
 	}
 	stateMu.Unlock()
+
+	sort.Sort(byStarted(stats))
+
 	if err := common.Templates.ExecuteTemplate(w, "queryz.html", map[string]interface{}{
 		"queries": stats,
 	}); err != nil {
