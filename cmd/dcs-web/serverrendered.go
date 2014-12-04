@@ -255,6 +255,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	maybeStartQuery(queryid, src, q)
 	if !queryCompleted(queryid) {
+		// Prevent caching, as the placeholder is temporary.
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"q":       r.Form.Get("q"),
 			"version": common.Version,
