@@ -573,7 +573,7 @@ func availableBytes(path string) uint64 {
 }
 
 func ensureEnoughSpaceAvailable() {
-	headroom := uint64(2 * 1024 * 1024 * 1024)
+	headroom := uint64(10 * 1024 * 1024 * 1024)
 	if availableBytes(*queryResultsPath) >= headroom {
 		return
 	}
