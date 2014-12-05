@@ -53,6 +53,7 @@ const (
 	// NB: All of these constants needs to match those in static/instant.js.
 	packagesPerPage   = 5
 	resultsPerPackage = 2
+	resultsPerPage    = 10
 )
 
 // TODO: make this type satisfy obsoletableEvent
@@ -695,8 +696,6 @@ func writeToDisk(queryid string) error {
 	pointerSortingStarted := time.Now()
 	sort.Sort(pointerByRanking(pointers))
 	log.Printf("[%s] pointer sorting done (%v).\n", queryid, time.Since(pointerSortingStarted))
-
-	resultsPerPage := 10
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.

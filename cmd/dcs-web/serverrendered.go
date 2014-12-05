@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
@@ -16,8 +17,6 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -108,39 +107,21 @@ func updatePagination(currentpage int, resultpages int, baseurl string) string {
 	return result
 }
 
-func readPackagesFile(queryid string) ([]string, error) {
-	packagesFile, err := os.Open(filepath.Join(*queryResultsPath, queryid, "packages.json"))
-	if err != nil {
-		return []string{}, fmt.Errorf("Could not open packages file on disk: %v", err)
-	}
-	defer packagesFile.Close()
-
-	var packages struct {
-		Packages []string
-	}
-
-	if err := json.NewDecoder(packagesFile).Decode(&packages); err != nil {
-		return []string{}, fmt.Errorf("Could not parse packages from disk: %v", err)
-	}
-
+func readPackagesFile(queryid string) []string {
+	packages := state[queryid].allPackagesSorted
 	end := 100
-	if end > len(packages.Packages) {
-		end = len(packages.Packages) - 1
+	if end > len(packages) {
+		end = len(packages)
 	}
-	return packages.Packages[:end], nil
+	return packages[:end]
 }
 
 func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, page int) {
-	dir := filepath.Join(*queryResultsPath, queryid)
-	name := filepath.Join(dir, fmt.Sprintf("perpackage_2_page_%d.json", page))
-	resultsFile, err := os.Open(name)
-	if err != nil {
-		http.Error(w,
-			fmt.Sprintf("Could not open results file on disk: %v", err),
-			http.StatusInternalServerError)
+	var buffer bytes.Buffer
+	if err := writePerPkgResults(queryid, page, &buffer, w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer resultsFile.Close()
 
 	type perPackageResults struct {
 		Package    string
@@ -149,7 +130,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 	}
 
 	var results []perPackageResults
-	if err := json.NewDecoder(resultsFile).Decode(&results); err != nil {
+	if err := json.NewDecoder(&buffer).Decode(&results); err != nil {
 		http.Error(w,
 			fmt.Sprintf("Could not parse results from disk: %v", err),
 			http.StatusInternalServerError)
@@ -184,11 +165,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		}
 	}
 
-	packages, err := readPackagesFile(queryid)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	packages := readPackagesFile(queryid)
 
 	basequery := r.URL.Query()
 	basequery.Del("page")
@@ -251,7 +228,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(h, q)
 	queryid := fmt.Sprintf("%x", h.Sum64())
 
-	log.Printf("getquery(%q, %q, %q)\n", queryid, src, q)
+	log.Printf("server-render(%q, %q, %q)\n", queryid, src, q)
 
 	maybeStartQuery(queryid, src, q)
 	if !queryCompleted(queryid) {
@@ -276,19 +253,14 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := filepath.Join(*queryResultsPath, queryid)
-	name := filepath.Join(dir, fmt.Sprintf("page_%d.json", page))
-	resultsFile, err := os.Open(name)
-	if err != nil {
-		http.Error(w,
-			fmt.Sprintf("Could not open results file on disk: %v", err),
-			http.StatusInternalServerError)
+	var buffer bytes.Buffer
+	if err := writeResults(queryid, page, &buffer, w, r); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer resultsFile.Close()
 
 	var results []Result
-	if err := json.NewDecoder(resultsFile).Decode(&results); err != nil {
+	if err := json.NewDecoder(&buffer).Decode(&results); err != nil {
 		http.Error(w,
 			fmt.Sprintf("Could not parse results from disk: %v", err),
 			http.StatusInternalServerError)
@@ -317,11 +289,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	packages, err := readPackagesFile(queryid)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	packages := readPackagesFile(queryid)
 
 	basequery := r.URL.Query()
 	basequery.Del("page")

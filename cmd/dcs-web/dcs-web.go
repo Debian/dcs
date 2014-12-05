@@ -14,7 +14,6 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -118,18 +117,6 @@ func InstantServer(ws *websocket.Conn) {
 	}
 }
 
-func startJsonResponse(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	// Set cache time for one hour. The files will ideally get cached both by
-	// nginx and the client(s).
-	utc := time.Now().UTC()
-	cacheSince := utc.Format(http.TimeFormat)
-	cacheUntil := utc.Add(1 * time.Hour).Format(http.TimeFormat)
-	w.Header().Set("Cache-Control", "max-age=3600, public")
-	w.Header().Set("Last-Modified", cacheSince)
-	w.Header().Set("Expires", cacheUntil)
-}
-
 func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: ideally, this would also start the search in the background to avoid waiting for the round-trip to the client.
 
@@ -137,7 +124,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Try to match /page_n.json or /perpackage_2_page_n.json
 	matches := resultsPathRe.FindStringSubmatch(r.URL.Path)
-	log.Printf("matches = %v\n", matches)
+	log.Printf("matches for %q = %v\n", r.URL.Path, matches)
 	if matches == nil || len(matches) != 4 {
 		// See whether it’s /packages.json, then.
 		matches = packagesPathRe.FindStringSubmatch(r.URL.Path)
@@ -179,57 +166,12 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !perpackage {
-		resultsPerPage := 10
-		pointers := state[queryid].resultPointers
-
-		pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
-		if page > pages {
-			http.Error(w, "No such page.", http.StatusNotFound)
-			return
-		}
-		start := page * resultsPerPage
-		end := (page + 1) * resultsPerPage
-		if end > len(pointers) {
-			end = len(pointers)
-		}
-
-		startJsonResponse(w)
-
-		if err := writeFromPointers(queryid, w, pointers[start:end]); err != nil {
-			http.Error(w, fmt.Sprintf("Could not return results: %v", err), http.StatusInternalServerError)
-		}
+		err = writeResults(queryid, page, w, w, r)
 	} else {
-		bypkg := state[queryid].resultPointersByPkg
-		packages := state[queryid].allPackagesSorted
-
-		pages := int(math.Ceil(float64(len(packages)) / float64(packagesPerPage)))
-		if page > pages {
-			http.Error(w, "No such page.", http.StatusNotFound)
-			return
-		}
-		start := page * packagesPerPage
-		end := (page + 1) * packagesPerPage
-		if end > len(packages) {
-			end = len(packages)
-		}
-
-		startJsonResponse(w)
-
-		w.Write([]byte("["))
-
-		for idx, pkg := range packages[start:end] {
-			if idx == 0 {
-				fmt.Fprintf(w, `{"Package": "%s", "Results":`, pkg)
-			} else {
-				fmt.Fprintf(w, `,{"Package": "%s", "Results":`, pkg)
-			}
-			if err := writeFromPointers(queryid, w, bypkg[pkg]); err != nil {
-				http.Error(w, fmt.Sprintf("Could not return results: %v", err), http.StatusInternalServerError)
-				return
-			}
-			w.Write([]byte("}"))
-		}
-		w.Write([]byte("]"))
+		err = writePerPkgResults(queryid, page, w, w, r)
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
