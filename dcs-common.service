@@ -3,13 +3,19 @@
 
 [Service]
 Environment=GOMAXPROCS=4
+
 User=dcs
 Group=dcs
+
 # Redirecting stdout to /dev/null because it’s very verbose.
 # It makes sense to enable it on demand for debugging only.
 StandardOutput=null
 StandardError=journal
+
 RestartSec=1
-Restart=on-failure
+# Restart=on-failure will not restart upon SIGPIPE, so we use Restart=always
+# and only whitelist exit code 0:
+Restart=always
+RestartPreventExitStatus=0
 # Allow infinite restarts, even within a short time.
 StartLimitInterval=0
