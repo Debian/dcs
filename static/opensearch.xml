@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+ <ShortName>Debian Code Search</ShortName>
+ <Description>Debian Code Search</Description>
+ <Url type="text/html" method="get" template="http://codesearch.debian.net/results/{searchTerms}/page_0"/>
+ <Query role="example" searchTerms="xcb_create_window"/>
+</OpenSearchDescription>
