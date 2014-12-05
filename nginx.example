@@ -27,6 +27,7 @@ upstream dcsweb {
 # This zone allows an average rate of 1 req/s.
 limit_req_zone $binary_remote_addr zone=one:10m rate=1r/s;
 limit_req_zone $binary_remote_addr zone=legacy:10m rate=1r/s;
+limit_req_zone $binary_remote_addr zone=results:10m rate=3r/s;
 
 server {
     listen   80;
@@ -95,7 +96,7 @@ server {
     }
 
     location ~ ^/(perpackage-)?results/ {
-        limit_req zone=one burst=3 nodelay;
+        limit_req zone=results burst=5 nodelay;
 
         set $cache_key $scheme$host$uri$is_args$args$http_accept_encoding;
         proxy_cache main;
