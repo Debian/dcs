@@ -2,11 +2,14 @@
 package varz
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -19,6 +22,10 @@ var (
 	counters = make(map[string]*counter)
 
 	started = time.Now()
+)
+
+const (
+	bytesPerSector = 512
 )
 
 // A counter which is safe to use from multiple goroutines.
@@ -54,6 +61,36 @@ func Varz(w http.ResponseWriter, r *http.Request) {
 		} else {
 			fmt.Fprintf(w, "available-bytes %d\n", stat.Bavail*uint64(stat.Bsize))
 		}
+	}
+
+	diskstats, err := os.Open("/proc/diskstats")
+	if err != nil {
+		return
+	}
+	defer diskstats.Close()
+
+	scanner := bufio.NewScanner(diskstats)
+	for scanner.Scan() {
+		// From http://sources.debian.net/src/linux/3.16.7-2/block/genhd.c/?hl=1141#L1141
+		// seq_printf(seqf, "%4d %7d %s %lu %lu %lu %u %lu %lu %lu %u %u %u %u\n",
+		var major, minor uint64
+		var device string
+		var reads, mergedreads, readsectors, readms uint64
+		var writes, mergedwrites, writtensectors, writems uint64
+		var inflight, ioticks, timeinqueue uint64
+		fmt.Sscanf(scanner.Text(), "%4d %7d %s %d %d %d %d %d %d %d %d %d %d %d",
+			&major, &minor, &device,
+			&reads, &mergedreads, &readsectors, &readms,
+			&writes, &mergedwrites, &writtensectors, &writems,
+			&inflight, &ioticks, &timeinqueue)
+		// Matches sda, xvda, …
+		if !strings.HasSuffix(device, "da") {
+			continue
+		}
+		fmt.Fprintf(w, "dev-reads.%s %d\n", device, reads)
+		fmt.Fprintf(w, "dev-bytes-read.%s %d\n", device, readsectors*bytesPerSector)
+		fmt.Fprintf(w, "dev-writes.%s %d\n", device, writes)
+		fmt.Fprintf(w, "dev-bytes-written.%s %d\n", device, writtensectors*bytesPerSector)
 	}
 }
 
