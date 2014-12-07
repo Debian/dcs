@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/Debian/dcs/varz"
 	"log"
 	"time"
 )
@@ -50,6 +51,7 @@ func addEvent(queryid string, data []byte, origdata interface{}) {
 	if !s.done && len(data) == 0 {
 		s.done = true
 		s.ended = time.Now()
+		varz.Decrement("active-queries")
 	}
 	state[queryid] = s
 

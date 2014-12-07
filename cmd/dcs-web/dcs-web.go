@@ -190,6 +190,7 @@ func main() {
 	}
 
 	varz.Set("failed-queries", 0)
+	varz.Set("active-queries", 0)
 
 	fmt.Println("Debian Code Search webapp")
 

@@ -40,6 +40,12 @@ func (c *counter) Add() {
 	c.lock.Unlock()
 }
 
+func (c *counter) Subtract() {
+	c.lock.Lock()
+	c.value -= 1
+	c.lock.Unlock()
+}
+
 func (c *counter) Value() uint64 {
 	return c.value
 }
@@ -103,6 +109,14 @@ func Varz(w http.ResponseWriter, r *http.Request) {
 func Increment(key string) {
 	if c, ok := counters[key]; ok {
 		c.Add()
+	} else {
+		counters[key] = &counter{value: 1}
+	}
+}
+
+func Decrement(key string) {
+	if c, ok := counters[key]; ok {
+		c.Subtract()
 	} else {
 		counters[key] = &counter{value: 1}
 	}

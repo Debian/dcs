@@ -291,6 +291,8 @@ func maybeStartQuery(queryid, src, query string) bool {
 			packagePool:    stringpool.NewStringPool(),
 		}
 
+		varz.Increment("active-queries")
+
 		var err error
 		dir := filepath.Join(*queryResultsPath, queryid)
 		if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
