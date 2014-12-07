@@ -63,6 +63,12 @@ func Varz(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var rusage syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &rusage); err == nil {
+		fmt.Fprintf(w, "cpu-time-user-ns %d\n", syscall.TimevalToNsec(rusage.Utime))
+		fmt.Fprintf(w, "cpu-time-system-ns %d\n", syscall.TimevalToNsec(rusage.Stime))
+	}
+
 	diskstats, err := os.Open("/proc/diskstats")
 	if err != nil {
 		return
