@@ -485,8 +485,10 @@ connection.onmessage = function(e) {
             error(false, true, msg.ErrorType, "This query has been cancelled by the server administrator (to preserve overall service health).");
         } else if (msg.ErrorType == "failed") {
             error(false, true, msg.ErrorType, "This query failed due to an unexpected internal server error.");
+        } else if (msg.ErrorType == "invalidquery") {
+            error(false, true, msg.ErrorType, "This query was refused by the server, because it is too short or malformed.");
         } else {
-            error(msg.ErrorType);
+            error(false, true, msg.ErrorType, msg.ErrorType);
         }
         break;
 

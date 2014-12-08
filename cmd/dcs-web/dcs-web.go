@@ -8,13 +8,17 @@ import (
 	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
+	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/index"
+	dcsregexp "github.com/Debian/dcs/regexp"
 	"github.com/Debian/dcs/varz"
 	"hash/fnv"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +46,27 @@ var (
 	packagesPathRe = regexp.MustCompile(`^/results/([^/]+)/packages.json$`)
 )
 
+func validateQuery(query string) error {
+	// Parse the query and see whether the resulting trigram query is
+	// non-empty. This is to catch queries like “package:debian”.
+	fakeUrl, err := url.Parse(query)
+	if err != nil {
+		return err
+	}
+	rewritten := search.RewriteQuery(*fakeUrl)
+	log.Printf("rewritten query = %q\n", rewritten.String())
+	re, err := dcsregexp.Compile(rewritten.Query().Get("q"))
+	if err != nil {
+		return err
+	}
+	indexQuery := index.RegexpQuery(re.Syntax)
+	log.Printf("trigram = %v, sub = %v", indexQuery.Trigram, indexQuery.Sub)
+	if len(indexQuery.Trigram) == 0 && len(indexQuery.Sub) == 0 {
+		return fmt.Errorf("Empty index query")
+	}
+	return nil
+}
+
 func InstantServer(ws *websocket.Conn) {
 	// The additional ":" at the end is necessary so that we don’t need to
 	// distinguish between the two cases (X-Forwarded-For, without a port, and
@@ -65,9 +90,10 @@ func InstantServer(ws *websocket.Conn) {
 			return
 		}
 		log.Printf("[%s] Received query %v\n", src, q)
-		if strings.TrimSpace(q.Query) == "" || strings.TrimSpace(q.Query) == "?q=" {
-			log.Printf("[%s] Refusing empty query\n", src)
-			return
+		if err := validateQuery("?" + q.Query); err != nil {
+			log.Printf("[%s] Query %q failed validation: %v\n", src, q.Query, err)
+			ws.Write([]byte(`{"Type":"error", "ErrorType":"invalidquery"}`))
+			continue
 		}
 
 		// Uniquely (well, good enough) identify this query for a couple of minutes
