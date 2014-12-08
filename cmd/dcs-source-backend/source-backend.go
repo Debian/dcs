@@ -354,8 +354,8 @@ func streamingQuery(conn net.Conn) {
 		Type:       "progress",
 		FilesTotal: len(files),
 	}); err != nil {
-		// TODO: relax
-		log.Fatal(err)
+		log.Printf("%s %v\n", logprefix, err)
+		return
 	}
 
 	// The tricky part here is “flow control”: if we just start grepping like
@@ -373,7 +373,7 @@ func streamingQuery(conn net.Conn) {
 	// We add the additional 1 for the progress updater goroutine. It also
 	// needs to be done before we can return, otherwise it will try to use the
 	// (already closed) network connection, which is a fatal error.
-	wg.Add(len(files)+1)
+	wg.Add(len(files) + 1)
 
 	go func() {
 		for _, file := range files {
@@ -384,6 +384,7 @@ func streamingQuery(conn net.Conn) {
 
 	go func() {
 		cnt := 0
+		errorShown := false
 		var lastProgressUpdate time.Time
 		progressInterval := 2*time.Second + time.Duration(rand.Int63n(int64(500*time.Millisecond)))
 		for cnt < len(files) {
@@ -396,8 +397,13 @@ func streamingQuery(conn net.Conn) {
 					FilesProcessed: cnt,
 					FilesTotal:     len(files),
 				}); err != nil {
-					// TODO: relax
-					log.Fatal(err)
+					if !errorShown {
+						log.Printf("%s %v\n", logprefix, err)
+						// We need to read the 'progress' channel, so we cannot
+						// just exit the loop here. Instead, we suppress all
+						// error messages after the first one.
+						errorShown = true
+					}
 				}
 				lastProgressUpdate = time.Now()
 			}
@@ -408,8 +414,7 @@ func streamingQuery(conn net.Conn) {
 			FilesProcessed: len(files),
 			FilesTotal:     len(files),
 		}); err != nil {
-			// TODO: relax
-			log.Fatal(err)
+			log.Printf("%s %v\n", logprefix, err)
 		}
 		close(progress)
 
@@ -460,8 +465,13 @@ func streamingQuery(conn net.Conn) {
 					// one other result.
 
 					if err := encoder.Encode(&match); err != nil {
-						// TODO: relax
-						log.Fatal(err)
+						log.Printf("%s %v\n", logprefix, err)
+						// Drain the work channel, but without doing any work.
+						// This effectively exits the worker goroutine(s)
+						// cleanly.
+						for _ = range work {
+						}
+						break
 					}
 				}
 
