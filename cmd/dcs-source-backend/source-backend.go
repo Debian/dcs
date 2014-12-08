@@ -369,6 +369,12 @@ func streamingQuery(conn net.Conn) {
 	work := make(chan ranking.ResultPath)
 	progress := make(chan int)
 
+	var wg sync.WaitGroup
+	// We add the additional 1 for the progress updater goroutine. It also
+	// needs to be done before we can return, otherwise it will try to use the
+	// (already closed) network connection, which is a fatal error.
+	wg.Add(len(files)+1)
+
 	go func() {
 		for _, file := range files {
 			work <- file
@@ -406,12 +412,12 @@ func streamingQuery(conn net.Conn) {
 			log.Fatal(err)
 		}
 		close(progress)
+
+		wg.Done()
 	}()
 
 	querystr := ranking.NewQueryStr(r.Query)
 
-	var wg sync.WaitGroup
-	wg.Add(len(files))
 	numWorkers := 1000
 	if len(files) < 1000 {
 		numWorkers = len(files)
