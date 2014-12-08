@@ -589,18 +589,24 @@ func (s ByModTime) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
-func availableBytes(path string) uint64 {
+func fsBytes(path string) (available uint64, total uint64) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(path, &stat); err != nil {
 		log.Fatal("Could not stat filesystem for %q: %v\n", path, err)
 	}
 	log.Printf("Available bytes on %q: %d\n", path, stat.Bavail*uint64(stat.Bsize))
-	return stat.Bavail * uint64(stat.Bsize)
+	available = stat.Bavail * uint64(stat.Bsize)
+	total = stat.Blocks * uint64(stat.Bsize)
+	return
 }
 
+// Makes sure 20% of the filesystem backing -query_results_path are available,
+// cleans up old query results otherwise.
 func ensureEnoughSpaceAvailable() {
-	headroom := uint64(10 * 1024 * 1024 * 1024)
-	if availableBytes(*queryResultsPath) >= headroom {
+	available, total := fsBytes(*queryResultsPath)
+	headroom := uint64(0.2 * float64(total))
+	log.Printf("%d bytes available, %d bytes headroom required (20%%)\n", available, headroom)
+	if available >= headroom {
 		return
 	}
 
@@ -623,7 +629,8 @@ func ensureEnoughSpaceAvailable() {
 		if err := os.RemoveAll(filepath.Join(*queryResultsPath, info.Name())); err != nil {
 			log.Fatal(err)
 		}
-		if availableBytes(*queryResultsPath) >= headroom {
+		available, _ = fsBytes(*queryResultsPath)
+		if available >= headroom {
 			break
 		}
 	}
