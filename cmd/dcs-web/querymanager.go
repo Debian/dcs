@@ -234,6 +234,7 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		if err := decoder.Decode(&r); err != nil {
 			if err == io.EOF {
+				log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
 				return
 			} else {
 				log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, backend, err)
@@ -248,6 +249,7 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		// The source backend sends back results without type, so the default is “result”.
 		r.Type = "result"
 	}
+	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
 }
 
 func maybeStartQuery(queryid, src, query string) bool {
