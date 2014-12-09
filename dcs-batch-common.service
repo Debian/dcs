@@ -1,8 +1,0 @@
-# This file contains attributes that are common to all DCS batch jobs.
-# It should not be started directly, it is included from other files.
-
-[Service]
-# TODO: maybe add a Nice= value, too?
-CPUSchedulingPolicy=batch
-# Only get disk time when no other process uses the disk.
-IOSchedulingClass=idle
