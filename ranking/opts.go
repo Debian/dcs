@@ -96,6 +96,12 @@ func RankingOptsFromQuery(query url.Values) RankingOpts {
 		result.Suffixes[".vapi"] = 0.75
 	case "erlang":
 		result.Suffixes[".erl"] = 0.75
+	case "js":
+		fallthrough
+	case "javascript":
+		result.Suffixes[".js"] = 0.75
+	case "json":
+		result.Suffixes[".json"] = 0.75
 	}
 	result.Rdep = boolFromQuery(query, "rdep")
 	result.Inst = boolFromQuery(query, "inst")
