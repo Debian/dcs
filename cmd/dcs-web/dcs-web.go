@@ -73,7 +73,7 @@ func InstantServer(ws *websocket.Conn) {
 	// RemoteAddr, with a part) in the code below.
 	src := ws.Request().Header.Get("X-Forwarded-For") + ":"
 	remoteaddr := ws.Request().RemoteAddr
-	if src == "" || (!strings.HasPrefix(remoteaddr, "[::1]:") &&
+	if src == ":" || (!strings.HasPrefix(remoteaddr, "[::1]:") &&
 		!strings.HasPrefix(remoteaddr, "127.0.0.1:")) {
 		src = remoteaddr
 	}
