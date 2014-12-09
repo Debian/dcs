@@ -11,6 +11,9 @@ type RankingOpts struct {
 	// Map of file suffix (e.g. ".c") ranking. This is filled in based on the
 	// filetype= parameter (which is extracted from the query string).
 	Suffixes map[string]float32
+	// Same thing, but for the nfiletype parameter (from the -filetype:
+	// keywords in the query).
+	Nsuffixes map[string]float32
 
 	// pre-ranking
 
@@ -53,55 +56,67 @@ func boolFromQuery(query url.Values, name string) bool {
 	return intval == 1
 }
 
-func RankingOptsFromQuery(query url.Values) RankingOpts {
-	var result RankingOpts
-	result.Suffixes = make(map[string]float32)
-	switch query.Get("filetype") {
+func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
+	switch filetype {
 	case "c":
-		result.Suffixes[".c"] = 0.75
-		result.Suffixes[".h"] = 0.75
+		(*suffixes)[".c"] = 0.75
+		(*suffixes)[".h"] = 0.75
 	case "c++":
-		result.Suffixes[".cpp"] = 0.75
-		result.Suffixes[".cxx"] = 0.75
-		result.Suffixes[".hpp"] = 0.75
-		result.Suffixes[".hxx"] = 0.75
-		result.Suffixes[".h"] = 0.75
+		(*suffixes)[".cpp"] = 0.75
+		(*suffixes)[".cxx"] = 0.75
+		(*suffixes)[".hpp"] = 0.75
+		(*suffixes)[".hxx"] = 0.75
+		(*suffixes)[".h"] = 0.75
 		// Some people write C++ in .c files
-		result.Suffixes[".c"] = 0.55
+		(*suffixes)[".c"] = 0.55
 	case "perl":
 		// perl scripts
-		result.Suffixes[".pl"] = 0.75
+		(*suffixes)[".pl"] = 0.75
 		// perl modules
-		result.Suffixes[".pm"] = 0.75
+		(*suffixes)[".pm"] = 0.75
 		// test-cases, preferred because they usually make for good examples
-		result.Suffixes[".t"] = 0.80
+		(*suffixes)[".t"] = 0.80
 	case "php":
-		result.Suffixes[".php"] = 0.75
+		(*suffixes)[".php"] = 0.75
 	case "python":
-		result.Suffixes[".py"] = 0.75
+		(*suffixes)[".py"] = 0.75
 	case "go":
 		fallthrough
 	case "golang":
-		result.Suffixes[".go"] = 0.75
+		(*suffixes)[".go"] = 0.75
 	case "java":
-		result.Suffixes[".java"] = 0.75
+		(*suffixes)[".java"] = 0.75
 	case "ruby":
-		result.Suffixes[".rb"] = 0.75
+		(*suffixes)[".rb"] = 0.75
 	case "shell":
-		result.Suffixes[".sh"] = 0.75
-		result.Suffixes[".bash"] = 0.75
-		result.Suffixes[".zsh"] = 0.75
+		(*suffixes)[".sh"] = 0.75
+		(*suffixes)[".bash"] = 0.75
+		(*suffixes)[".zsh"] = 0.75
 	case "vala":
-		result.Suffixes[".vala"] = 0.75
-		result.Suffixes[".vapi"] = 0.75
+		(*suffixes)[".vala"] = 0.75
+		(*suffixes)[".vapi"] = 0.75
 	case "erlang":
-		result.Suffixes[".erl"] = 0.75
+		(*suffixes)[".erl"] = 0.75
 	case "js":
 		fallthrough
 	case "javascript":
-		result.Suffixes[".js"] = 0.75
+		(*suffixes)[".js"] = 0.75
 	case "json":
-		result.Suffixes[".json"] = 0.75
+		(*suffixes)[".json"] = 0.75
+	}
+}
+
+func RankingOptsFromQuery(query url.Values) RankingOpts {
+	var result RankingOpts
+	result.Suffixes = make(map[string]float32)
+	result.Nsuffixes = make(map[string]float32)
+	types := query["filetype"]
+	for _, t := range types {
+		addSuffixesForFiletype(&result.Suffixes, t)
+	}
+	excludetypes := query["nfiletype"]
+	for _, t := range excludetypes {
+		addSuffixesForFiletype(&result.Nsuffixes, t)
 	}
 	result.Rdep = boolFromQuery(query, "rdep")
 	result.Inst = boolFromQuery(query, "inst")

@@ -13,6 +13,7 @@ package ranking
 import (
 	"log"
 	"path"
+	"strings"
 )
 
 // Represents an entry from our ranking database (determined by using the
@@ -73,11 +74,18 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 		rp.Ranking += ranking.rdep
 	}
 	if (opts.Filetype || opts.Weighted) && len(opts.Suffixes) > 0 {
-		suffix := path.Ext(rp.Path)
+		suffix := strings.ToLower(path.Ext(rp.Path))
 		if val, exists := opts.Suffixes[suffix]; exists {
 			rp.Ranking += val
 		} else {
 			// With a ranking of -1, the result will be thrown away.
+			rp.Ranking = -1
+			return
+		}
+	}
+	if (opts.Filetype || opts.Weighted) && len(opts.Nsuffixes) > 0 {
+		suffix := strings.ToLower(path.Ext(rp.Path))
+		if _, exists := opts.Nsuffixes[suffix]; exists {
 			rp.Ranking = -1
 			return
 		}

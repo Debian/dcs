@@ -19,7 +19,9 @@ func RewriteQuery(u url.URL) url.URL {
 		fmt.Printf("word = %v\n", word)
 		lower := strings.ToLower(word)
 		if strings.HasPrefix(lower, "filetype:") {
-			query.Set("filetype", strings.ToLower(word[len("filetype:"):]))
+			query.Add("filetype", strings.ToLower(word[len("filetype:"):]))
+		} else if strings.HasPrefix(lower, "-filetype:") {
+			query.Add("nfiletype", strings.ToLower(word[len("-filetype:"):]))
 		} else if strings.HasPrefix(lower, "package:") {
 			query.Set("package", word[len("package:"):])
 		} else if strings.HasPrefix(lower, "-package:") {
