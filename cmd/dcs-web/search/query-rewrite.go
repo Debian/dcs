@@ -24,9 +24,9 @@ func RewriteQuery(u url.URL) url.URL {
 			query.Set("package", word[len("package:"):])
 		} else if strings.HasPrefix(lower, "-package:") {
 			query.Add("npackage", word[len("-package:"):])
-		} else if strings.HasPrefix(lower, "path:") {
+		} else if strings.HasPrefix(lower, "path:") || strings.HasPrefix(lower, "file:") {
 			query.Add("path", word[len("path:"):])
-		} else if strings.HasPrefix(lower, "-path:") {
+		} else if strings.HasPrefix(lower, "-path:") || strings.HasPrefix(lower, "-file:") {
 			query.Add("npath", word[len("-path:"):])
 		} else {
 			queryWords = append(queryWords, word)
