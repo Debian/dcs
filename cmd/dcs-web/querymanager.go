@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
+	"github.com/Debian/dcs/dpkgversion"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/Debian/dcs/varz"
@@ -677,15 +678,18 @@ func writeToDisk(queryid string) error {
 	idx := 0
 
 	// For each full package (i3-wm_4.8-1), store only the newest version.
-	packageVersions := make(map[string]string)
+	packageVersions := make(map[string]dpkgversion.Version)
 	for pkg, _ := range s.allPackages {
 		underscore := strings.Index(pkg, "_")
 		name := pkg[:underscore]
-		version := pkg[underscore+1:]
+		version, err := dpkgversion.Parse(pkg[underscore+1:])
+		if err != nil {
+			log.Printf("[%s] parsing version %q failed: %v\n", queryid, pkg[underscore+1:], err)
+			continue
+		}
 
 		if bestversion, ok := packageVersions[name]; ok {
-			// TODO: use Debian version comparison for this instead!
-			if version > bestversion {
+			if dpkgversion.Compare(version, bestversion) > 0 {
 				packageVersions[name] = version
 			}
 		} else {
@@ -722,7 +726,7 @@ func writeToDisk(queryid string) error {
 		underscore := strings.Index(pkg, "_")
 		name := pkg[:underscore]
 		// Skip this result if it’s not in the newest version of the package.
-		if packageVersions[name] != pkg[underscore+1:] {
+		if packageVersions[name].String() != pkg[underscore+1:] {
 			continue
 		}
 		pkgresults := bypkg[name]
