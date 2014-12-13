@@ -56,12 +56,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
 	files := make([]string, len(post))
 	for idx, fileid := range post {
-		path := ix.Name(fileid)
-		// TODO: remove this once the index is rebuilt.
-		if path[0] == '/' {
-			path = path[1:]
-		}
-		files[idx] = path
+		files[idx] = ix.Name(fileid)
 	}
 	t2 := time.Now()
 	fmt.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
