@@ -5,6 +5,9 @@ Description=Debian Code Search: source backend
 After=postgresql.service
 
 [Service]
+# Increase the maximum number of file descriptors since each query uses up to
+# 1000 goroutines, and each of these inherits file descriptors.
+LimitNOFILE=16384
 ExecStart=/usr/bin/dcs-source-backend -unpacked_path=/dcs-ssd/unpacked/
 
 [Install]
