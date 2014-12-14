@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -234,10 +235,12 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		return
 	}
 
+	bufferedReader := bufio.NewReaderSize(conn, 65536)
+
 	for !state[queryid].done {
 		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-		seg, err := capn.ReadFromPackedStream(conn, nil)
+		seg, err := capn.ReadFromPackedStream(bufferedReader, nil)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
