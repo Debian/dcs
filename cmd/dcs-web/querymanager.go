@@ -543,10 +543,6 @@ func failQuery(queryid string) {
 
 func finishQuery(queryid string) {
 	log.Printf("[%s] done, closing all client channels.\n", queryid)
-	stateMu.Lock()
-	s := state[queryid]
-	state[queryid] = s
-	stateMu.Unlock()
 	addEvent(queryid, []byte{}, nil)
 
 	if *influxDBHost != "" {
