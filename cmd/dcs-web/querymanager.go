@@ -176,8 +176,7 @@ type queryState struct {
 	done     bool
 	query    string
 
-	results  [10]proto.Match
-	resultMu *sync.Mutex
+	results [10]resultPointer
 
 	filesTotal     []int
 	filesProcessed []int
@@ -251,11 +250,12 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 	}
 
 	bufferedReader := bufio.NewReaderSize(conn, 65536)
+	var capnbuf bytes.Buffer
 
 	for !state[queryid].done {
 		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-		seg, err := capn.ReadFromPackedStream(bufferedReader, nil)
+		seg, err := capn.ReadFromPackedStream(bufferedReader, &capnbuf)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
@@ -504,26 +504,35 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 		stateMu.Unlock()
 	}
 
-	worst := s.results[9]
-	if result.Ranking() > worst.Ranking() {
-		s.resultMu.Lock()
+	h := fnv.New64()
+	io.WriteString(h, result.Path())
 
-		// TODO: find the first s.result[] for the same package. then check again if the result is worthy of replacing that per-package result
-		// TODO: probably change the data structure so that we can do this more easily and also keep N results per package.
+	if result.Ranking() > s.results[9].ranking {
+		stateMu.Lock()
+		s = state[queryid]
+		if result.Ranking() <= s.results[9].ranking {
+			stateMu.Unlock()
+		} else {
+			// TODO: find the first s.result[] for the same package. then check again if the result is worthy of replacing that per-package result
+			// TODO: probably change the data structure so that we can do this more easily and also keep N results per package.
 
-		combined := append(s.results[:], result)
-		sort.Sort(ByRanking(combined))
-		copy(s.results[:], combined[:10])
-		state[queryid] = s
-		s.resultMu.Unlock()
+			combined := append(s.results[:], resultPointer{
+				ranking:  result.Ranking(),
+				pathHash: h.Sum64(),
+			})
+			sort.Sort(pointerByRanking(combined))
+			copy(s.results[:], combined[:10])
+			state[queryid] = s
+			stateMu.Unlock()
 
-		// The result entered the top 10, so send it to the client(s) for
-		// immediate display.
-		bytes, err := result.MarshalJSON()
-		if err != nil {
-			log.Fatal("Could not marshal result as JSON: %v\n", err)
+			// The result entered the top 10, so send it to the client(s) for
+			// immediate display.
+			bytes, err := result.MarshalJSON()
+			if err != nil {
+				log.Fatal("Could not marshal result as JSON: %v\n", err)
+			}
+			addEvent(queryid, bytes, &result)
 		}
-		addEvent(queryid, bytes, &result)
 	}
 
 	var written int64
@@ -533,9 +542,6 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 		failQuery(queryid)
 		return
 	}
-
-	h := fnv.New64()
-	io.WriteString(h, result.Path())
 
 	bstate := s.perBackend[backendidx]
 	bstate.resultPointers = append(bstate.resultPointers, resultPointer{
