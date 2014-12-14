@@ -7,6 +7,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/dpkgversion"
+	"github.com/Debian/dcs/proto"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/Debian/dcs/varz"
@@ -27,6 +28,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	capn "github.com/glycerine/go-capnproto"
 )
 
 var (
@@ -99,20 +102,20 @@ func (p *ProgressUpdate) ObsoletedBy(newEvent *obsoletableEvent) bool {
 	return (*newEvent).EventType() == p.Type
 }
 
-type ByRanking []Result
+type ByRanking []proto.Match
 
 func (s ByRanking) Len() int {
 	return len(s)
 }
 
 func (s ByRanking) Less(i, j int) bool {
-	if s[i].Ranking == s[j].Ranking {
+	if s[i].Ranking() == s[j].Ranking() {
 		// On a tie, we use the path to make the order of results stable over
 		// multiple queries (which can have different results depending on
 		// which index backend reacts quicker).
-		return s[i].Path > s[j].Path
+		return s[i].Path() > s[j].Path()
 	}
-	return s[i].Ranking > s[j].Ranking
+	return s[i].Ranking() > s[j].Ranking()
 }
 
 func (s ByRanking) Swap(i, j int) {
@@ -159,7 +162,7 @@ type queryState struct {
 	done     bool
 	query    string
 
-	results  [10]Result
+	results  [10]proto.Match
 	resultMu *sync.Mutex
 
 	filesTotal     []int
@@ -173,6 +176,7 @@ type queryState struct {
 	// we keep the offsets, so that we can later sort the pointers and write
 	// the resulting files.
 	tempFiles           []*os.File
+	tempFilesOffset     []int64
 	tempFilesMu         *sync.Mutex
 	packagePool         *stringpool.StringPool
 	resultPointers      []resultPointer
@@ -205,11 +209,11 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 			filesTotal = 0
 		}
 
-		// TODO: use a more specific type (progressupdate)
-		storeProgress(queryid, backendidx, Result{
-			Type:           "progress",
-			FilesProcessed: filesTotal,
-			FilesTotal:     filesTotal})
+		seg := capn.NewBuffer(nil)
+		p := proto.NewProgressUpdate(seg)
+		p.SetFilesprocessed(uint64(filesTotal))
+		p.SetFilestotal(uint64(filesTotal))
+		storeProgress(queryid, backendidx, p)
 
 		addEventMarshal(queryid, &Error{
 			Type:      "error",
@@ -229,11 +233,12 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		log.Printf("[%s] [src:%s] could not send query: %v\n", queryid, backend, err)
 		return
 	}
-	decoder := json.NewDecoder(conn)
-	r := Result{Type: "result"}
+
 	for !state[queryid].done {
 		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-		if err := decoder.Decode(&r); err != nil {
+
+		seg, err := capn.ReadFromPackedStream(conn, nil)
+		if err != nil {
 			if err == io.EOF {
 				log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
 				return
@@ -242,13 +247,13 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 				return
 			}
 		}
-		if r.Type == "result" {
-			storeResult(queryid, backendidx, r)
-		} else if r.Type == "progress" {
-			storeProgress(queryid, backendidx, r)
+
+		z := proto.ReadRootZ(seg)
+		if z.Which() == proto.Z_PROGRESSUPDATE {
+			storeProgress(queryid, backendidx, z.Progressupdate())
+		} else {
+			storeResult(queryid, backendidx, z.Match())
 		}
-		// The source backend sends back results without type, so the default is “result”.
-		r.Type = "result"
 	}
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
 }
@@ -280,18 +285,19 @@ func maybeStartQuery(queryid, src, query string) bool {
 		}
 		backends := strings.Split(*common.SourceBackends, ",")
 		state[queryid] = queryState{
-			started:        time.Now(),
-			query:          query,
-			newEvent:       sync.NewCond(&sync.Mutex{}),
-			resultMu:       &sync.Mutex{},
-			filesTotal:     make([]int, len(backends)),
-			filesProcessed: make([]int, len(backends)),
-			filesMu:        &sync.Mutex{},
-			tempFiles:      make([]*os.File, len(backends)),
-			tempFilesMu:    &sync.Mutex{},
-			allPackages:    make(map[string]bool),
-			allPackagesMu:  &sync.Mutex{},
-			packagePool:    stringpool.NewStringPool(),
+			started:         time.Now(),
+			query:           query,
+			newEvent:        sync.NewCond(&sync.Mutex{}),
+			resultMu:        &sync.Mutex{},
+			filesTotal:      make([]int, len(backends)),
+			filesProcessed:  make([]int, len(backends)),
+			filesMu:         &sync.Mutex{},
+			tempFiles:       make([]*os.File, len(backends)),
+			tempFilesOffset: make([]int64, len(backends)),
+			tempFilesMu:     &sync.Mutex{},
+			allPackages:     make(map[string]bool),
+			allPackagesMu:   &sync.Mutex{},
+			packagePool:     stringpool.NewStringPool(),
 		}
 
 		varz.Increment("active-queries")
@@ -445,11 +451,18 @@ func sendPaginationUpdate(queryid string, s queryState) {
 	}
 }
 
-func storeResult(queryid string, backendidx int, result Result) {
-	result.Type = "result"
+// countingWriter implements io.Writer, and increments *written with the amount
+// of data written on each call. Handy in an io.MultiWriter
+type countingWriter struct {
+	written *int64
+}
 
-	result.Package = result.Path[:strings.Index(result.Path, "/")]
+func (c countingWriter) Write(p []byte) (n int, err error) {
+	*c.written += int64(len(p))
+	return len(p), nil
+}
 
+func storeResult(queryid string, backendidx int, result proto.Match) {
 	// Without acquiring a lock, just check if we need to consider this result
 	// for the top 10 at all.
 	s := state[queryid]
@@ -462,13 +475,13 @@ func storeResult(queryid string, backendidx int, result Result) {
 		// requiring that means delaying the search until all results are
 		// there. Instead, FirstPathRank is a good enough approximation (but
 		// different enough for each query that we can’t hardcode it).
-		result.Ranking = result.PathRank + ((s.FirstPathRank * 0.1) * result.Ranking)
+		result.SetRanking(result.Pathrank() + ((s.FirstPathRank * 0.1) * result.Ranking()))
 	} else {
-		s.FirstPathRank = result.PathRank
+		s.FirstPathRank = result.Pathrank()
 	}
 
 	worst := s.results[9]
-	if result.Ranking > worst.Ranking {
+	if result.Ranking() > worst.Ranking() {
 		s.resultMu.Lock()
 
 		// TODO: find the first s.result[] for the same package. then check again if the result is worthy of replacing that per-package result
@@ -482,42 +495,35 @@ func storeResult(queryid string, backendidx int, result Result) {
 
 		// The result entered the top 10, so send it to the client(s) for
 		// immediate display.
-		addEventMarshal(queryid, &result)
+		bytes, err := result.MarshalJSON()
+		if err != nil {
+			log.Fatal("Could not marshal result as JSON: %v\n", err)
+		}
+		addEvent(queryid, bytes, &result)
 	}
 
-	tmpOffset, err := state[queryid].tempFiles[backendidx].Seek(0, os.SEEK_CUR)
-	if err != nil {
-		log.Printf("[%s] could not seek: %v\n", queryid, err)
-		failQuery(queryid)
-		return
-	}
-
-	if err := json.NewEncoder(s.tempFiles[backendidx]).Encode(result); err != nil {
+	var written int64
+	w := io.MultiWriter(s.tempFiles[backendidx], countingWriter{&written})
+	if err := result.WriteJSON(w); err != nil {
 		log.Printf("[%s] could not write %v: %v\n", queryid, result, err)
 		failQuery(queryid)
 		return
 	}
 
-	offsetAfterWriting, err := state[queryid].tempFiles[backendidx].Seek(0, os.SEEK_CUR)
-	if err != nil {
-		log.Printf("[%s] could not seek: %v\n", queryid, err)
-		failQuery(queryid)
-		return
-	}
-
 	h := fnv.New64()
-	io.WriteString(h, result.Path)
+	io.WriteString(h, result.Path())
 
 	stateMu.Lock()
 	s = state[queryid]
 	s.resultPointers = append(s.resultPointers, resultPointer{
 		backendidx:  backendidx,
-		ranking:     result.Ranking,
-		offset:      tmpOffset,
-		length:      offsetAfterWriting - tmpOffset,
+		ranking:     result.Ranking(),
+		offset:      s.tempFilesOffset[backendidx],
+		length:      written,
 		pathHash:    h.Sum64(),
-		packageName: s.packagePool.Get(result.Package)})
-	s.allPackages[result.Package] = true
+		packageName: s.packagePool.Get(result.Package())})
+	s.tempFilesOffset[backendidx] += written
+	s.allPackages[result.Package()] = true
 	s.numResults++
 	state[queryid] = s
 	stateMu.Unlock()
@@ -750,11 +756,12 @@ func writeToDisk(queryid string) error {
 	return nil
 }
 
-func storeProgress(queryid string, backendidx int, progress Result) {
+func storeProgress(queryid string, backendidx int, progress proto.ProgressUpdate) {
 	backends := strings.Split(*common.SourceBackends, ",")
 	s := state[queryid]
 	s.filesMu.Lock()
-	s.filesTotal[backendidx] = progress.FilesTotal
+	s.filesTotal[backendidx] = int(progress.Filestotal())
+	s.filesProcessed[backendidx] = int(progress.Filesprocessed())
 	s.filesMu.Unlock()
 	allSet := true
 	for i := 0; i < len(backends); i++ {
@@ -764,10 +771,6 @@ func storeProgress(queryid string, backendidx int, progress Result) {
 			break
 		}
 	}
-
-	s.filesMu.Lock()
-	s.filesProcessed[backendidx] = progress.FilesProcessed
-	s.filesMu.Unlock()
 
 	filesProcessed := 0
 	for _, processed := range s.filesProcessed {
@@ -787,9 +790,9 @@ func storeProgress(queryid string, backendidx int, progress Result) {
 	}
 
 	if allSet {
-		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
+		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", queryid, backendidx, progress.Filesprocessed(), progress.Filestotal())
 		addEventMarshal(queryid, &ProgressUpdate{
-			Type:           progress.Type,
+			Type:           "progress",
 			QueryId:        queryid,
 			FilesProcessed: filesProcessed,
 			FilesTotal:     filesTotal,
@@ -799,7 +802,7 @@ func storeProgress(queryid string, backendidx int, progress Result) {
 			finishQuery(queryid)
 		}
 	} else {
-		log.Printf("[%s] [src:%d] progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
+		log.Printf("[%s] [src:%d] progress: %d of %d\n", queryid, backendidx, progress.Filesprocessed(), progress.Filestotal())
 	}
 }
 
