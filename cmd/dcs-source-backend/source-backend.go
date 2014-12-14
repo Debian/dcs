@@ -18,7 +18,6 @@ import (
 	"os"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,8 +26,9 @@ import (
 )
 
 var (
-	listenAddress = flag.String("listen_address", ":28082", "listen address ([host]:port)")
-	unpackedPath  = flag.String("unpacked_path",
+	listenAddress          = flag.String("listen_address", ":28082", "listen address ([host]:port)")
+	listenAddressStreaming = flag.String("listen_address_streaming", ":26082", "listen address for streaming queries using capnproto ([host]:port)")
+	unpackedPath           = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
 		"Path to the unpacked sources")
 )
@@ -62,96 +62,6 @@ func File(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	io.Copy(w, file)
-}
-
-func Source(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	textQuery := r.Form.Get("q")
-	limit, err := strconv.ParseInt(r.Form.Get("limit"), 10, 0)
-	if err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
-	filenames := r.Form["filename"]
-	re, err := regexp.Compile(textQuery)
-	if err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
-
-	log.Printf("query: text = %s, regexp = %s\n", textQuery, re)
-
-	rankingopts := ranking.RankingOptsFromQuery(r.URL.Query())
-
-	querystr := ranking.NewQueryStr(textQuery)
-
-	// Create one Goroutine per filename, which means all IO will be done in
-	// parallel.
-	// TODO: implement a more clever way of scheduling IO. when enough results
-	// are gathered, we don’t need to grep any other files, so currently we may
-	// do unnecessary work.
-	output := make(chan []regexp.Match)
-	for _, filename := range filenames {
-		go func(filename string) {
-			// TODO: figure out how to safely clone a dcs/regexp
-			re, err := regexp.Compile(textQuery)
-			if err != nil {
-				log.Printf("%s\n", err)
-				return
-			}
-
-			grep := regexp.Grep{
-				Regexp: re,
-				Stdout: os.Stdout,
-				Stderr: os.Stderr,
-			}
-
-			output <- grep.File(path.Join(*unpackedPath, filename))
-		}(filename)
-	}
-
-	fmt.Printf("done, now getting the results\n")
-
-	// TODO: also limit the number of matches per source-package, not only per file
-	var reply SourceReply
-	for idx, filename := range filenames {
-		fmt.Printf("…in %s\n", filename)
-		matches := <-output
-		for idx, match := range matches {
-			if limit > 0 && idx == 5 {
-				// TODO: we somehow need to signal that there are more results
-				// (if there are more), so that the user can expand this.
-				break
-			}
-			fmt.Printf("match: %s\n", match)
-			match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
-			match.Path = match.Path[len(*unpackedPath):]
-			reply.AllMatches = append(reply.AllMatches, match)
-		}
-		if limit > 0 && int64(len(reply.AllMatches)) >= limit {
-			reply.LastUsedFilename = idx
-			break
-		}
-	}
-	jsonFiles, err := json.Marshal(&reply)
-	if err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
-	_, err = w.Write(jsonFiles)
-	if err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
-
-	// Read the remaining outputs in the background.
-	if reply.LastUsedFilename > 0 {
-		go func(stopped, max int) {
-			for i := stopped + 1; i < max; i++ {
-				<-output
-			}
-		}(reply.LastUsedFilename, len(filenames))
-	}
 }
 
 func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.ResultPath {
@@ -506,7 +416,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Debian Code Search source-backend")
 
-	listener, err := net.Listen("tcp", ":26082")
+	listener, err := net.Listen("tcp", *listenAddressStreaming)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -522,7 +432,6 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/source", Source)
 	http.HandleFunc("/file", File)
 	http.HandleFunc("/varz", varz.Varz)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
