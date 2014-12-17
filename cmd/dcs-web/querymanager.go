@@ -128,7 +128,6 @@ type resultPointer struct {
 	backendidx int
 	ranking    float32
 	offset     int64
-	length     int64
 
 	// Used as a tie-breaker when sorting by ranking to guarantee stable
 	// results, independent of the order in which the results are returned from
@@ -277,7 +276,7 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		if z.Which() == proto.Z_PROGRESSUPDATE {
 			storeProgress(queryid, backendidx, z.Progressupdate())
 		} else {
-			storeResult(queryid, backendidx, z.Match(), written)
+			storeResult(queryid, backendidx, z.Match())
 		}
 
 		bstate.tempFileOffset += written
@@ -489,7 +488,7 @@ func (c countingWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func storeResult(queryid string, backendidx int, result proto.Match, written int64) {
+func storeResult(queryid string, backendidx int, result proto.Match) {
 	// Without acquiring a lock, just check if we need to consider this result
 	// for the top 10 at all.
 	s := state[queryid]
@@ -549,7 +548,6 @@ func storeResult(queryid string, backendidx int, result proto.Match, written int
 		backendidx:  backendidx,
 		ranking:     result.Ranking(),
 		offset:      bstate.tempFileOffset,
-		length:      written,
 		pathHash:    h.Sum64(),
 		packageName: bstate.packagePool.Get(result.Package())})
 	bstate.allPackages[result.Package()] = true
