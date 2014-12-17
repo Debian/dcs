@@ -250,12 +250,19 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 	}
 
 	bufferedReader := bufio.NewReaderSize(conn, 65536)
+	bstate := state[queryid].perBackend[backendidx]
+	tempFileWriter := bstate.tempFileWriter
 	var capnbuf bytes.Buffer
+	var written int64
 
 	for !state[queryid].done {
 		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-		seg, err := capn.ReadFromPackedStream(bufferedReader, &capnbuf)
+		written = 0
+		tee := io.TeeReader(bufferedReader, io.MultiWriter(
+			tempFileWriter, countingWriter{&written}))
+
+		seg, err := capn.ReadFromPackedStream(tee, &capnbuf)
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
@@ -270,8 +277,10 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		if z.Which() == proto.Z_PROGRESSUPDATE {
 			storeProgress(queryid, backendidx, z.Progressupdate())
 		} else {
-			storeResult(queryid, backendidx, z.Match())
+			storeResult(queryid, backendidx, z.Match(), written)
 		}
+
+		bstate.tempFileOffset += written
 	}
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
 }
@@ -329,7 +338,7 @@ func maybeStartQuery(queryid, src, query string) bool {
 
 		for i := 0; i < len(backends); i++ {
 			state[queryid].filesTotal[i] = -1
-			path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.json", i))
+			path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.capnproto", i))
 			f, err := os.Create(path)
 			if err != nil {
 				log.Printf("[%s] could not create %q: %v\n", queryid, path, err)
@@ -480,7 +489,7 @@ func (c countingWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func storeResult(queryid string, backendidx int, result proto.Match) {
+func storeResult(queryid string, backendidx int, result proto.Match, written int64) {
 	// Without acquiring a lock, just check if we need to consider this result
 	// for the top 10 at all.
 	s := state[queryid]
@@ -535,14 +544,6 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 		}
 	}
 
-	var written int64
-	w := io.MultiWriter(s.perBackend[backendidx].tempFileWriter, countingWriter{&written})
-	if err := result.WriteJSON(w); err != nil {
-		log.Printf("[%s] could not write %v: %v\n", queryid, result, err)
-		failQuery(queryid)
-		return
-	}
-
 	bstate := s.perBackend[backendidx]
 	bstate.resultPointers = append(bstate.resultPointers, resultPointer{
 		backendidx:  backendidx,
@@ -551,7 +552,6 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 		length:      written,
 		pathHash:    h.Sum64(),
 		packageName: bstate.packagePool.Get(result.Package())})
-	bstate.tempFileOffset += written
 	bstate.allPackages[result.Package()] = true
 }
 
@@ -565,7 +565,7 @@ func failQuery(queryid string) {
 }
 
 func finishQuery(queryid string) {
-	log.Printf("[%s] done, closing all client channels.\n", queryid)
+	log.Printf("[%s] done (in %v), closing all client channels.\n", queryid, time.Since(state[queryid].started))
 	addEvent(queryid, []byte{}, nil)
 
 	if *influxDBHost != "" {
@@ -667,6 +667,9 @@ func ensureEnoughSpaceAvailable() {
 }
 
 func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) error {
+	var capnbuf bytes.Buffer
+	firstPathRank := state[queryid].FirstPathRank
+
 	state[queryid].tempFilesMu.Lock()
 	defer state[queryid].tempFilesMu.Unlock()
 
@@ -683,7 +686,20 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 				return err
 			}
 		}
-		if _, err := io.CopyN(f, src, pointer.length); err != nil {
+		seg, err := capn.ReadFromPackedStream(src, &capnbuf)
+		if err != nil {
+			return err
+		}
+		z := proto.ReadRootZ(seg)
+		if z.Which() != proto.Z_MATCH {
+			return fmt.Errorf("Expected to find a proto.Z_MATCH, instead got %d", z.Which())
+		}
+		result := z.Match()
+		// We need to fix the ranking here because we persist raw results from
+		// the dcs-source-backend in queryBackend(), but then modify the
+		// ranking in storeResult().
+		result.SetRanking(result.Pathrank() + ((firstPathRank * 0.1) * result.Ranking()))
+		if err := result.WriteJSON(f); err != nil {
 			return err
 		}
 	}
