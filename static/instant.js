@@ -230,24 +230,36 @@ var packages = [];
 
 function addSearchResult(results, result) {
     var context = [];
+
+    // Convert old-style replies (serialized via encoding/json) to new-style
+    // replies (serialized via capnproto). Once this is rolled out we can
+    // switch the server to new-style replies.
+    // TODO: remove this code once the server is switched to new-style replies.
+    if (result.context === undefined) {
+        var members = ["Ctxp2", "Ctxp1", "Context", "Ctxn1", "Ctxn2", "Path", "Line", "PathRank", "Ranking"];
+        for (var i = 0; i < members.length; i++) {
+            result[members[i].toLowerCase()] = result[members[i]];
+        }
+    }
+
     // NB: All of the following context lines are already HTML-escaped by the server.
-    context.push(result.Ctxp2);
-    context.push(result.Ctxp1);
-    context.push('<strong>' + result.Context + '</strong>');
-    context.push(result.Ctxn1);
-    context.push(result.Ctxn2);
+    context.push(result.ctxp2);
+    context.push(result.ctxp1);
+    context.push('<strong>' + result.context + '</strong>');
+    context.push(result.ctxn1);
+    context.push(result.ctxn2);
     // Remove any empty context lines (e.g. when the match is close to the
     // beginning or end of the file).
     context = $.grep(context, function(elm, idx) { return $.trim(elm) != ""; });
     context = context.join("<br>").replace("\t", "    ");
 
     // Split the path into source package (bold) and rest.
-    var delimiter = result.Path.indexOf("_");
-    var sourcePackage = result.Path.substring(0, delimiter);
-    var rest = result.Path.substring(delimiter);
+    var delimiter = result.path.indexOf("_");
+    var sourcePackage = result.path.substring(0, delimiter);
+    var rest = result.path.substring(delimiter);
 
     // Append the new search result, then sort the results.
-    results.append('<li data-ranking="' + result.Ranking + '"><a href="/show?file=' + encodeURIComponent(result.Path) + '&line=' + result.Line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.PathRank + ', Final: ' + result.Ranking + '</small></li>');
+    results.append('<li data-ranking="' + result.ranking + '"><a href="/show?file=' + encodeURIComponent(result.path) + '&line=' + result.line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.pathrank + ', Final: ' + result.ranking + '</small></li>');
     $('ul#results').append($('ul#results>li').detach().sort(function(a, b) {
         return b.getAttribute('data-ranking') - a.getAttribute('data-ranking');
     }));
@@ -474,10 +486,6 @@ connection.onmessage = function(e) {
         }
         break;
 
-        case "result":
-        addSearchResult($('ul#results'), msg);
-        break;
-
         case "error":
         if (msg.ErrorType == "backendunavailable") {
             error(false, true, msg.ErrorType, "The results may be incomplete, not all Debian Code Search servers are okay right now.");
@@ -493,7 +501,8 @@ connection.onmessage = function(e) {
         break;
 
         default:
-        throw new Error('Server sent unknown piece of data, type is "' + msg.Type);
+        addSearchResult($('ul#results'), msg);
+        break;
     }
 };
 
