@@ -102,8 +102,8 @@ function showResultsPage() {
     $('#progressbar').show();
     $('#options').hide();
     $('#packageshint').hide();
-    $('#pagination').text('');
-    $('#perpackage-pagination').text('');
+    $('.pagination').text('');
+    $('.perpackage-pagination').text('');
 }
 
 function sendQuery() {
@@ -277,6 +277,11 @@ function addSearchResult(results, result) {
 }
 
 function loadPage(nr) {
+    // There’s pagination at the top and at the bottom of the page. In case the
+    // user used the bottom one, it makes sense to scroll back to the top. In
+    // case the user used the top one, the scrolling won’t be noticed.
+    window.scrollTo(0, 0);
+
     // Start the progress bar after 200ms. If the page was in the cache, this
     // timer will be cancelled by the load callback below. If it wasn’t, 200ms
     // is short enough of a delay to not be noticed by the user.
@@ -313,6 +318,11 @@ function loadPage(nr) {
 function loadPerPkgPage(nr, preload) {
     var progress_bar_start;
     if (!preload) {
+        // There’s pagination at the top and at the bottom of the page. In case the
+        // user used the bottom one, it makes sense to scroll back to the top. In
+        // case the user used the top one, the scrolling won’t be noticed.
+        window.scrollTo(0, 0);
+
         // Start the progress bar after 20ms. If the page was in the cache,
         // this timer will be cancelled by the load callback below. If it
         // wasn’t, 20ms is short enough of a delay to not be noticed by the
@@ -395,7 +405,7 @@ function updatePagination(currentpage, resultpages, perpackage) {
         html += '<a href="' + pageUrl(currentpage+1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage+1) + ');return false;" rel="next">&gt;</a> ';
     }
 
-    $((perpackage ? '#perpackage-pagination' : '#pagination')).html(html);
+    $((perpackage ? '.perpackage-pagination' : '.pagination')).html(html);
 }
 
 function escapeForHTML(input) {
