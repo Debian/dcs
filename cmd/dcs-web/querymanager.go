@@ -10,7 +10,6 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/dpkgversion"
 	"github.com/Debian/dcs/proto"
-	dcsregexp "github.com/Debian/dcs/regexp"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/Debian/dcs/varz"
 	"github.com/influxdb/influxdb-go"
@@ -61,24 +60,6 @@ const (
 	resultsPerPackage = 2
 	resultsPerPage    = 10
 )
-
-// TODO: make this type satisfy obsoletableEvent
-// TODO: get rid of this type — replace all occurences with a more specific
-// version, e.g. Error, ProgressUpdate. Then, strip all fields except “Type”
-// and make those use Result as an anonymous struct.
-type Result struct {
-	// This is set to “result” to distinguish the message type on the client.
-	// Additionally, it serves as an indicator for whether the result is
-	// initialized or whether this is the nil value.
-	Type string
-
-	dcsregexp.Match
-
-	Package string
-
-	FilesProcessed int
-	FilesTotal     int
-}
 
 type Error struct {
 	// This is set to “error” to distinguish the message type on the client.
@@ -535,6 +516,9 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 
 			// The result entered the top 10, so send it to the client(s) for
 			// immediate display.
+			// TODO: make this satisfy obsoletableEvent in order to skip
+			// sending results to the client which are then overwritten by
+			// better top10 results.
 			bytes, err := result.MarshalJSON()
 			if err != nil {
 				log.Fatal("Could not marshal result as JSON: %v\n", err)

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Debian/dcs/cmd/dcs-web/common"
+	dcsregexp "github.com/Debian/dcs/regexp"
 	"hash/fnv"
 	"html/template"
 	"io"
@@ -125,7 +126,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 
 	type perPackageResults struct {
 		Package    string
-		RawResults []Result `json:"Results"`
+		RawResults []dcsregexp.Match `json:"Results"`
 		Results    []halfRenderedResult
 	}
 
@@ -259,7 +260,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var results []Result
+	var results []dcsregexp.Match
 	if err := json.NewDecoder(&buffer).Decode(&results); err != nil {
 		http.Error(w,
 			fmt.Sprintf("Could not parse results from disk: %v", err),
