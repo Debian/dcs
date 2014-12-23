@@ -233,14 +233,14 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 	bstate := state[queryid].perBackend[backendidx]
 	tempFileWriter := bstate.tempFileWriter
 	var capnbuf bytes.Buffer
-	var written int64
+	var written countingWriter
 
 	for !state[queryid].done {
 		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 		written = 0
 		tee := io.TeeReader(bufferedReader, io.MultiWriter(
-			tempFileWriter, countingWriter{&written}))
+			tempFileWriter, &written))
 
 		seg, err := capn.ReadFromPackedStream(tee, &capnbuf)
 		if err != nil {
@@ -260,7 +260,7 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 			storeResult(queryid, backendidx, z.Match())
 		}
 
-		bstate.tempFileOffset += written
+		bstate.tempFileOffset += int64(written)
 	}
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
 }
@@ -460,12 +460,10 @@ func sendPaginationUpdate(queryid string, s queryState) {
 
 // countingWriter implements io.Writer, and increments *written with the amount
 // of data written on each call. Handy in an io.MultiWriter
-type countingWriter struct {
-	written *int64
-}
+type countingWriter int64
 
-func (c countingWriter) Write(p []byte) (n int, err error) {
-	*c.written += int64(len(p))
+func (c *countingWriter) Write(p []byte) (n int, err error) {
+	*c += countingWriter(len(p))
 	return len(p), nil
 }
 
