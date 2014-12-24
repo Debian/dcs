@@ -47,13 +47,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-
-	_, err = b.WriteString("\"Type\":\"result\",")
-	if err != nil {
-		return err
-	}
-
-	_, err = b.WriteString("\"Path\":")
+	_, err = b.WriteString("\"path\":")
 	if err != nil {
 		return err
 	}
@@ -72,7 +66,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Line\":")
+	_, err = b.WriteString("\"line\":")
 	if err != nil {
 		return err
 	}
@@ -91,7 +85,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Ctxp2\":")
+	_, err = b.WriteString("\"ctxp2\":")
 	if err != nil {
 		return err
 	}
@@ -110,7 +104,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Ctxp1\":")
+	_, err = b.WriteString("\"ctxp1\":")
 	if err != nil {
 		return err
 	}
@@ -129,7 +123,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Context\":")
+	_, err = b.WriteString("\"context\":")
 	if err != nil {
 		return err
 	}
@@ -148,7 +142,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Ctxn1\":")
+	_, err = b.WriteString("\"ctxn1\":")
 	if err != nil {
 		return err
 	}
@@ -167,7 +161,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Ctxn2\":")
+	_, err = b.WriteString("\"ctxn2\":")
 	if err != nil {
 		return err
 	}
@@ -186,7 +180,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"PathRank\":")
+	_, err = b.WriteString("\"pathrank\":")
 	if err != nil {
 		return err
 	}
@@ -205,7 +199,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Ranking\":")
+	_, err = b.WriteString("\"ranking\":")
 	if err != nil {
 		return err
 	}
@@ -224,7 +218,7 @@ func (s Match) WriteJSON(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.WriteString("\"Package\":")
+	_, err = b.WriteString("\"package\":")
 	if err != nil {
 		return err
 	}
