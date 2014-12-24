@@ -231,17 +231,6 @@ var packages = [];
 function addSearchResult(results, result) {
     var context = [];
 
-    // Convert old-style replies (serialized via encoding/json) to new-style
-    // replies (serialized via capnproto). Once this is rolled out we can
-    // switch the server to new-style replies.
-    // TODO: remove this code once the server is switched to new-style replies.
-    if (result.context === undefined) {
-        var members = ["Ctxp2", "Ctxp1", "Context", "Ctxn1", "Ctxn2", "Path", "Line", "PathRank", "Ranking"];
-        for (var i = 0; i < members.length; i++) {
-            result[members[i].toLowerCase()] = result[members[i]];
-        }
-    }
-
     // NB: All of the following context lines are already HTML-escaped by the server.
     context.push(result.ctxp2);
     context.push(result.ctxp1);
