@@ -1,9 +1,6 @@
 # vim:ts=4:sw=4:et
 @0xd7ab5d5e833e9e61;
 
-# compile with: capnp compile -I $GOPATH -ogo match.capnp
-# TODO: can we use “go generate” for this?
-
 using Go = import "/src/github.com/glycerine/go-capnproto/go.capnp";
 $Go.package("proto");
 $Go.import("/src/github.com/Debian/dcs/proto");
