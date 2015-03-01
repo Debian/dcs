@@ -9,8 +9,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/Debian/dcs/cmd/dcs-web/common"
-	dcsregexp "github.com/Debian/dcs/regexp"
 	"hash/fnv"
 	"html/template"
 	"io"
@@ -20,6 +18,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	dcsregexp "github.com/Debian/dcs/regexp"
 )
 
 // XXX: Using a dcsregexp.Match anonymous struct member doesn’t work,
@@ -230,6 +231,12 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	queryid := fmt.Sprintf("%x", h.Sum64())
 
 	log.Printf("server-render(%q, %q, %q)\n", queryid, src, q)
+
+	if err := validateQuery("?" + q); err != nil {
+		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
+		http.Error(w, "Invalid query", http.StatusBadRequest)
+		return
+	}
 
 	maybeStartQuery(queryid, src, q)
 	if !queryCompleted(queryid) {
