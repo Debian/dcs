@@ -2,12 +2,9 @@
 package main
 
 import (
-	"code.google.com/p/codesearch/regexp"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Debian/dcs/index"
-	"github.com/Debian/dcs/varz"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +12,10 @@ import (
 	"runtime/pprof"
 	"sync"
 	"time"
+
+	"code.google.com/p/codesearch/regexp"
+	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/varz"
 )
 
 var (
@@ -26,6 +27,25 @@ var (
 	ix      *index.Index
 	ixMutex sync.Mutex
 )
+
+// doPostingQuery runs the actual query. This code is in a separate function so
+// that we can use defer (to be safe against panics in the index querying code)
+// and still don’t hold the mutex for longer than we need to.
+func doPostingQuery(query *index.Query) []string {
+	ixMutex.Lock()
+	defer ixMutex.Unlock()
+	t0 := time.Now()
+	post := ix.PostingQuery(query)
+	t1 := time.Now()
+	fmt.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
+	files := make([]string, len(post))
+	for idx, fileid := range post {
+		files[idx] = ix.Name(fileid)
+	}
+	t2 := time.Now()
+	fmt.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
+	return files
+}
 
 // Handles requests to /index by compiling the q= parameter into a regular
 // expression (codesearch/regexp), searching the index for it and returning the
@@ -52,18 +72,8 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	}
 	query := index.RegexpQuery(re.Syntax)
 	log.Printf("[%s] query: text = %s, regexp = %s\n", id, textQuery, query)
-	t0 := time.Now()
-	ixMutex.Lock()
-	post := ix.PostingQuery(query)
-	t1 := time.Now()
-	fmt.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
-	files := make([]string, len(post))
-	for idx, fileid := range post {
-		files[idx] = ix.Name(fileid)
-	}
-	ixMutex.Unlock()
+	files := doPostingQuery(query)
 	t2 := time.Now()
-	fmt.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
 	if err := json.NewEncoder(w).Encode(files); err != nil {
 		log.Printf("%s\n", err)
 		return
