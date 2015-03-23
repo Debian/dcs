@@ -6,6 +6,11 @@
 	text-align: center;
 }
 
+#searchdiv input[type=text] {
+	width: 350px;
+	padding: 7px;
+}
+
 .pagination a:link
 , .perpackage-pagination a:link
 , #packages a:link
