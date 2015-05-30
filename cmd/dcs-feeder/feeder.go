@@ -14,10 +14,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Debian/dcs/goroutinez"
-	"github.com/Debian/dcs/shardmapping"
-	"github.com/Debian/dcs/varz"
-	"github.com/stapelberg/godebiancontrol"
 	"io"
 	"log"
 	"math"
@@ -27,6 +23,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/shardmapping"
+	"github.com/Debian/dcs/varz"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stapelberg/godebiancontrol"
 )
 
 type mergeState struct {
@@ -51,7 +53,45 @@ var (
 
 	mergeStates   = make(map[string]mergeState)
 	mergeStatesMu sync.Mutex
+
+	failedLookfor = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "lookfor_failed",
+			Help: "Failed lookfor requests.",
+		})
+
+	successfulLookfor = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "lookfor_successful",
+			Help: "Successful lookfor requests.",
+		})
+
+	successfulGarbageCollect = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "garbage_collect_successful",
+			Help: "Successful garbage collects.",
+		})
+
+	successfulSanityFeed = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "sanity_feed_successful",
+			Help: "Successful sanity feeds.",
+		})
+
+	lastSanityCheckStarted = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "last_sanity_check_started",
+			Help: "Unix timestamp of when the last sanity check was started.",
+		})
 )
+
+func init() {
+	prometheus.MustRegister(failedLookfor)
+	prometheus.MustRegister(successfulLookfor)
+	prometheus.MustRegister(successfulGarbageCollect)
+	prometheus.MustRegister(successfulSanityFeed)
+	prometheus.MustRegister(lastSanityCheckStarted)
+}
 
 // Calls /merge on the specified shard in a period of inactivity (2 minutes
 // after being called), or after 10 minutes in case there is continuous
@@ -173,6 +213,7 @@ func lookfor(dscName string) {
 		// package a bit later then.
 		if time.Since(startedLooking) > 25*time.Minute {
 			varz.Increment("failed-lookfor")
+			failedLookfor.Inc()
 			log.Printf("Not looking for %q anymore. Sanity check will catch it.\n", dscName)
 			return
 		}
@@ -231,6 +272,7 @@ func lookfor(dscName string) {
 		}
 		log.Printf("Fed %q.\n", dscName)
 		varz.Increment("successful-lookfor")
+		successfulLookfor.Inc()
 		return
 	}
 }
@@ -238,6 +280,7 @@ func lookfor(dscName string) {
 func checkSources() {
 	log.Printf("checking sources\n")
 	varz.Set("last-sanity-check-started", uint64(time.Now().Unix()))
+	lastSanityCheckStarted.Set(float64(time.Now().Unix()))
 
 	// Store packages by shard.
 	type pkgStatus int
@@ -332,6 +375,7 @@ func checkSources() {
 			feedfiles(p, pkgfiles)
 
 			varz.Increment("successful-sanity-feed")
+			successfulSanityFeed.Inc()
 		}
 	}
 
@@ -352,6 +396,7 @@ func checkSources() {
 			}
 
 			varz.Increment("successful-garbage-collect")
+			successfulGarbageCollect.Inc()
 		}
 	}
 }
@@ -385,6 +430,7 @@ func main() {
 	http.HandleFunc("/lookfor", lookforHandler)
 	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
+	http.Handle("/metrics", prometheus.Handler())
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

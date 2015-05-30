@@ -5,10 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Debian/dcs/proto"
-	"github.com/Debian/dcs/ranking"
-	"github.com/Debian/dcs/regexp"
-	"github.com/Debian/dcs/varz"
 	"io"
 	"log"
 	"math/rand"
@@ -21,6 +17,12 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/ranking"
+	"github.com/Debian/dcs/regexp"
+	"github.com/Debian/dcs/varz"
+	"github.com/prometheus/client_golang/prometheus"
 
 	capn "github.com/glycerine/go-capnproto"
 )
@@ -434,5 +436,6 @@ func main() {
 
 	http.HandleFunc("/file", File)
 	http.HandleFunc("/varz", varz.Varz)
+	http.Handle("/metrics", prometheus.Handler())
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

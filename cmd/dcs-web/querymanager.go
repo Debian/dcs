@@ -6,13 +6,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Debian/dcs/cmd/dcs-web/common"
-	"github.com/Debian/dcs/cmd/dcs-web/search"
-	"github.com/Debian/dcs/dpkgversion"
-	"github.com/Debian/dcs/proto"
-	"github.com/Debian/dcs/stringpool"
-	"github.com/Debian/dcs/varz"
-	"github.com/influxdb/influxdb-go"
 	"hash/fnv"
 	"io"
 	"log"
@@ -29,6 +22,15 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/search"
+	"github.com/Debian/dcs/dpkgversion"
+	"github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/stringpool"
+	"github.com/Debian/dcs/varz"
+	"github.com/influxdb/influxdb-go"
+	"github.com/prometheus/client_golang/prometheus"
 
 	capn "github.com/glycerine/go-capnproto"
 )
@@ -52,6 +54,20 @@ var (
 
 	perPackagePathRe = regexp.MustCompile(`^/perpackage-results/([^/]+)/` +
 		strconv.Itoa(resultsPerPackage) + `/page_([0-9]+).json$`)
+
+	queryDurations = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name: "query_durations_ms",
+			Help: "Duration of a query in milliseconds.",
+			Buckets: []float64{
+				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+				15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+				150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950, 1000,
+				2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
+				20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000,
+				500000, 1000000,
+			},
+		})
 )
 
 const (
@@ -60,6 +76,10 @@ const (
 	resultsPerPackage = 2
 	resultsPerPage    = 10
 )
+
+func init() {
+	prometheus.MustRegister(queryDurations)
+}
 
 type Error struct {
 	// This is set to “error” to distinguish the message type on the client.
@@ -303,6 +323,7 @@ func maybeStartQuery(queryid, src, query string) bool {
 		}
 
 		varz.Increment("active-queries")
+		activeQueries.Add(1)
 
 		var err error
 		dir := filepath.Join(*queryResultsPath, queryid)
@@ -537,6 +558,7 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 
 func failQuery(queryid string) {
 	varz.Increment("failed-queries")
+	failedQueries.Inc()
 	addEventMarshal(queryid, &Error{
 		Type:      "error",
 		ErrorType: "failed",
@@ -547,6 +569,8 @@ func failQuery(queryid string) {
 func finishQuery(queryid string) {
 	log.Printf("[%s] done (in %v), closing all client channels.\n", queryid, time.Since(state[queryid].started))
 	addEvent(queryid, []byte{}, nil)
+
+	queryDurations.Observe(float64(time.Since(state[queryid].started) / time.Millisecond))
 
 	if *influxDBHost != "" {
 		go func() {

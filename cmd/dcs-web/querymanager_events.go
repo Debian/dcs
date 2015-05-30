@@ -2,9 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/Debian/dcs/varz"
 	"log"
 	"time"
+
+	"github.com/Debian/dcs/varz"
 )
 
 // Since multiple users can perform the same query at (roughly) the same time
@@ -52,6 +53,7 @@ func addEvent(queryid string, data []byte, origdata interface{}) {
 		s.done = true
 		s.ended = time.Now()
 		varz.Decrement("active-queries")
+		activeQueries.Sub(1)
 	}
 	state[queryid] = s
 

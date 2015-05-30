@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Debian/dcs/goroutinez"
-	"github.com/Debian/dcs/index"
-	"github.com/Debian/dcs/varz"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,6 +18,11 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/varz"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -40,7 +42,66 @@ var (
 
 	indexQueue chan string
 	mergeQueue chan bool
+
+	failedDpkgSourceExtracts = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dpkg_source_extracts_failed",
+			Help: "Failed dpkg source extracts.",
+		})
+
+	failedPackageImports = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "package_imports_failed",
+			Help: "Failed package imports.",
+		})
+
+	successfulDpkgSourceExtracts = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "dpkg_source_extracts_successful",
+			Help: "Successful dpkg source extracts.",
+		})
+
+	successfulGarbageCollects = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "garbage_collects_successful",
+			Help: "Successful garbage collects.",
+		})
+
+	successfulMerges = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "merges_successful",
+			Help: "Successful merges.",
+		})
+
+	successfulPackageImports = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "package_imports_successful",
+			Help: "Successful package imports.",
+		})
+
+	successfulPackageIndexes = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "package_indexes_successful",
+			Help: "Successful package indexes.",
+		})
+
+	filesInIndex = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "index_files",
+			Help: "Number of files in the index.",
+		})
 )
+
+func init() {
+	prometheus.MustRegister(failedDpkgSourceExtracts)
+	prometheus.MustRegister(failedPackageImports)
+	prometheus.MustRegister(successfulDpkgSourceExtracts)
+	prometheus.MustRegister(successfulGarbageCollects)
+	prometheus.MustRegister(successfulMerges)
+	prometheus.MustRegister(successfulPackageImports)
+	prometheus.MustRegister(successfulPackageIndexes)
+	prometheus.MustRegister(filesInIndex)
+}
 
 // Accepts arbitrary files for a given package and starts unpacking once a .dsc
 // file is uploaded. E.g.:
@@ -65,6 +126,7 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	if err != nil && !os.IsExist(err) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		varz.Increment("failed-package-imports")
+		failedPackageImports.Inc()
 		return
 	}
 
@@ -72,6 +134,7 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		varz.Increment("failed-package-imports")
+		failedPackageImports.Inc()
 		return
 	}
 	defer file.Close()
@@ -79,6 +142,7 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		varz.Increment("failed-package-imports")
+		failedPackageImports.Inc()
 		return
 	}
 	log.Printf("Wrote %d bytes into %s\n", written, path)
@@ -89,6 +153,7 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	varz.Increment("successful-package-imports")
+	successfulPackageImports.Inc()
 }
 
 // Tries to start a merge and errors in case one is already in progress.
@@ -190,6 +255,7 @@ func garbageCollect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	varz.Increment("successful-garbage-collects")
+	successfulGarbageCollects.Inc()
 }
 
 // Merges all packages in *unpackedPath into a big index shard.
@@ -203,6 +269,7 @@ func mergeToShard() {
 	}
 
 	varz.Set("index-files", uint64(len(indexFiles)))
+	filesInIndex.Set(float64(len(indexFiles)))
 
 	log.Printf("Got %d index files\n", len(indexFiles))
 	if len(indexFiles) == 1 {
@@ -247,6 +314,7 @@ func mergeToShard() {
 	}
 
 	varz.Increment("successful-merges")
+	successfulMerges.Inc()
 
 	// Replace the current index with the newly created index.
 	resp, err := http.Get(fmt.Sprintf("http://localhost:28081/replace?shard=%s", filepath.Base(tmpIndexPath.Name())))
@@ -341,6 +409,7 @@ func indexPackage(pkg string) {
 		log.Fatal(err)
 	}
 	varz.Increment("successful-package-indexes")
+	successfulPackageIndexes.Inc()
 }
 
 // This goroutine reads package names from the indexQueue channel, unpacks the
@@ -366,10 +435,12 @@ func unpackAndIndex() {
 		if err := cmd.Run(); err != nil {
 			log.Printf("Skipping package %s: %v\n", pkg, err)
 			varz.Increment("failed-dpkg-source-extracts")
+			failedDpkgSourceExtracts.Inc()
 			continue
 		}
 
 		varz.Increment("successful-dpkg-source-extracts")
+		successfulDpkgSourceExtracts.Inc()
 		indexPackage(pkg)
 		os.RemoveAll(filepath.Join(tmpdir, pkg))
 	}
@@ -416,6 +487,7 @@ func main() {
 	http.HandleFunc("/garbagecollect", garbageCollect)
 	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
+	http.Handle("/metrics", prometheus.Handler())
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

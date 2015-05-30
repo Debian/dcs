@@ -2,18 +2,9 @@
 package main
 
 import (
-	"code.google.com/p/go.net/websocket"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/Debian/dcs/cmd/dcs-web/common"
-	"github.com/Debian/dcs/cmd/dcs-web/health"
-	"github.com/Debian/dcs/cmd/dcs-web/search"
-	"github.com/Debian/dcs/cmd/dcs-web/show"
-	"github.com/Debian/dcs/goroutinez"
-	"github.com/Debian/dcs/index"
-	dcsregexp "github.com/Debian/dcs/regexp"
-	"github.com/Debian/dcs/varz"
 	"hash/fnv"
 	"io"
 	"log"
@@ -27,6 +18,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"code.google.com/p/go.net/websocket"
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/health"
+	"github.com/Debian/dcs/cmd/dcs-web/search"
+	"github.com/Debian/dcs/cmd/dcs-web/show"
+	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/index"
+	dcsregexp "github.com/Debian/dcs/regexp"
+	"github.com/Debian/dcs/varz"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
@@ -45,7 +47,24 @@ var (
 
 	resultsPathRe  = regexp.MustCompile(`^/results/([^/]+)/(perpackage_` + strconv.Itoa(resultsPerPackage) + `_)?page_([0-9]+).json$`)
 	packagesPathRe = regexp.MustCompile(`^/results/([^/]+)/packages.json$`)
+
+	activeQueries = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "queries_active",
+			Help: "Number of active queries (i.e. not all results are in yet).",
+		})
+
+	failedQueries = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "queries_failed",
+			Help: "Number of failed queries.",
+		})
 )
+
+func init() {
+	prometheus.MustRegister(activeQueries)
+	prometheus.MustRegister(failedQueries)
+}
 
 func validateQuery(query string) error {
 	// Parse the query and see whether the resulting trigram query is
@@ -263,6 +282,7 @@ func main() {
 	http.HandleFunc("/queryz", QueryzHandler)
 
 	http.Handle("/instantws", websocket.Handler(InstantServer))
+	http.Handle("/metrics", prometheus.Handler())
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
