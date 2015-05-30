@@ -1,0 +1,22 @@
+[Unit]
+Description=alertmanager
+After=docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+StartLimitInterval=0
+
+# Always pull the latest version (bleeding edge).
+ExecStartPre=/usr/bin/docker pull prom/alertmanager
+ExecStartPre=-/usr/bin/docker kill alertmanager
+ExecStartPre=-/usr/bin/docker rm -f alertmanager
+
+ExecStart=/usr/bin/docker run \
+  --name alertmanager \
+  -v /media/persistent/alertmanager:/alertmanager \
+  -p 127.0.0.1:9093:9093 \
+  prom/alertmanager
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+[Unit]
+Description=prometheus
+After=docker.service alertmanager.service
+Requires=docker.service alertmanager.service
+
+[Service]
+Restart=always
+StartLimitInterval=0
+
+# Always pull the latest version (bleeding edge).
+ExecStartPre=/usr/bin/docker pull prom/prometheus
+ExecStartPre=-/usr/bin/docker kill prometheus
+ExecStartPre=-/usr/bin/docker rm -f prometheus
+
+ExecStart=/usr/bin/docker run \
+  --name prometheus \
+  --link alertmanager:alertmanager \
+  -v /media/persistent/prometheus:/prometheus \
+  -p 127.0.0.1:9090:9090 \
+  prom/prometheus \
+   -config.file=/prometheus/prometheus.conf \
+   -storage.local.path=/prometheus/metrics \
+   -log_dir=/prometheus/log/ \
+   -alertmanager.url=http://alertmanager:9093
+
+[Install]
+WantedBy=multi-user.target
