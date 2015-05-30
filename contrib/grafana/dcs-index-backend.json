@@ -1,0 +1,1018 @@
+{
+  "id": 2,
+  "title": "DCS index-backend",
+  "originalTitle": "DCS index-backend",
+  "tags": [],
+  "style": "dark",
+  "timezone": "browser",
+  "editable": true,
+  "hideControls": false,
+  "sharedCrosshair": false,
+  "rows": [
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "25px",
+      "panels": [
+        {
+          "content": "",
+          "editable": true,
+          "error": false,
+          "id": 1,
+          "links": [],
+          "mode": "markdown",
+          "span": 12,
+          "style": {},
+          "title": "machine (dcs-index-$shard)",
+          "type": "text"
+        }
+      ],
+      "title": "Row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "250px",
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 2,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "1m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(system_disk_reads{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 2,
+              "legendFormat": "reads",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(system_disk_reads%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A17%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+            },
+            {
+              "calculatedInterval": "1m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(system_disk_writes{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 2,
+              "legendFormat": "writes",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(system_disk_writes%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A17%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "IOPS",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "short",
+            "short"
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 3,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "2m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(system_disk_read_bytes{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 2,
+              "legendFormat": "bytes read",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(system_disk_read_bytes%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A17%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+            },
+            {
+              "calculatedInterval": "2m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(system_disk_written_bytes{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 2,
+              "legendFormat": "bytes written",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(system_disk_written_bytes%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A18%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "disk bandwidth",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "Bps",
+            "short"
+          ]
+        }
+      ],
+      "title": "New row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "25px",
+      "panels": [
+        {
+          "content": "",
+          "editable": true,
+          "error": false,
+          "id": 5,
+          "links": [],
+          "mode": "markdown",
+          "span": 12,
+          "style": {},
+          "title": "dcs-package-importer",
+          "type": "text"
+        }
+      ],
+      "title": "New row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "250px",
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 4,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "1m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "process_goroutines{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}",
+              "intervalFactor": 1,
+              "legendFormat": "goroutines",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+            },
+            {
+              "calculatedInterval": "1m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "process_mem_alloc_bytes{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"} / 1024 / 1024",
+              "intervalFactor": 1,
+              "legendFormat": "allocated memory (MiB)",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "health",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "none",
+            "short"
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 6,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": true,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "1m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(process_cpu_nsec{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "interval": "",
+              "intervalFactor": 1,
+              "legendFormat": "{{ mode }}",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(process_cpu_nsec%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "CPU seconds/s",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "ns",
+            "short"
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 13,
+          "leftYAxisLabel": "source packages",
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": false,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": true,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "index_files{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}",
+              "interval": "",
+              "intervalFactor": 1,
+              "legendFormat": "",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22index_files%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A29%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "source packages in the index",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "none",
+            "short"
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 14,
+          "leftYAxisLabel": "",
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(merges_successful{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "interval": "",
+              "intervalFactor": 1,
+              "legendFormat": "merge",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(merges_successful%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223601s%22%2C%22end_input%22%3A%222015-5-31%2022%3A30%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(dpkg_source_extracts_successful{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 1,
+              "legendFormat": "dpkg -x",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(dpkg_source_extracts_successful%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A32%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(dpkg_source_extracts_failed{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 1,
+              "legendFormat": "dpkg -x (failed)",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(dpkg_source_extracts_failed%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A32%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(garbage_collects_successful{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 1,
+              "legendFormat": "garbage collect",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(garbage_collects_successful%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A32%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(package_indexes_successful{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 1,
+              "legendFormat": "index",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(package_indexes_successful%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223601s%22%2C%22end_input%22%3A%222015-5-31%2022%3A32%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(package_imports_successful{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 1,
+              "legendFormat": "import",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(package_imports_successful%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A32%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(package_imports_failed{task=\"dcs-package-importer\",instance=\"dcs-index-$shard\"}[1m])",
+              "intervalFactor": 1,
+              "legendFormat": "import (failed)",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(package_imports_failed%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A32%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "event rate",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "none",
+            "short"
+          ]
+        }
+      ],
+      "title": "New row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "25px",
+      "panels": [
+        {
+          "content": "",
+          "editable": true,
+          "error": false,
+          "id": 7,
+          "links": [],
+          "mode": "markdown",
+          "span": 12,
+          "style": {},
+          "title": "dcs-index-backend",
+          "type": "text"
+        }
+      ],
+      "title": "New row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "250px",
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 8,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "30s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "process_goroutines{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"}",
+              "intervalFactor": 1,
+              "legendFormat": "goroutines",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+            },
+            {
+              "calculatedInterval": "30s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "process_mem_alloc_bytes{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"} / 1024 / 1024",
+              "intervalFactor": 1,
+              "legendFormat": "allocated memory (MiB)",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "health",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "none",
+            "short"
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 9,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": true,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "1m",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(process_cpu_nsec{task=\"dcs-index-backend\",instance=\"dcs-index-$shard\"}[1m])",
+              "interval": "",
+              "intervalFactor": 1,
+              "legendFormat": "{{ mode }}",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(process_cpu_nsec%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A24%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "CPU seconds/s",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "ns",
+            "short"
+          ]
+        }
+      ],
+      "title": "New row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "25px",
+      "panels": [
+        {
+          "content": "",
+          "editable": true,
+          "error": false,
+          "id": 10,
+          "links": [],
+          "mode": "markdown",
+          "span": 12,
+          "style": {},
+          "title": "dcs-source-backend",
+          "type": "text"
+        }
+      ],
+      "title": "New row"
+    },
+    {
+      "collapse": false,
+      "editable": true,
+      "height": "250px",
+      "panels": [
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 11,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": false,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "process_goroutines{task=\"dcs-source-backend\",instance=\"dcs-index-$shard\"}",
+              "intervalFactor": 1,
+              "legendFormat": "goroutines",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-source-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A28%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+            },
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "process_mem_alloc_bytes{task=\"dcs-source-backend\",instance=\"dcs-index-$shard\"} / 1024 / 1024",
+              "intervalFactor": 1,
+              "legendFormat": "allocated memory (MiB)",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-source-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A28%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "target": ""
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "health",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "none",
+            "short"
+          ]
+        },
+        {
+          "aliasColors": {},
+          "bars": false,
+          "datasource": "Prometheus",
+          "editable": true,
+          "error": false,
+          "fill": 0,
+          "grid": {
+            "leftLogBase": 1,
+            "leftMax": null,
+            "leftMin": null,
+            "rightLogBase": 1,
+            "rightMax": null,
+            "rightMin": null,
+            "threshold1": null,
+            "threshold1Color": "rgba(216, 200, 27, 0.27)",
+            "threshold2": null,
+            "threshold2Color": "rgba(234, 112, 112, 0.22)"
+          },
+          "id": 12,
+          "legend": {
+            "avg": false,
+            "current": false,
+            "max": false,
+            "min": false,
+            "show": true,
+            "total": false,
+            "values": false
+          },
+          "lines": true,
+          "linewidth": 1,
+          "links": [],
+          "nullPointMode": "connected",
+          "percentage": false,
+          "pointradius": 5,
+          "points": false,
+          "renderer": "flot",
+          "seriesOverrides": [],
+          "span": 6,
+          "stack": true,
+          "steppedLine": false,
+          "targets": [
+            {
+              "calculatedInterval": "10s",
+              "datasourceErrors": {},
+              "errors": {},
+              "expr": "rate(process_cpu_nsec{task=\"dcs-source-backend\",instance=\"dcs-index-$shard\"}[1m])",
+              "interval": "",
+              "intervalFactor": 1,
+              "legendFormat": "{{ mode }}",
+              "metric": "",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(process_cpu_nsec%7Btask%3D%5C%22dcs-source-backend%5C%22%2Cinstance%3D%5C%22dcs-index-%24shard%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A28%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
+            }
+          ],
+          "timeFrom": null,
+          "timeShift": null,
+          "title": "CPU seconds/s",
+          "tooltip": {
+            "shared": true,
+            "value_type": "cumulative"
+          },
+          "type": "graph",
+          "x-axis": true,
+          "y-axis": true,
+          "y_formats": [
+            "ns",
+            "short"
+          ]
+        }
+      ],
+      "title": "New row"
+    }
+  ],
+  "nav": [
+    {
+      "collapse": false,
+      "enable": true,
+      "notice": false,
+      "now": true,
+      "refresh_intervals": [
+        "5s",
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "status": "Stable",
+      "time_options": [
+        "5m",
+        "15m",
+        "1h",
+        "6h",
+        "12h",
+        "24h",
+        "2d",
+        "7d",
+        "30d"
+      ],
+      "type": "timepicker"
+    }
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "allFormat": "glob",
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "datasource": null,
+        "includeAll": false,
+        "name": "shard",
+        "options": [
+          {
+            "text": "0",
+            "value": "0"
+          },
+          {
+            "text": "1",
+            "value": "1"
+          },
+          {
+            "text": "2",
+            "value": "2"
+          },
+          {
+            "text": "3",
+            "value": "3"
+          },
+          {
+            "text": "4",
+            "value": "4"
+          },
+          {
+            "text": "5",
+            "value": "5"
+          }
+        ],
+        "query": "0,1,2,3,4,5",
+        "refresh_on_load": false,
+        "type": "custom"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "schemaVersion": 6,
+  "version": 4
+}
