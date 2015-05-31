@@ -154,21 +154,21 @@
               "calculatedInterval": "10s",
               "datasourceErrors": {},
               "errors": {},
-              "expr": "histogram_quantile(0.5, sum(rate(query_durations_ms_bucket{task=\"dcs-web\"}[1m])) by (le)) / 1000",
+              "expr": "histogram_quantile(0.5, sum(rate(query_durations_ms_bucket{task=\"dcs-web\"}[1m])) by (le))",
               "intervalFactor": 1,
               "legendFormat": "50th percentile",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.5%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%20%2F%201000%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-30%2021%3A51%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.5%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%209%3A16%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
             },
             {
               "calculatedInterval": "10s",
               "datasourceErrors": {},
               "errors": {},
-              "expr": "histogram_quantile(0.99, sum(rate(query_durations_ms_bucket{task=\"dcs-web\"}[1m])) by (le)) / 1000",
+              "expr": "histogram_quantile(0.99, sum(rate(query_durations_ms_bucket{task=\"dcs-web\"}[1m])) by (le))",
               "intervalFactor": 1,
               "legendFormat": "99th percentile",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.99%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%20%2F%201000%22%2C%22range_input%22%3A%223601s%22%2C%22end_input%22%3A%222015-5-30%2021%3A51%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.99%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%22%2C%22range_input%22%3A%223601s%22%2C%22end_input%22%3A%222015-5-31%209%3A16%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
               "target": ""
             }
           ],
@@ -1192,5 +1192,5 @@
     "list": []
   },
   "schemaVersion": 6,
-  "version": 12
+  "version": 13
 }
