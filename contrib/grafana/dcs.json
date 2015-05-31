@@ -137,13 +137,13 @@
             "total": false,
             "values": false
           },
-          "lines": true,
+          "lines": false,
           "linewidth": 1,
           "links": [],
           "nullPointMode": "connected",
           "percentage": false,
-          "pointradius": 5,
-          "points": false,
+          "pointradius": 1,
+          "points": true,
           "renderer": "flot",
           "seriesOverrides": [],
           "span": 6,
@@ -151,24 +151,24 @@
           "steppedLine": false,
           "targets": [
             {
-              "calculatedInterval": "10s",
+              "calculatedInterval": "5m",
               "datasourceErrors": {},
               "errors": {},
               "expr": "histogram_quantile(0.5, sum(rate(query_durations_ms_bucket{task=\"dcs-web\"}[1m])) by (le))",
               "intervalFactor": 1,
               "legendFormat": "50th percentile",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.5%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%209%3A16%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.5%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%22%2C%22range_input%22%3A%2286400s%22%2C%22end_input%22%3A%222015-5-31%209%3A25%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
             },
             {
-              "calculatedInterval": "10s",
+              "calculatedInterval": "5m",
               "datasourceErrors": {},
               "errors": {},
               "expr": "histogram_quantile(0.99, sum(rate(query_durations_ms_bucket{task=\"dcs-web\"}[1m])) by (le))",
               "intervalFactor": 1,
               "legendFormat": "99th percentile",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.99%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%22%2C%22range_input%22%3A%223601s%22%2C%22end_input%22%3A%222015-5-31%209%3A16%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22histogram_quantile(0.99%2C%20sum(rate(query_durations_ms_bucket%7Btask%3D%5C%22dcs-web%5C%22%7D%5B1m%5D))%20by%20(le))%22%2C%22range_input%22%3A%2286401s%22%2C%22end_input%22%3A%222015-5-31%209%3A25%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D",
               "target": ""
             }
           ],
@@ -554,14 +554,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "calculatedInterval": "2m",
+              "calculatedInterval": "10m",
               "datasourceErrors": {},
               "errors": {},
               "expr": "rate(system_disk_read_bytes{task=\"dcs-index-backend\",job=\"dcs\"}[1m])",
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(system_disk_read_bytes%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2221600s%22%2C%22end_input%22%3A%222015-5-30%2021%3A21%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22rate(system_disk_read_bytes%7Btask%3D%5C%22dcs-index-backend%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%5B1m%5D)%22%2C%22range_input%22%3A%2286400s%22%2C%22end_input%22%3A%222015-5-31%209%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
             }
           ],
           "timeFrom": null,
@@ -575,7 +575,7 @@
           "x-axis": true,
           "y-axis": true,
           "y_formats": [
-            "bytes",
+            "Bps",
             "short"
           ]
         },
@@ -660,7 +660,7 @@
           "grid": {
             "leftLogBase": 1,
             "leftMax": null,
-            "leftMin": null,
+            "leftMin": 0,
             "rightLogBase": 1,
             "rightMax": null,
             "rightMin": null,
@@ -695,14 +695,14 @@
           "steppedLine": false,
           "targets": [
             {
-              "calculatedInterval": "20s",
+              "calculatedInterval": "10m",
               "datasourceErrors": {},
               "errors": {},
               "expr": "index_files{task=\"dcs-package-importer\",job=\"dcs\"}",
               "intervalFactor": 2,
               "legendFormat": "{{ instance }}",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22index_files%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-30%2021%3A23%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22index_files%7Btask%3D%5C%22dcs-package-importer%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%22%2C%22range_input%22%3A%2286400s%22%2C%22end_input%22%3A%222015-5-31%209%3A26%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Afalse%2C%22tab%22%3A0%7D%5D"
             }
           ],
           "timeFrom": null,
@@ -1182,7 +1182,7 @@
     }
   ],
   "time": {
-    "from": "now-1h",
+    "from": "now-24h",
     "to": "now"
   },
   "templating": {
@@ -1192,5 +1192,5 @@
     "list": []
   },
   "schemaVersion": 6,
-  "version": 13
+  "version": 14
 }
