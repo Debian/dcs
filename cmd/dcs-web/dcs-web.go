@@ -27,7 +27,7 @@ import (
 	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/index"
 	dcsregexp "github.com/Debian/dcs/regexp"
-	"github.com/Debian/dcs/varz"
+	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -235,9 +235,6 @@ func main() {
 		}
 	}
 
-	varz.Set("failed-queries", 0)
-	varz.Set("active-queries", 0)
-
 	fmt.Println("Debian Code Search webapp")
 
 	health.StartChecking()
@@ -260,7 +257,6 @@ func main() {
 		http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
 	})
 	http.HandleFunc("/favicon.ico", http.NotFound)
-	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.HandleFunc("/search", Search)
 	http.HandleFunc("/show", show.Show)

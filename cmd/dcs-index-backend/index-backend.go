@@ -15,7 +15,7 @@ import (
 
 	"code.google.com/p/codesearch/regexp"
 	"github.com/Debian/dcs/index"
-	"github.com/Debian/dcs/varz"
+	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -133,7 +133,6 @@ func main() {
 
 	http.HandleFunc("/index", Index)
 	http.HandleFunc("/replace", Replace)
-	http.HandleFunc("/varz", varz.Varz)
 	http.Handle("/metrics", prometheus.Handler())
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

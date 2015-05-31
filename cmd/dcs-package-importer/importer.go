@@ -21,7 +21,7 @@ import (
 
 	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/index"
-	"github.com/Debian/dcs/varz"
+	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -125,7 +125,6 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	err := os.Mkdir(filepath.Join(tmpdir, pkg), 0755)
 	if err != nil && !os.IsExist(err) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		varz.Increment("failed-package-imports")
 		failedPackageImports.Inc()
 		return
 	}
@@ -133,7 +132,6 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	file, err := os.Create(filepath.Join(tmpdir, path))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		varz.Increment("failed-package-imports")
 		failedPackageImports.Inc()
 		return
 	}
@@ -141,7 +139,6 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 	written, err := io.Copy(file, r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		varz.Increment("failed-package-imports")
 		failedPackageImports.Inc()
 		return
 	}
@@ -152,7 +149,6 @@ func importPackage(w http.ResponseWriter, r *http.Request) {
 		indexQueue <- path
 	}
 
-	varz.Increment("successful-package-imports")
 	successfulPackageImports.Inc()
 }
 
@@ -254,7 +250,6 @@ func garbageCollect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	varz.Increment("successful-garbage-collects")
 	successfulGarbageCollects.Inc()
 }
 
@@ -268,7 +263,6 @@ func mergeToShard() {
 		}
 	}
 
-	varz.Set("index-files", uint64(len(indexFiles)))
 	filesInIndex.Set(float64(len(indexFiles)))
 
 	log.Printf("Got %d index files\n", len(indexFiles))
@@ -313,7 +307,6 @@ func mergeToShard() {
 		return
 	}
 
-	varz.Increment("successful-merges")
 	successfulMerges.Inc()
 
 	// Replace the current index with the newly created index.
@@ -408,7 +401,6 @@ func indexPackage(pkg string) {
 	if err := os.Rename(tmpIndexPath, finalIndexPath); err != nil {
 		log.Fatal(err)
 	}
-	varz.Increment("successful-package-indexes")
 	successfulPackageIndexes.Inc()
 }
 
@@ -434,12 +426,10 @@ func unpackAndIndex() {
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			log.Printf("Skipping package %s: %v\n", pkg, err)
-			varz.Increment("failed-dpkg-source-extracts")
 			failedDpkgSourceExtracts.Inc()
 			continue
 		}
 
-		varz.Increment("successful-dpkg-source-extracts")
 		successfulDpkgSourceExtracts.Inc()
 		indexPackage(pkg)
 		os.RemoveAll(filepath.Join(tmpdir, pkg))
@@ -451,14 +441,6 @@ func main() {
 
 	// Allow as many concurrent unpackAndIndex goroutines as we have cores.
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	varz.Set("failed-dpkg-source-extracts", 0)
-	varz.Set("failed-package-imports", 0)
-	varz.Set("successful-dpkg-source-extracts", 0)
-	varz.Set("successful-garbage-collects", 0)
-	varz.Set("successful-merges", 0)
-	varz.Set("successful-package-imports", 0)
-	varz.Set("successful-package-indexes", 0)
 
 	setupFilters()
 
@@ -485,7 +467,6 @@ func main() {
 	http.HandleFunc("/merge", mergeOrError)
 	http.HandleFunc("/listpkgs", listPackages)
 	http.HandleFunc("/garbagecollect", garbageCollect)
-	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.Handle("/metrics", prometheus.Handler())
 

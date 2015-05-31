@@ -26,7 +26,7 @@ import (
 
 	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/shardmapping"
-	"github.com/Debian/dcs/varz"
+	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stapelberg/godebiancontrol"
 )
@@ -212,7 +212,6 @@ func lookfor(dscName string) {
 		// goroutines from piling up. The periodic sanity check will find the
 		// package a bit later then.
 		if time.Since(startedLooking) > 25*time.Minute {
-			varz.Increment("failed-lookfor")
 			failedLookfor.Inc()
 			log.Printf("Not looking for %q anymore. Sanity check will catch it.\n", dscName)
 			return
@@ -271,7 +270,6 @@ func lookfor(dscName string) {
 			log.Printf("Could not feed %q: %v\n", dscName, err)
 		}
 		log.Printf("Fed %q.\n", dscName)
-		varz.Increment("successful-lookfor")
 		successfulLookfor.Inc()
 		return
 	}
@@ -279,7 +277,6 @@ func lookfor(dscName string) {
 
 func checkSources() {
 	log.Printf("checking sources\n")
-	varz.Set("last-sanity-check-started", uint64(time.Now().Unix()))
 	lastSanityCheckStarted.Set(float64(time.Now().Unix()))
 
 	// Store packages by shard.
@@ -374,7 +371,6 @@ func checkSources() {
 			}
 			feedfiles(p, pkgfiles)
 
-			varz.Increment("successful-sanity-feed")
 			successfulSanityFeed.Inc()
 		}
 	}
@@ -395,7 +391,6 @@ func checkSources() {
 				continue
 			}
 
-			varz.Increment("successful-garbage-collect")
 			successfulGarbageCollect.Inc()
 		}
 	}
@@ -405,11 +400,6 @@ func main() {
 	flag.Parse()
 
 	shards = strings.Split(*shardsStr, ",")
-
-	varz.Set("failed-lookfor", 0)
-	varz.Set("successful-garbage-collect", 0)
-	varz.Set("successful-lookfor", 0)
-	varz.Set("successful-sanity-feed", 0)
 
 	log.Printf("Configuration: %d shards:\n", len(shards))
 	for _, shard := range shards {
@@ -428,7 +418,6 @@ func main() {
 	}()
 
 	http.HandleFunc("/lookfor", lookforHandler)
-	http.HandleFunc("/varz", varz.Varz)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.Handle("/metrics", prometheus.Handler())
 
