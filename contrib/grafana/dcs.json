@@ -328,7 +328,7 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "span": 6,
-          "stack": true,
+          "stack": false,
           "steppedLine": false,
           "targets": [
             {
@@ -339,7 +339,7 @@
               "intervalFactor": 2,
               "legendFormat": "goroutines",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-web%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-30%2021%3A33%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-web%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%209%3A5%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
             },
             {
               "calculatedInterval": "20s",
@@ -350,7 +350,7 @@
               "intervalFactor": 2,
               "legendFormat": "allocated memory (MiB)",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-web%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-30%2021%3A34%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-web%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%209%3A5%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D",
               "target": ""
             }
           ],
@@ -859,7 +859,7 @@
           "renderer": "flot",
           "seriesOverrides": [],
           "span": 6,
-          "stack": true,
+          "stack": false,
           "steppedLine": false,
           "targets": [
             {
@@ -870,7 +870,7 @@
               "intervalFactor": 1,
               "legendFormat": "goroutines",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-feeder%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%22%2C%22range_input%22%3A%223601s%22%2C%22end_input%22%3A%222015-5-31%2022%3A38%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_goroutines%7Btask%3D%5C%22dcs-feeder%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%209%3A5%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D"
             },
             {
               "calculatedInterval": "10s",
@@ -881,7 +881,7 @@
               "intervalFactor": 1,
               "legendFormat": "allocated memory (MiB)",
               "metric": "",
-              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-feeder%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%2022%3A38%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D",
+              "prometheusLink": "/api/datasources/proxy/1/graph#%5B%7B%22expr%22%3A%22process_mem_alloc_bytes%7Btask%3D%5C%22dcs-feeder%5C%22%2Cjob%3D%5C%22dcs%5C%22%7D%20%2F%201024%20%2F%201024%22%2C%22range_input%22%3A%223600s%22%2C%22end_input%22%3A%222015-5-31%209%3A5%22%2C%22step_input%22%3A%22%22%2C%22stacked%22%3Atrue%2C%22tab%22%3A0%7D%5D",
               "target": ""
             }
           ],
@@ -1192,5 +1192,5 @@
     "list": []
   },
   "schemaVersion": 6,
-  "version": 11
+  "version": 12
 }
