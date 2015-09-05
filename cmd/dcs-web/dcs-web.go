@@ -226,10 +226,20 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.Parse()
+
 	common.LoadTemplates()
+
 	if *accessLogPath != "" {
 		var err error
 		accessLog, err = os.OpenFile(*accessLogPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if *clickLogPath != "" {
+		var err error
+		clickLog, err = os.OpenFile(*clickLogPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -276,6 +286,7 @@ func main() {
 	http.HandleFunc("/results/", ResultsHandler)
 	http.HandleFunc("/perpackage-results/", PerPackageResultsHandler)
 	http.HandleFunc("/queryz", QueryzHandler)
+	http.HandleFunc("/track", Track)
 
 	http.Handle("/instantws", websocket.Handler(InstantServer))
 	http.Handle("/metrics", prometheus.Handler())

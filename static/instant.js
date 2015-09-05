@@ -228,6 +228,27 @@ var currentpage;
 var currentpage_pkg;
 var packages = [];
 
+// Called when clicking a search result link.
+function track(ev) {
+    var dnt = navigator.doNotTrack == "yes" ||
+              navigator.doNotTrack == "1" ||
+              navigator.msDoNotTrack == "1" ||
+              window.doNotTrack == "1";
+    if (dnt) {
+        // Respect the user’s choice and don’t track.
+        return;
+    }
+
+    var link = $(ev.currentTarget);
+    navigator.sendBeacon("/track", new Blob(
+        [JSON.stringify({
+            "searchterm": searchterm,
+            "path": link.attr('data-path'),
+            "line": link.attr('data-line'),
+          })],
+        {"type": "application/json; charset=UTF-8"}));
+}
+
 function addSearchResult(results, result) {
     var context = [];
 
@@ -248,7 +269,9 @@ function addSearchResult(results, result) {
     var rest = result.path.substring(delimiter);
 
     // Append the new search result, then sort the results.
-    results.append('<li data-ranking="' + result.ranking + '"><a href="/show?file=' + encodeURIComponent(result.path) + '&line=' + result.line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.pathrank + ', Final: ' + result.ranking + '</small></li>');
+    var el = $('<li data-ranking="' + result.ranking + '"><a onclick="track(event);" href="/show?file=' + encodeURIComponent(result.path) + '&line=' + result.line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.pathrank + ', Final: ' + result.ranking + '</small></li>');
+    $(el).children('a').attr('data-path', result.path).attr('data-line', result.line);
+    results.append(el);
     $('ul#results').append($('ul#results>li').detach().sort(function(a, b) {
         return b.getAttribute('data-ranking') - a.getAttribute('data-ranking');
     }));

@@ -95,6 +95,12 @@ server {
         proxy_pass http://dcsweb;
     }
 
+    location = /track {
+        limit_req zone=results burst=5 nodelay;
+
+        proxy_pass http://dcsweb;
+    }
+
     location ~ ^/(perpackage-)?results/ {
         limit_req zone=results burst=5 nodelay;
 
