@@ -122,7 +122,7 @@ PathRank: {{.PathRank}}, Rank: {{.Ranking}}</li>
 <script type="text/javascript">
 <!--
 if (location.pathname.substr(0, '/search'.length) === '/search') {
-    window.location.replace('/results/{{.q}}/page_{{.page}}');
+    window.location.replace('/results/{{.q_escaped}}/page_{{.page}}');
 }
 -->
 </script>

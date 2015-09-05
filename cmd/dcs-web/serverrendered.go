@@ -59,6 +59,11 @@ func splitPath(path string) (sourcePackage string, relativePath string) {
 	return
 }
 
+func escapeForUrl(q string) string {
+	u := url.URL{Path: q}
+	return strings.Replace(u.EscapedPath(), "/", "%2f", -1)
+}
+
 // NB: Updates to this function must also be performed in static/instant.js.
 func updatePagination(currentpage int, resultpages int, baseurl string) string {
 	result := `<strong>Pages:</strong> `
@@ -187,6 +192,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		"packages":   packages,
 		"pagination": template.HTML(pagination),
 		"q":          r.Form.Get("q"),
+		"q_escaped":  escapeForUrl(r.Form.Get("q")),
 		"page":       page,
 		"version":    common.Version,
 	}); err != nil {
@@ -212,6 +218,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	// We encode a URL that contains _only_ the q parameter.
 	q := url.Values{"q": []string{r.Form.Get("q")}}.Encode()
+	qEscaped := escapeForUrl(r.Form.Get("q"))
 
 	pageStr := r.Form.Get("page")
 	if pageStr == "" {
@@ -245,8 +252,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
-			"q":       r.Form.Get("q"),
-			"version": common.Version,
+			"q":         r.Form.Get("q"),
+			"q_escaped": qEscaped,
+			"version":   common.Version,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -321,6 +329,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"packages":   packages,
 		"pagination": template.HTML(pagination),
 		"q":          r.Form.Get("q"),
+		"q_escaped":  qEscaped,
 		"page":       page,
 		"version":    common.Version,
 	}); err != nil {
