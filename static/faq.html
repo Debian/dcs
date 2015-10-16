@@ -33,7 +33,7 @@
 <a id="keywords"><h2>Q: What kind of keywords can I use in the search field?</h2></a>
 
 <p>
-Each keyword must be specified as "type:value", without additional spaces.<br>
+Each keyword must be specified as "<tt>type:value</tt>", without additional spaces.<br>
 Keywords are separated from search terms by space, e.g. "<tt>printf filetype:c</tt>".
 </p>
 
@@ -42,19 +42,19 @@ All keywords can be negated, e.g. “<tt>xcb_create_window -filetype:c</tt>”.
 </p>
 
 <dl>
-<dt>filetype</dt>
+<dt><tt>filetype</tt></dt>
 <dd>
 Filters file names according to their extension.<br>
 To find source code dealing with XMPP written in Perl, you could search for "<tt>XMPP
 filetype:perl</tt>".<br>
 The currently supported file types are c, c++, perl, python, go, java, ruby, shell, vala, javascript, json.
 </dd>
-<dt>package</dt>
+<dt><tt>package</tt> (or <tt>pkg</tt>)</dt>
 <dd>
 Searches only within the specified Debian source package.<br>
-To find all calls to <tt>xcb_create_window</tt> which the window manager i3 does, you could search for "<tt>xcb_create_window package:i3-wm</tt>".
+To find all calls to <tt>xcb_create_window</tt> which the window manager i3 does, you could search for "<tt>xcb_create_window package:i3-wm</tt>".<br>
 </dd>
-<dt>path</dt>
+<dt><tt>path</tt></dt>
 <dd>
 Searches only files that match the given path (using regular expressions).<br>
 To find only matches within Debian packaging, use e.g. "<tt>systemctl path:debian/</tt>".<br>
