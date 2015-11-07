@@ -32,6 +32,18 @@ limit_req_zone $binary_remote_addr zone=results:10m rate=3r/s;
 server {
     listen   80;
     listen   [::]:80 default_server ipv6only=on;
+
+    root /usr/share/dcs/static;
+    index index.html index.htm;
+    server_name codesearch.debian.net;
+    access_log /var/log/nginx/dcs-static.log combined;
+
+    location / {
+        return 301 https://codesearch.debian.net$request_uri;
+    }
+}
+
+server {
     listen   443 ssl;
     listen   [::]:443 ssl ipv6only=on;
 
