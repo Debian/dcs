@@ -23,6 +23,20 @@ func TestRewriteQuery(t *testing.T) {
 		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
 	}
 
+	// Verify that the amount of whitespace between filters and search terms aren't relevant
+	rewritten = rewrite(t, "/search?q=package:foo++searchterm")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query '%s', got '%s'", "searchterm", querystr)
+	}
+
+	// Verify that the amount of in a search term is relevant
+	rewritten = rewrite(t, "/search?q=package:foo+search++term")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "search  term" {
+		t.Fatalf("Expected search query '%s', got '%s'", "search term", querystr)
+	}
+
 	// Verify that the filetype: keyword is properly moved
 	rewritten = rewrite(t, "/search?q=searchterm+filetype%3Ac")
 	querystr = rewritten.Query().Get("q")
@@ -65,6 +79,17 @@ func TestRewriteQuery(t *testing.T) {
 	pkg = rewritten.Query().Get("npackage")
 	if pkg != "i3-WM" {
 		t.Fatalf("Expected npackage %s, got %s", "i3-WM", pkg)
+	}
+
+	// Verify that -file is translated to npath
+	rewritten = rewrite(t, "/search?q=searchterm+-file:foo")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+	}
+	file := rewritten.Query().Get("npath")
+	if file != "foo" {
+		t.Fatalf("Expected npath %s, got %s", "foo", file)
 	}
 
 	// Verify that the multiple keywords work as expected
