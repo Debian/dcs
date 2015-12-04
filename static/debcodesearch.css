@@ -11,6 +11,10 @@
 	padding: 7px;
 }
 
+#searchform input[type=text] {
+	width: 350px;
+}
+
 .pagination a:link
 , .perpackage-pagination a:link
 , #packages a:link
