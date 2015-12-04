@@ -47,8 +47,8 @@ server {
     listen   443 ssl;
     listen   [::]:443 ssl ipv6only=on;
 
-    ssl_certificate /etc/ssl/certs/codesearch.debian.net.crt.pem;
-    ssl_certificate_key /etc/ssl/private/codesearch.debian.net.key;
+    ssl_certificate /etc/letsencrypt/live/codesearch.debian.net/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/codesearch.debian.net/privkey.pem;
 
     # See http://cipherli.st/
     ssl_ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AES:RSA+3DES:!ADH:!AECDH:!MD5:!DSS;
