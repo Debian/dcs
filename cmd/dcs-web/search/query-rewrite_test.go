@@ -15,6 +15,17 @@ func rewrite(t *testing.T, urlstr string) url.URL {
 	return RewriteQuery(*baseQuery)
 }
 
+func BenchmarkRewriteQuery(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		baseQuery, err := url.Parse("/search?q=searchterm+package%3Ai3-WM+filetype%3Ac")
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		RewriteQuery(*baseQuery)
+	}
+}
+
 func TestRewriteQuery(t *testing.T) {
 	// Verify that RewriteQuery() doesn’t break simple search terms
 	rewritten := rewrite(t, "/search?q=searchterm")
