@@ -30,7 +30,7 @@ $ debmirror --diff=none --progress --verbose -a none --source -s main -h deb-mir
 $ debmirror --diff=none --exclude-deb-section=.* --include golang-mode --nocleanup --progress --verbose -a none --arch amd64 -s main -h deb-mirror.de -r /debian source-mirror
 ```
 
-(We download the golang-mode binary package because it is small, and we need to make debhelper download at least one package to keep the binary-amd64/Packages files in which we are interestd in.)
+(We download the golang-mode binary package because it is small, and we need to make debhelper download at least one package to keep the binary-amd64/Packages files in which we are interested in.)
 
 Update the ranking:
 ```bash
