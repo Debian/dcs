@@ -472,7 +472,7 @@ connection.onmessage = function(e) {
                             if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
                                 p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
                                 $('#packageshint').text('');
-                                $('#packageshint').append('To see all packages which contain results: <pre>curl -s http://' + window.location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
+                                $('#packageshint').append('To see all packages which contain results: <pre>curl -s ' + window.location.protocol + '//' + window.location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
                             }
 
                             $('#enable-perpackage').attr('disabled', null);
