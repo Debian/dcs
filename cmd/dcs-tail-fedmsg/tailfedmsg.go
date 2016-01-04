@@ -1,5 +1,5 @@
 // Listens for new uploads on the Debian FedMsg bus, see https://wiki.debian.org/FedMsg
-// Once a new upload appears, teels dcs-feeder to look for that package and
+// Once a new upload appears, tells dcs-feeder to look for that package and
 // feed it to the appropriate dcs-package-importer instance.
 package main
 

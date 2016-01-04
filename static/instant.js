@@ -1,7 +1,7 @@
 // © 2014 Michael Stapelberg
 // vim:ts=4:sw=4:et
 // Opens a WebSocket connection to Debian Code Search to send and receive
-// search results almost instantanously.
+// search results almost instantaneously.
 
 // NB: All of these constants needs to match those in cmd/dcs-web/querymanager.go
 var packagesPerPage = 5;

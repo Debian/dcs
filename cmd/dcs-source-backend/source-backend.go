@@ -279,7 +279,7 @@ func streamingQuery(conn net.Conn) {
 	// buffer in memory until the write is done).
 	//
 	// So instead, we start 1000 worker goroutines and feed them work through a
-	// single channel. Due to these these goroutines being blocked on writing,
+	// single channel. Due to these goroutines being blocked on writing,
 	// the grepping will naturally become slower.
 	work := make(chan ranking.ResultPath)
 	progress := make(chan int)
