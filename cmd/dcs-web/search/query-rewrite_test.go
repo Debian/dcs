@@ -31,112 +31,112 @@ func TestRewriteQuery(t *testing.T) {
 	rewritten := rewrite(t, "/search?q=searchterm")
 	querystr := rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 
 	// Verify that the amount of whitespace between filters and search terms aren't relevant
 	rewritten = rewrite(t, "/search?q=package:foo++searchterm")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query '%s', got '%s'", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 
 	// Verify that the amount of in a search term is relevant
 	rewritten = rewrite(t, "/search?q=package:foo+search++term")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "search  term" {
-		t.Fatalf("Expected search query '%s', got '%s'", "search term", querystr)
+		t.Fatalf("Expected search query %q, got %q", "search term", querystr)
 	}
 
 	// Verify that the filetype: keyword is properly moved
 	rewritten = rewrite(t, "/search?q=searchterm+filetype%3Ac")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	filetype := rewritten.Query().Get("filetype")
 	if filetype != "c" {
-		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
+		t.Fatalf("Expected filetype %q, got %q", "c", filetype)
 	}
 
 	// Verify that the filetype: keyword is treated case-insensitively
 	rewritten = rewrite(t, "/search?q=searchterm+filetype%3AC")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	filetype = rewritten.Query().Get("filetype")
 	if filetype != "c" {
-		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
+		t.Fatalf("Expected filetype %q, got %q", "c", filetype)
 	}
 
 	// Verify that the package: keyword is recognized (case-sensitively)
 	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	pkg := rewritten.Query().Get("package")
 	if pkg != "i3-WM" {
-		t.Fatalf("Expected package %s, got %s", "i3-WM", pkg)
+		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
 	}
 
 	// Verify that the -package: (negative) keyword is recognized (case-sensitively)
 	rewritten = rewrite(t, "/search?q=searchterm+-package%3Ai3-WM")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	pkg = rewritten.Query().Get("npackage")
 	if pkg != "i3-WM" {
-		t.Fatalf("Expected npackage %s, got %s", "i3-WM", pkg)
+		t.Fatalf("Expected npackage %q, got %q", "i3-WM", pkg)
 	}
 
 	// Verify that -file is translated to npath
 	rewritten = rewrite(t, "/search?q=searchterm+-file:foo")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	file := rewritten.Query().Get("npath")
 	if file != "foo" {
-		t.Fatalf("Expected npath %s, got %s", "foo", file)
+		t.Fatalf("Expected npath %q, got %q", "foo", file)
 	}
 
 	// Verify that the multiple keywords work as expected
 	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM+filetype%3Ac")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	pkg = rewritten.Query().Get("package")
 	if pkg != "i3-WM" {
-		t.Fatalf("Expected package %s, got %s", "i3-WM", pkg)
+		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
 	}
 	filetype = rewritten.Query().Get("filetype")
 	if filetype != "c" {
-		t.Fatalf("Expected filetype %s, got %s", "c", filetype)
+		t.Fatalf("Expected filetype %q, got %q", "c", filetype)
 	}
 
 	// Verify that accessing the map for a keyword that doesn't exist doesn't cause iterations
 	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM")
 	vmap := rewritten.Query()["some_array"]
 	for _, v := range vmap {
-		t.Fatalf("Unexpected value in some_array '%s'", v)
+		t.Fatalf("Unexpected value in some_array %q", v)
 	}
 
 	// Verify that multiple values for some of the keywords can be passed
 	rewritten = rewrite(t, "/search?q=searchterm+-package%3Ai3-WM+-package%3Afoo")
 	querystr = rewritten.Query().Get("q")
 	if querystr != "searchterm" {
-		t.Fatalf("Expected search query %s, got %s", "searchterm", querystr)
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
 	vmap = rewritten.Query()["npackage"]
 	seen := 0
 	for _, v := range vmap {
 		seen++
 		if v != "i3-WM" && v != "foo" {
-			t.Fatalf("Unexpected value for -package keyword, got '%s'", v)
+			t.Fatalf("Unexpected value for -package keyword, got %q", v)
 		}
 	}
 	if seen != 2 {
