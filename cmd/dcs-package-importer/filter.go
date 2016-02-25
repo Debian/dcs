@@ -70,7 +70,8 @@ func ignored(info os.FileInfo, dir, filename string) bool {
 		}
 		idx := strings.LastIndex(filename, ".")
 		if idx > -1 {
-			if ignoredSuffixes[filename[idx+1:]] {
+			if ignoredSuffixes[filename[idx+1:]] &&
+				!strings.HasPrefix(strings.ToLower(filename), "cmakelists.txt") {
 				return true
 			}
 		}
