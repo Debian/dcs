@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	_ "github.com/lib/pq"
-	"github.com/mstap/godebiancontrol"
 	"log"
 	"net/http"
 	"strings"
+
+	_ "github.com/lib/pq"
+	"github.com/stapelberg/godebiancontrol"
 )
 
 var mirrorUrl = flag.String("mirror_url",
