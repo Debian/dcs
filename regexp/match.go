@@ -9,13 +9,13 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"regexp/syntax"
 	"sort"
 
-	"code.google.com/p/codesearch/sparse"
-	"html"
+	"github.com/google/codesearch/sparse"
 )
 
 // A matcher holds the state for running regular expression search.

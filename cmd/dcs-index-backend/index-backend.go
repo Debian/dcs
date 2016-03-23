@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/codesearch/regexp"
 	"github.com/Debian/dcs/index"
 	_ "github.com/Debian/dcs/varz"
+	"github.com/google/codesearch/regexp"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

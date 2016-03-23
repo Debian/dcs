@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unsafe"
 
-	"code.google.com/p/codesearch/sparse"
+	"github.com/google/codesearch/sparse"
 )
 
 // Index writing.  See read.go for details of on-disk format.
