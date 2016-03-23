@@ -4,6 +4,14 @@ sudo: false
 
 language: go
 
+go:
+  - 1.6
+
+addons:
+  apt:
+    packages:
+    - libzmq-dev
+
 before_install:
   - go get -u golang.org/x/tools/cmd/vet
 
