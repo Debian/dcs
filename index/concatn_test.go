@@ -39,7 +39,7 @@ func TestConcatN(t *testing.T) {
 	}
 
 	var mergeFiles3 = map[string]string{
-		"/latest": "ZZZ makes the snoring rabbit",
+		"/latest":  "ZZZ makes the snoring rabbit",
 		"/latest2": "aaa makes the snoring armadillo",
 	}
 

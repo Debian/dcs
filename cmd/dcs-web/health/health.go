@@ -6,12 +6,13 @@
 package health
 
 import (
-	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"encoding/json"
 	"log"
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/Debian/dcs/cmd/dcs-web/common"
 )
 
 var status = make(chan healthRequest)

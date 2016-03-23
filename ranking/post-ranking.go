@@ -7,8 +7,9 @@
 package ranking
 
 import (
-	"github.com/Debian/dcs/regexp"
 	"unicode"
+
+	"github.com/Debian/dcs/regexp"
 )
 
 //var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)
@@ -42,7 +43,7 @@ func PostRank(opts RankingOpts, match *regexp.Match, querystr *QueryStr) float32
 		// parameter types).
 		index := querystr.boundaryRegexp.FindStringIndex(line)
 		if index != nil {
-			matchRanking := 0.75 + (0.25 * (1.0 - float32(index[0]) / float32(len(line))))
+			matchRanking := 0.75 + (0.25 * (1.0 - float32(index[0])/float32(len(line))))
 			totalRanking *= matchRanking
 		} else {
 			// Punish the lines in which there was no word boundary match.

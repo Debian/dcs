@@ -8,9 +8,9 @@ import (
 )
 
 // Represents a query string with pre-compiled regular expressions for faster
-// matching. 
+// matching.
 type QueryStr struct {
-	query string
+	query          string
 	boundaryRegexp *regexp.Regexp
 	anywhereRegexp *regexp.Regexp
 }
@@ -34,12 +34,12 @@ func (qs *QueryStr) Match(path *string) float32 {
 
 	index := qs.boundaryRegexp.FindStringIndex(*path)
 	if index != nil {
-		return 0.75 + (0.25 * (1.0 - float32(index[0]) / float32(len(*path))))
+		return 0.75 + (0.25 * (1.0 - float32(index[0])/float32(len(*path))))
 	}
 
 	index = qs.anywhereRegexp.FindStringIndex(*path)
 	if index != nil {
-		return 0.5 + (0.25 * (1.0 - float32(index[0]) / float32(len(*path))))
+		return 0.5 + (0.25 * (1.0 - float32(index[0])/float32(len(*path))))
 	}
 
 	return 0.5

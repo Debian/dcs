@@ -2,5 +2,5 @@
 
 package ranking
 
-func ReadDB (storedRanking map[string]StoredRanking) {
+func ReadDB(storedRanking map[string]StoredRanking) {
 }
