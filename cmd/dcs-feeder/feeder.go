@@ -168,7 +168,7 @@ func feedfiles(pkg string, pkgfiles []string) {
 			break
 		}
 		if resp.StatusCode != 200 {
-			log.Printf("Skipping %s: URL %q: %v\n", pkg, resp.Status)
+			log.Printf("Skipping %s: URL %q: %v\n", pkg, url, resp.Status)
 			break
 		}
 		defer resp.Body.Close()

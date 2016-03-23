@@ -205,7 +205,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	queryid := matches[1]
 	page, err := strconv.Atoi(matches[3])
 	if err != nil {
-		log.Fatal("Could not convert %q into a number: %v\n", matches[2], err)
+		log.Fatalf("Could not convert %q into a number: %v\n", matches[3], err)
 	}
 	perpackage := (matches[2] == "perpackage_2_")
 	_, ok := state[queryid]

@@ -525,7 +525,7 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 			// better top10 results.
 			bytes, err := result.MarshalJSON()
 			if err != nil {
-				log.Fatal("Could not marshal result as JSON: %v\n", err)
+				log.Fatalf("Could not marshal result as JSON: %v\n", err)
 			}
 			addEvent(queryid, bytes, &result)
 		}
@@ -574,7 +574,7 @@ func (s ByModTime) Swap(i, j int) {
 func fsBytes(path string) (available uint64, total uint64) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(path, &stat); err != nil {
-		log.Fatal("Could not stat filesystem for %q: %v\n", path, err)
+		log.Fatalf("Could not stat filesystem for %q: %v\n", path, err)
 	}
 	log.Printf("Available bytes on %q: %d\n", path, stat.Bavail*uint64(stat.Bsize))
 	available = stat.Bavail * uint64(stat.Bsize)
@@ -780,7 +780,7 @@ func storeProgress(queryid string, backendidx int, progress proto.ProgressUpdate
 	if allSet && filesProcessed == filesTotal {
 		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", queryid, backendidx)
 		if err := writeToDisk(queryid); err != nil {
-			log.Printf("[%s] writeToDisk() failed: %v\n", queryid)
+			log.Printf("[%s] writeToDisk() failed: %v\n", queryid, err)
 			failQuery(queryid)
 		}
 	}
@@ -816,7 +816,7 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	queryid := matches[1]
 	pagenr, err := strconv.Atoi(matches[2])
 	if err != nil {
-		log.Fatal("Could not convert %q into a number: %v\n", matches[2], err)
+		log.Fatalf("Could not convert %q into a number: %v\n", matches[2], err)
 	}
 	s, ok := state[queryid]
 	if !ok {
