@@ -10,7 +10,7 @@ go:
 addons:
   apt:
     packages:
-    - libzmq-dev
+    - libzmq3-dev
 
 before_install:
   - go get -u golang.org/x/tools/cmd/vet
