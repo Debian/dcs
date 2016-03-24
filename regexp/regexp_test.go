@@ -6,6 +6,7 @@ package regexp
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -211,8 +212,12 @@ func TestGrep(t *testing.T) {
 		var out, errb bytes.Buffer
 		g.Stdout = &out
 		g.Stderr = &errb
-		g.Reader(strings.NewReader(tt.s), "input")
-		if out.String() != tt.out || errb.String() != tt.err {
+		matches := g.Reader(strings.NewReader(tt.s), "input")
+		var mstr string
+		for _, match := range matches {
+			mstr = mstr + fmt.Sprintf("%s:%s\n", match.Path, match.Context)
+		}
+		if mstr != tt.out || errb.String() != tt.err {
 			t.Errorf("#%d: grep(%#q, %q) = %q, %q, want %q, %q", i, tt.re, tt.s, out.String(), errb.String(), tt.out, tt.err)
 		}
 	}
