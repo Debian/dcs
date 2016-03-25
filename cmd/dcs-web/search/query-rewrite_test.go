@@ -92,6 +92,28 @@ func TestRewriteQuery(t *testing.T) {
 		t.Fatalf("Expected npackage %q, got %q", "i3-WM", pkg)
 	}
 
+	// Verify that the pkg: alias is recognized (case-sensitively)
+	rewritten = rewrite(t, "/search?q=searchterm+pkg%3Ai3-WM")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
+	}
+	pkg = rewritten.Query().Get("package")
+	if pkg != "i3-WM" {
+		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
+	}
+
+	// Verify that the -pkg: (negative) alias is recognized (case-sensitively)
+	rewritten = rewrite(t, "/search?q=searchterm+-pkg%3Ai3-WM")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
+	}
+	pkg = rewritten.Query().Get("npackage")
+	if pkg != "i3-WM" {
+		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
+	}
+
 	// Verify that -file is translated to npath
 	rewritten = rewrite(t, "/search?q=searchterm+-file:foo")
 	querystr = rewritten.Query().Get("q")
