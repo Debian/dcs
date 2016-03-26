@@ -28,6 +28,7 @@ import (
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
+	_ "golang.org/x/net/trace"
 	"golang.org/x/net/websocket"
 )
 
