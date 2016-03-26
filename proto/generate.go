@@ -2,6 +2,4 @@
 // capnproto generated code.
 package proto
 
-//go:generate capnp compile -I $GOPATH -ogo match.capnp
-//go:generate capnp compile -I $GOPATH -ogo progressupdate.capnp
-//go:generate capnp compile -I $GOPATH -ogo sourcebackend.capnp
+//go:generate protoc indexbackend.proto sourcebackend.proto --go_out=plugins=grpc:.

@@ -3,14 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"hash/fnv"
 	"io"
 	"log"
 	"math"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,11 +24,11 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/dpkgversion"
-	"github.com/Debian/dcs/proto"
+	pb "github.com/Debian/dcs/proto"
 	"github.com/Debian/dcs/stringpool"
+	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
-
-	capn "github.com/glycerine/go-capnproto"
+	"golang.org/x/net/context"
 )
 
 var (
@@ -91,20 +89,20 @@ func (p *ProgressUpdate) ObsoletedBy(newEvent *obsoletableEvent) bool {
 	return (*newEvent).EventType() == p.Type
 }
 
-type ByRanking []proto.Match
+type ByRanking []pb.Match
 
 func (s ByRanking) Len() int {
 	return len(s)
 }
 
 func (s ByRanking) Less(i, j int) bool {
-	if s[i].Ranking() == s[j].Ranking() {
+	if s[i].Ranking == s[j].Ranking {
 		// On a tie, we use the path to make the order of results stable over
 		// multiple queries (which can have different results depending on
 		// which index backend reacts quicker).
-		return s[i].Path() > s[j].Path()
+		return s[i].Path > s[j].Path
 	}
-	return s[i].Ranking() > s[j].Ranking()
+	return s[i].Ranking > s[j].Ranking
 }
 
 func (s ByRanking) Swap(i, j int) {
@@ -115,6 +113,7 @@ type resultPointer struct {
 	backendidx int
 	ranking    float32
 	offset     int64
+	length     int
 
 	// Used as a tie-breaker when sorting by ranking to guarantee stable
 	// results, independent of the order in which the results are returned from
@@ -195,7 +194,7 @@ var (
 	stateMu sync.Mutex
 )
 
-func queryBackend(queryid string, backend string, backendidx int, sourceQuery []byte) {
+func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
@@ -210,11 +209,10 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 			filesTotal = 0
 		}
 
-		seg := capn.NewBuffer(nil)
-		p := proto.NewProgressUpdate(seg)
-		p.SetFilesprocessed(uint64(filesTotal))
-		p.SetFilestotal(uint64(filesTotal))
-		storeProgress(queryid, backendidx, p)
+		storeProgress(queryid, backendidx, &pb.ProgressUpdate{
+			FilesProcessed: uint64(filesTotal),
+			FilesTotal:     uint64(filesTotal),
+		})
 
 		addEventMarshal(queryid, &Error{
 			Type:      "error",
@@ -222,52 +220,47 @@ func queryBackend(queryid string, backend string, backendidx int, sourceQuery []
 		})
 	}()
 
-	// TODO: switch in the config
-	log.Printf("[%s] [src:%s] connecting...\n", queryid, backend)
-	conn, err := net.DialTimeout("tcp", strings.Replace(backend, "28082", "26082", -1), 5*time.Second)
+	stream, err := backend.Search(context.Background(), searchRequest)
 	if err != nil {
-		log.Printf("[%s] [src:%s] Connection failed: %v\n", queryid, backend, err)
-		return
-	}
-	defer conn.Close()
-	if _, err := conn.Write(sourceQuery); err != nil {
-		log.Printf("[%s] [src:%s] could not send query: %v\n", queryid, backend, err)
+		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", err)
 		return
 	}
 
-	bufferedReader := bufio.NewReaderSize(conn, 65536)
 	bstate := state[queryid].perBackend[backendidx]
 	tempFileWriter := bstate.tempFileWriter
-	var capnbuf bytes.Buffer
-	var written countingWriter
+	buf := proto.NewBuffer(nil)
 
 	for !state[queryid].done {
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-
-		written = 0
-		tee := io.TeeReader(bufferedReader, io.MultiWriter(
-			tempFileWriter, &written))
-
-		seg, err := capn.ReadFromPackedStream(tee, &capnbuf)
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
+			return
+		}
 		if err != nil {
-			if err == io.EOF {
-				log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
-				return
-			} else {
-				log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, backend, err)
-				return
-			}
+			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, backend, err)
+			return
 		}
 
-		z := proto.ReadRootZ(seg)
-		if z.Which() == proto.Z_PROGRESSUPDATE {
-			storeProgress(queryid, backendidx, z.Progressupdate())
-		} else {
-			storeResult(queryid, backendidx, z.Match())
+		buf.Reset()
+		if err := buf.Marshal(msg); err != nil {
+			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, backend, err)
+			return
+		}
+		if _, err := tempFileWriter.Write(buf.Bytes()); err != nil {
+			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, backend, err)
+			return
 		}
 
-		bstate.tempFileOffset += int64(written)
+		switch msg.Type {
+		case pb.SearchReply_MATCH:
+			storeResult(queryid, backendidx, msg.Match, len(buf.Bytes()))
+		case pb.SearchReply_PROGRESS_UPDATE:
+			storeProgress(queryid, backendidx, msg.ProgressUpdate)
+		}
+
+		bstate.tempFileOffset += int64(len(buf.Bytes()))
 	}
+
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
 }
 
@@ -296,15 +289,14 @@ func maybeStartQuery(queryid, src, query string) bool {
 			}
 			log.Printf("Garbage collection done. %d queries remaining", len(state))
 		}
-		backends := strings.Split(*common.SourceBackends, ",")
 		state[queryid] = queryState{
 			started:        time.Now(),
 			query:          query,
 			newEvent:       sync.NewCond(&sync.Mutex{}),
-			filesTotal:     make([]int, len(backends)),
-			filesProcessed: make([]int, len(backends)),
+			filesTotal:     make([]int, len(common.SourceBackendStubs)),
+			filesProcessed: make([]int, len(common.SourceBackendStubs)),
 			filesMu:        &sync.Mutex{},
-			perBackend:     make([]*perBackendState, len(backends)),
+			perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
 			tempFilesMu:    &sync.Mutex{},
 		}
 
@@ -322,9 +314,9 @@ func maybeStartQuery(queryid, src, query string) bool {
 		// in the code below (and above), but for that we need to carefully test it.
 		ensureEnoughSpaceAvailable()
 
-		for i := 0; i < len(backends); i++ {
+		for i := 0; i < len(common.SourceBackendStubs); i++ {
 			state[queryid].filesTotal[i] = -1
-			path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.capnproto", i))
+			path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
 			f, err := os.Create(path)
 			if err != nil {
 				log.Printf("[%s] could not create %q: %v\n", queryid, path, err)
@@ -346,22 +338,13 @@ func maybeStartQuery(queryid, src, query string) bool {
 			log.Fatal(err)
 		}
 		rewritten := search.RewriteQuery(*fakeUrl)
-		type streamingRequest struct {
-			Query string
-			URL   string
+		searchRequest := &pb.SearchRequest{
+			Query:        rewritten.Query().Get("q"),
+			RewrittenUrl: rewritten.String(),
 		}
-		request := streamingRequest{
-			Query: rewritten.Query().Get("q"),
-			URL:   rewritten.String(),
-		}
-		log.Printf("[%s] querying for %q\n", queryid, request.Query)
-		sourceQuery, err := json.Marshal(&request)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		for idx, backend := range backends {
-			go queryBackend(queryid, backend, idx, sourceQuery)
+		log.Printf("[%s] querying for %+v\n", searchRequest)
+		for idx, backend := range common.SourceBackendStubs {
+			go queryBackend(queryid, backend, idx, searchRequest)
 		}
 		return false
 	}
@@ -464,16 +447,7 @@ func sendPaginationUpdate(queryid string, s queryState) {
 	}
 }
 
-// countingWriter implements io.Writer, and increments *written with the amount
-// of data written on each call. Handy in an io.MultiWriter
-type countingWriter int64
-
-func (c *countingWriter) Write(p []byte) (n int, err error) {
-	*c += countingWriter(len(p))
-	return len(p), nil
-}
-
-func storeResult(queryid string, backendidx int, result proto.Match) {
+func storeResult(queryid string, backendidx int, result *pb.Match, resultLen int) {
 	// Without acquiring a lock, just check if we need to consider this result
 	// for the top 10 at all.
 	s := state[queryid]
@@ -486,31 +460,31 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 		// requiring that means delaying the search until all results are
 		// there. Instead, FirstPathRank is a good enough approximation (but
 		// different enough for each query that we can’t hardcode it).
-		result.SetRanking(result.Pathrank() + ((s.FirstPathRank * 0.1) * result.Ranking()))
+		result.Ranking = result.Pathrank + ((s.FirstPathRank * 0.1) * result.Ranking)
 	} else {
 		// This code path (and lock acquisition) gets executed only on the
 		// first result.
 		stateMu.Lock()
 		s = state[queryid]
-		s.FirstPathRank = result.Pathrank()
+		s.FirstPathRank = result.Pathrank
 		state[queryid] = s
 		stateMu.Unlock()
 	}
 
 	h := fnv.New64()
-	io.WriteString(h, result.Path())
+	io.WriteString(h, result.Path)
 
-	if result.Ranking() > s.results[9].ranking {
+	if result.Ranking > s.results[9].ranking {
 		stateMu.Lock()
 		s = state[queryid]
-		if result.Ranking() <= s.results[9].ranking {
+		if result.Ranking <= s.results[9].ranking {
 			stateMu.Unlock()
 		} else {
 			// TODO: find the first s.result[] for the same package. then check again if the result is worthy of replacing that per-package result
 			// TODO: probably change the data structure so that we can do this more easily and also keep N results per package.
 
 			combined := append(s.results[:], resultPointer{
-				ranking:  result.Ranking(),
+				ranking:  result.Ranking,
 				pathHash: h.Sum64(),
 			})
 			sort.Sort(pointerByRanking(combined))
@@ -523,22 +497,23 @@ func storeResult(queryid string, backendidx int, result proto.Match) {
 			// TODO: make this satisfy obsoletableEvent in order to skip
 			// sending results to the client which are then overwritten by
 			// better top10 results.
-			bytes, err := result.MarshalJSON()
-			if err != nil {
+			b := bytes.Buffer{}
+			if err := WriteMatchJSON(result, &b); err != nil {
 				log.Fatalf("Could not marshal result as JSON: %v\n", err)
 			}
-			addEvent(queryid, bytes, &result)
+			addEvent(queryid, b.Bytes(), &result)
 		}
 	}
 
 	bstate := s.perBackend[backendidx]
 	bstate.resultPointers = append(bstate.resultPointers, resultPointer{
 		backendidx:  backendidx,
-		ranking:     result.Ranking(),
+		ranking:     result.Ranking,
 		offset:      bstate.tempFileOffset,
+		length:      resultLen,
 		pathHash:    h.Sum64(),
-		packageName: bstate.packagePool.Get(result.Package())})
-	bstate.allPackages[result.Package()] = true
+		packageName: bstate.packagePool.Get(result.Package)})
+	bstate.allPackages[result.Package] = true
 }
 
 func failQuery(queryid string) {
@@ -619,7 +594,6 @@ func ensureEnoughSpaceAvailable() {
 }
 
 func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) error {
-	var capnbuf bytes.Buffer
 	firstPathRank := state[queryid].FirstPathRank
 
 	state[queryid].tempFilesMu.Lock()
@@ -628,9 +602,16 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 	if _, err := f.Write([]byte("[")); err != nil {
 		return err
 	}
+	var msg pb.SearchReply
+	buf := proto.NewBuffer(nil)
 	for idx, pointer := range pointers {
 		src := state[queryid].perBackend[pointer.backendidx].tempFile
 		if _, err := src.Seek(pointer.offset, os.SEEK_SET); err != nil {
+			return err
+		}
+		// TODO: Avoid the allocations by using a slice and only allocate a new buffer when pointer.length > cap(rdbuf)
+		rdbuf := make([]byte, pointer.length)
+		if _, err := src.Read(rdbuf); err != nil {
 			return err
 		}
 		if idx > 0 {
@@ -638,20 +619,19 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 				return err
 			}
 		}
-		seg, err := capn.ReadFromPackedStream(src, &capnbuf)
-		if err != nil {
+		buf.SetBuf(rdbuf)
+		if err := buf.Unmarshal(&msg); err != nil {
 			return err
 		}
-		z := proto.ReadRootZ(seg)
-		if z.Which() != proto.Z_MATCH {
-			return fmt.Errorf("Expected to find a proto.Z_MATCH, instead got %d", z.Which())
+		if msg.Type != pb.SearchReply_MATCH {
+			return fmt.Errorf("Expected to find a pb.SearchReply_MATCH, instead got %d", msg.Type)
 		}
-		result := z.Match()
+		match := msg.Match
 		// We need to fix the ranking here because we persist raw results from
 		// the dcs-source-backend in queryBackend(), but then modify the
 		// ranking in storeResult().
-		result.SetRanking(result.Pathrank() + ((firstPathRank * 0.1) * result.Ranking()))
-		if err := result.WriteJSON(f); err != nil {
+		match.Ranking = match.Pathrank + ((firstPathRank * 0.1) * match.Ranking)
+		if err := WriteMatchJSON(match, f); err != nil {
 			return err
 		}
 	}
@@ -752,15 +732,14 @@ func writeToDisk(queryid string) error {
 	return nil
 }
 
-func storeProgress(queryid string, backendidx int, progress proto.ProgressUpdate) {
-	backends := strings.Split(*common.SourceBackends, ",")
+func storeProgress(queryid string, backendidx int, progress *pb.ProgressUpdate) {
 	s := state[queryid]
 	s.filesMu.Lock()
-	s.filesTotal[backendidx] = int(progress.Filestotal())
-	s.filesProcessed[backendidx] = int(progress.Filesprocessed())
+	s.filesTotal[backendidx] = int(progress.FilesTotal)
+	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
 	s.filesMu.Unlock()
 	allSet := true
-	for i := 0; i < len(backends); i++ {
+	for i := 0; i < len(common.SourceBackendStubs); i++ {
 		if s.filesTotal[i] == -1 {
 			log.Printf("total number for backend %d missing\n", i)
 			allSet = false
@@ -786,7 +765,7 @@ func storeProgress(queryid string, backendidx int, progress proto.ProgressUpdate
 	}
 
 	if allSet {
-		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", queryid, backendidx, progress.Filesprocessed(), progress.Filestotal())
+		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
 		addEventMarshal(queryid, &ProgressUpdate{
 			Type:           "progress",
 			QueryId:        queryid,
@@ -798,7 +777,7 @@ func storeProgress(queryid string, backendidx int, progress proto.ProgressUpdate
 			finishQuery(queryid)
 		}
 	} else {
-		log.Printf("[%s] [src:%d] progress: %d of %d\n", queryid, backendidx, progress.Filesprocessed(), progress.Filestotal())
+		log.Printf("[%s] [src:%d] progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
 	}
 }
 

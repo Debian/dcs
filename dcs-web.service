@@ -6,8 +6,10 @@ After=postgresql.service
 
 [Service]
 ExecStart=/usr/bin/dcs-web \
-	-template_pattern=/usr/share/dcs/templates/* \
-	-index_backends=localhost:29080,localhost:29081,localhost:29082,localhost:29083,localhost:29084,localhost:29085
+  -template_pattern=/usr/share/dcs/templates/* \
+  -index_backends=localhost:29080,localhost:29081,localhost:29082,localhost:29083,localhost:29084,localhost:29085 \
+  -tls_cert_path=/usr/share/dcs/prod-cert.pem \
+  -tls_key_path=/usr/share/dcs/prod-key.pem
 
 [Install]
 WantedBy=multi-user.target

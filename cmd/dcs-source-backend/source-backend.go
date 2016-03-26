@@ -2,13 +2,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,22 +16,19 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/proto"
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
-
-	capn "github.com/glycerine/go-capnproto"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 var (
-	listenAddress          = flag.String("listen_address", ":28082", "listen address ([host]:port)")
-	listenAddressStreaming = flag.String("listen_address_streaming", ":26082", "listen address for streaming queries using capnproto ([host]:port)")
-	unpackedPath           = flag.String("unpacked_path",
+	listenAddress = flag.String("listen_address", ":28082", "listen address ([host]:port)")
+	unpackedPath  = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
 		"Path to the unpacked sources")
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
@@ -49,28 +44,26 @@ type SourceReply struct {
 	AllMatches []regexp.Match
 }
 
-// Serves a single file for displaying it in /show
-func File(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	filename := r.Form.Get("file")
+type server struct {
+}
 
-	log.Printf("requested filename *%s*\n", filename)
+// Serves a single file for displaying it in /show
+func (s *server) File(ctx context.Context, in *proto.FileRequest) (*proto.FileReply, error) {
+	log.Printf("requested filename *%s*\n", in.Path)
 	// path.Join calls path.Clean so we get the shortest path without any "..".
-	absPath := path.Join(*unpackedPath, filename)
+	absPath := path.Join(*unpackedPath, in.Path)
 	log.Printf("clean, absolute path is *%s*\n", absPath)
 	if !strings.HasPrefix(absPath, *unpackedPath) {
-		http.Error(w, "Path traversal is bad, mhkay?", http.StatusForbidden)
-		return
+		return nil, fmt.Errorf("Path traversal is bad, mhkay?")
 	}
 
-	file, err := os.Open(absPath)
+	contents, err := ioutil.ReadFile(absPath)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`Could not open file "%s"`, absPath), http.StatusNotFound)
-		return
+		return nil, err
 	}
-	defer file.Close()
-
-	io.Copy(w, file)
+	return &proto.FileReply{
+		Contents: contents,
+	}, nil
 }
 
 func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.ResultPath {
@@ -174,51 +167,34 @@ func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 	return files
 }
 
-func sendProgressUpdate(conn net.Conn, connMu *sync.Mutex, filesProcessed, filesTotal int) (int64, error) {
-	seg := capn.NewBuffer(nil)
-	z := proto.NewRootZ(seg)
-	p := proto.NewProgressUpdate(seg)
-	p.SetFilesprocessed(uint64(filesProcessed))
-	p.SetFilestotal(uint64(filesTotal))
-	z.SetProgressupdate(p)
+func sendProgressUpdate(stream proto.SourceBackend_SearchServer, connMu *sync.Mutex, filesProcessed, filesTotal int) error {
 	connMu.Lock()
 	defer connMu.Unlock()
-	return seg.WriteToPacked(conn)
+	return stream.Send(&proto.SearchReply{
+		Type: proto.SearchReply_PROGRESS_UPDATE,
+		ProgressUpdate: &proto.ProgressUpdate{
+			FilesProcessed: uint64(filesProcessed),
+			FilesTotal:     uint64(filesTotal),
+		},
+	})
 }
 
 // Reads a single JSON request from the TCP connection, performs the search and
 // sends results back over the TCP connection as they appear.
-func streamingQuery(conn net.Conn) {
-	defer conn.Close()
+func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_SearchServer) error {
 	connMu := new(sync.Mutex)
-	logprefix := fmt.Sprintf("[%s]", conn.RemoteAddr().String())
-
-	type sourceRequest struct {
-		Query string
-		// Rewritten URL (after RewriteQuery()) with all the parameters that
-		// are relevant for ranking.
-		URL string
-	}
-
-	var r sourceRequest
-	if err := json.NewDecoder(conn).Decode(&r); err != nil {
-		log.Printf("%s Could not parse JSON request: %v\n", logprefix, err)
-		return
-	}
-
-	logprefix = fmt.Sprintf("%s [%q]", logprefix, r.Query)
+	logprefix := fmt.Sprintf("[%q]", in.Query)
 
 	// Ask the local index backend for all the filenames.
-	resp, err := indexBackend.Files(context.Background(), &proto.FilesRequest{Query: r.Query})
+	resp, err := indexBackend.Files(context.Background(), &proto.FilesRequest{Query: in.Query})
 	if err != nil {
-		log.Printf("%s Error querying index backend for query %q: %v\n", logprefix, r.Query, err)
-		return
+		return fmt.Errorf("%s Error querying index backend for query %q: %v\n", logprefix, in.Query, err)
 	}
 
 	// Parse the (rewritten) URL to extract all ranking options/keywords.
-	rewritten, err := url.Parse(r.URL)
+	rewritten, err := url.Parse(in.RewrittenUrl)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
 
@@ -240,19 +216,17 @@ func streamingQuery(conn net.Conn) {
 	// sorting the list of potential files first.
 	sort.Sort(files)
 
-	re, err := regexp.Compile(r.Query)
+	re, err := regexp.Compile(in.Query)
 	if err != nil {
-		log.Printf("%s Could not compile regexp: %v\n", logprefix, err)
-		return
+		return fmt.Errorf("%s Could not compile regexp: %v\n", logprefix, err)
 	}
 
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
 
 	// Send the first progress update so that clients know how many files are
 	// going to be searched.
-	if _, err := sendProgressUpdate(conn, connMu, 0, len(files)); err != nil {
-		log.Printf("%s %v\n", logprefix, err)
-		return
+	if err := sendProgressUpdate(stream, connMu, 0, len(files)); err != nil {
+		return fmt.Errorf("%s %v\n", logprefix, err)
 	}
 
 	// The tricky part here is “flow control”: if we just start grepping like
@@ -289,7 +263,7 @@ func streamingQuery(conn net.Conn) {
 			cnt += add
 
 			if time.Since(lastProgressUpdate) > progressInterval {
-				if _, err := sendProgressUpdate(conn, connMu, cnt, len(files)); err != nil {
+				if err := sendProgressUpdate(stream, connMu, cnt, len(files)); err != nil {
 					if !errorShown {
 						log.Printf("%s %v\n", logprefix, err)
 						// We need to read the 'progress' channel, so we cannot
@@ -302,7 +276,7 @@ func streamingQuery(conn net.Conn) {
 			}
 		}
 
-		if _, err := sendProgressUpdate(conn, connMu, len(files), len(files)); err != nil {
+		if err := sendProgressUpdate(stream, connMu, len(files), len(files)); err != nil {
 			log.Printf("%s %v\n", logprefix, err)
 		}
 		close(progress)
@@ -310,7 +284,7 @@ func streamingQuery(conn net.Conn) {
 		wg.Done()
 	}()
 
-	querystr := ranking.NewQueryStr(r.Query)
+	querystr := ranking.NewQueryStr(in.Query)
 
 	numWorkers := 1000
 	if len(files) < 1000 {
@@ -318,7 +292,7 @@ func streamingQuery(conn net.Conn) {
 	}
 	for i := 0; i < numWorkers; i++ {
 		go func() {
-			re, err := regexp.Compile(r.Query)
+			re, err := regexp.Compile(in.Query)
 			if err != nil {
 				log.Printf("%s\n", err)
 				return
@@ -353,24 +327,25 @@ func streamingQuery(conn net.Conn) {
 					// cmd/dcs-web/querymanager because it depends on at least
 					// one other result.
 
-					// TODO: ideally, we’d get capn buffers from grep.File(), let’s do that after profiling the decoding performance
-					seg := capn.NewBuffer(nil)
-					z := proto.NewRootZ(seg)
-					m := proto.NewMatch(seg)
-					m.SetPath(match.Path[len(*unpackedPath):])
-					m.SetLine(uint32(match.Line))
-					m.SetPackage(m.Path()[:strings.Index(m.Path(), "/")])
-					m.SetCtxp2(match.Ctxp2)
-					m.SetCtxp1(match.Ctxp1)
-					m.SetContext(match.Context)
-					m.SetCtxn1(match.Ctxn1)
-					m.SetCtxn2(match.Ctxn2)
-					m.SetPathrank(match.PathRank)
-					m.SetRanking(match.Ranking)
-					z.SetMatch(m)
+					// TODO: ideally, we’d get proto.Match structs from grep.File(), let’s do that after profiling the decoding performance
 
+					path := match.Path[len(*unpackedPath):]
 					connMu.Lock()
-					if _, err := seg.WriteToPacked(conn); err != nil {
+					if err := stream.Send(&proto.SearchReply{
+						Type: proto.SearchReply_MATCH,
+						Match: &proto.Match{
+							Path:     path,
+							Line:     uint32(match.Line),
+							Package:  path[:strings.Index(path, "/")],
+							Ctxp2:    match.Ctxp2,
+							Ctxp1:    match.Ctxp1,
+							Context:  match.Context,
+							Ctxn1:    match.Ctxn1,
+							Ctxn2:    match.Ctxn2,
+							Pathrank: match.PathRank,
+							Ranking:  match.Ranking,
+						},
+					}); err != nil {
 						connMu.Unlock()
 						log.Printf("%s %v\n", logprefix, err)
 						// Drain the work channel, but without doing any work.
@@ -393,6 +368,7 @@ func streamingQuery(conn net.Conn) {
 	wg.Wait()
 
 	log.Printf("%s Sent all results.\n", logprefix)
+	return nil
 }
 
 func main() {
@@ -407,23 +383,11 @@ func main() {
 	defer conn.Close()
 	indexBackend = proto.NewIndexBackendClient(conn)
 
-	listener, err := net.Listen("tcp", *listenAddressStreaming)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				log.Fatalf("Error accepting session: %v", err)
-			}
-
-			go streamingQuery(conn)
-		}
-	}()
-
-	http.HandleFunc("/file", File)
 	http.Handle("/metrics", prometheus.Handler())
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+		*tlsCertPath,
+		*tlsKeyPath,
+		func(s *grpc.Server) {
+			proto.RegisterSourceBackendServer(s, &server{})
+		}))
 }

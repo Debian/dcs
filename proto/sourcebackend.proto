@@ -1,0 +1,65 @@
+// vim:ts=2:sw=2:et
+syntax = "proto3";
+
+package proto;
+
+message FileRequest {
+  string path = 1;
+}
+
+message FileReply {
+  bytes contents = 1;
+}
+
+message SearchRequest {
+  string query = 1;
+
+  // Rewritten URL (after RewriteQuery()) with all the parameters that
+  // are relevant for ranking.
+  string rewritten_url = 2;
+}
+
+message Match {
+  string path = 1;
+  uint32 line = 2;
+
+  // Contents of line-2.
+  string ctxp2 = 3;
+  // Contents of line-1.
+  string ctxp1 = 4;
+  // Contents of the line containing the match.
+  string context = 5;
+  // Contents of line+1.
+  string ctxn1 = 6;
+  // Contents of line+2.
+  string ctxn2 = 7;
+
+  float pathrank = 8;
+  float ranking = 9;
+  string package = 10;
+}
+
+message ProgressUpdate {
+  uint64 files_processed = 1;
+  uint64 files_total = 2;
+}
+
+message SearchReply {
+  enum Type {
+    MATCH = 0;
+    PROGRESS_UPDATE = 1;
+  }
+  Type type = 1;
+
+  Match match = 2;
+  ProgressUpdate progress_update = 3;
+}
+
+// SourceBackend searches/displays source files.
+service SourceBackend {
+  // File reads the file and returns its contents.
+  rpc File(FileRequest) returns (FileReply) {}
+
+  // Search performs the given query and streams matches/progress updates.
+  rpc Search(SearchRequest) returns (stream SearchReply) {}
+}

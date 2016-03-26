@@ -3,14 +3,16 @@ package show
 
 import (
 	"fmt"
-	"github.com/Debian/dcs/cmd/dcs-web/common"
-	"github.com/Debian/dcs/cmd/dcs-web/health"
-	"github.com/Debian/dcs/shardmapping"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/cmd/dcs-web/health"
+	"github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/shardmapping"
+	"golang.org/x/net/context"
 )
 
 func Show(w http.ResponseWriter, r *http.Request) {
@@ -38,31 +40,12 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pkg := filename[:idx]
-	shards := strings.Split(*common.SourceBackends, ",")
-	shard := shards[shardmapping.TaskIdxForPackage(pkg, len(shards))]
-
-	queryCopy := query
-	queryCopy.Scheme = "http"
-	queryCopy.Host = shard
-	queryCopy.Path = "/file"
-
-	log.Printf("Asking source backend: %s\n", queryCopy.String())
-	resp, err := http.Get(queryCopy.String())
+	shard := common.SourceBackendStubs[shardmapping.TaskIdxForPackage(pkg, len(common.SourceBackendStubs))]
+	resp, err := shard.File(context.Background(), &proto.FileRequest{
+		Path: filename,
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	contents, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("%v\n", err)
-		return
-	}
-
-	if resp.StatusCode != 200 {
-		// relay the source backend error
-		http.Error(w, string(contents), resp.StatusCode)
 		return
 	}
 
@@ -73,7 +56,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	// yields a string whose successive bytes are the elements of the slice.".
 	// We don’t iterate over this string, we just pass it directly to the
 	// user’s browser, which can then deal with the bytes :-).
-	lines := strings.Split(string(contents), "\n")
+	lines := strings.Split(string(resp.Contents), "\n")
 	highestLineNr := fmt.Sprintf("%d", len(lines))
 
 	// Since Go templates don’t offer any way to use {{$idx+1}}, we need to

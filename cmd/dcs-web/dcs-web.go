@@ -227,7 +227,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 
-	common.LoadTemplates()
+	common.Init()
 
 	if *accessLogPath != "" {
 		var err error
