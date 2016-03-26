@@ -220,7 +220,8 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 		})
 	}()
 
-	stream, err := backend.Search(context.Background(), searchRequest)
+	ctx, cancelfunc := context.WithCancel(context.Background())
+	stream, err := backend.Search(ctx, searchRequest)
 	if err != nil {
 		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", err)
 		return
@@ -229,6 +230,7 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 	bstate := state[queryid].perBackend[backendidx]
 	tempFileWriter := bstate.tempFileWriter
 	buf := proto.NewBuffer(nil)
+	orderlyFinished := false
 
 	for !state[queryid].done {
 		msg, err := stream.Recv()
@@ -256,11 +258,23 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 			storeResult(queryid, backendidx, msg.Match, len(buf.Bytes()))
 		case pb.SearchReply_PROGRESS_UPDATE:
 			storeProgress(queryid, backendidx, msg.ProgressUpdate)
+			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
 		}
 
 		bstate.tempFileOffset += int64(len(buf.Bytes()))
 	}
 
+	// Drain the stream: the above loop might finish early (when the query is cancelled)
+	if orderlyFinished {
+		// We got everything we need, but we need to try receiving one more
+		// message to make gRPC realize the streaming RPC is finished (by
+		// reading an EOF).
+		stream.Recv()
+	} else {
+		// The query was cancelled before it could complete, so cancel the
+		// stream as well.
+		cancelfunc()
+	}
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
 }
 
