@@ -2,7 +2,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -13,38 +12,47 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/proto"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/google/codesearch/regexp"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/net/context"
+	_ "golang.org/x/net/trace"
+	"google.golang.org/grpc"
 )
 
 var (
 	listenAddress = flag.String("listen_address", ":28081", "listen address ([host]:port)")
 	indexPath     = flag.String("index_path", "", "path to the index shard to serve, e.g. /dcs-ssd/index.0.idx")
 	cpuProfile    = flag.String("cpuprofile", "", "write cpu profile to this file")
+	tlsCertPath   = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
+	tlsKeyPath    = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
+)
 
+type server struct {
 	id      string
 	ix      *index.Index
 	ixMutex sync.Mutex
-)
+}
 
 // doPostingQuery runs the actual query. This code is in a separate function so
 // that we can use defer (to be safe against panics in the index querying code)
 // and still don’t hold the mutex for longer than we need to.
-func doPostingQuery(query *index.Query) []string {
-	ixMutex.Lock()
-	defer ixMutex.Unlock()
+func (s *server) doPostingQuery(query *index.Query) []string {
+	s.ixMutex.Lock()
+	defer s.ixMutex.Unlock()
 	t0 := time.Now()
-	post := ix.PostingQuery(query)
+	post := s.ix.PostingQuery(query)
 	t1 := time.Now()
-	fmt.Printf("[%s] postingquery done in %v, %d results\n", id, t1.Sub(t0), len(post))
+	fmt.Printf("[%s] postingquery done in %v, %d results\n", s.id, t1.Sub(t0), len(post))
 	files := make([]string, len(post))
 	for idx, fileid := range post {
-		files[idx] = ix.Name(fileid)
+		files[idx] = s.ix.Name(fileid)
 	}
 	t2 := time.Now()
-	fmt.Printf("[%s] filenames collected in %v\n", id, t2.Sub(t1))
+	fmt.Printf("[%s] filenames collected in %v\n", s.id, t2.Sub(t1))
 	return files
 }
 
@@ -53,7 +61,7 @@ func doPostingQuery(query *index.Query) []string {
 // list of matching filenames in a JSON array.
 // TODO: This doesn’t handle file name regular expressions at all yet.
 // TODO: errors aren’t properly signaled to the requester
-func Index(w http.ResponseWriter, r *http.Request) {
+func (s *server) Files(ctx context.Context, in *proto.FilesRequest) (*proto.FilesReply, error) {
 	if *cpuProfile != "" {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
@@ -64,28 +72,19 @@ func Index(w http.ResponseWriter, r *http.Request) {
 		defer pprof.StopCPUProfile()
 	}
 
-	r.ParseForm()
-	textQuery := r.Form.Get("q")
-	re, err := regexp.Compile(textQuery)
+	re, err := regexp.Compile(in.Query)
 	if err != nil {
-		log.Printf("regexp.Compile: %s\n", err)
-		return
+		return nil, fmt.Errorf("regexp.Compile: %s\n", err)
 	}
 	query := index.RegexpQuery(re.Syntax)
-	log.Printf("[%s] query: text = %s, regexp = %s\n", id, textQuery, query)
-	files := doPostingQuery(query)
-	t2 := time.Now()
-	if err := json.NewEncoder(w).Encode(files); err != nil {
-		log.Printf("%s\n", err)
-		return
-	}
-	t3 := time.Now()
-	fmt.Printf("[%s] written in %v\n", id, t3.Sub(t2))
+	log.Printf("[%s] query: text = %s, regexp = %s\n", s.id, in.Query, query)
+	return &proto.FilesReply{
+		Path: s.doPostingQuery(query),
+	}, nil
 }
 
-func Replace(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	newShard := r.Form.Get("shard")
+func (s *server) ReplaceIndex(ctx context.Context, in *proto.ReplaceIndexRequest) (*proto.ReplaceIndexReply, error) {
+	newShard := in.ReplacementPath
 
 	file, err := os.Open(filepath.Dir(*indexPath))
 	if err != nil {
@@ -102,11 +101,11 @@ func Replace(w http.ResponseWriter, r *http.Request) {
 			newShard = filepath.Join(filepath.Dir(*indexPath), name)
 			// We verified the given argument refers to an index shard within
 			// this directory, so let’s load this shard.
-			oldIndex := ix
+			oldIndex := s.ix
 			log.Printf("Trying to load %q\n", newShard)
-			ixMutex.Lock()
-			ix = index.Open(newShard)
-			ixMutex.Unlock()
+			s.ixMutex.Lock()
+			s.ix = index.Open(newShard)
+			s.ixMutex.Unlock()
 			// Overwrite the old full shard with the new one. This is necessary
 			// so that the state is persistent across restarts and has the nice
 			// side-effect of cleaning up the old full shard.
@@ -114,11 +113,11 @@ func Replace(w http.ResponseWriter, r *http.Request) {
 				log.Fatal(err)
 			}
 			oldIndex.Close()
-			return
+			return &proto.ReplaceIndexReply{}, nil
 		}
 	}
 
-	http.Error(w, "No such shard.", http.StatusInternalServerError)
+	return nil, fmt.Errorf("No such shard.")
 }
 
 func main() {
@@ -128,11 +127,15 @@ func main() {
 	}
 	fmt.Println("Debian Code Search index-backend")
 
-	id = filepath.Base(*indexPath)
-	ix = index.Open(*indexPath)
-
-	http.HandleFunc("/index", Index)
-	http.HandleFunc("/replace", Replace)
 	http.Handle("/metrics", prometheus.Handler())
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+
+	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+		*tlsCertPath,
+		*tlsKeyPath,
+		func(s *grpc.Server) {
+			proto.RegisterIndexBackendServer(s, &server{
+				id: filepath.Base(*indexPath),
+				ix: index.Open(*indexPath),
+			})
+		}))
 }

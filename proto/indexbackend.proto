@@ -1,0 +1,36 @@
+// vim:ts=2:sw=2:et
+syntax = "proto3";
+
+package proto;
+
+message FilesRequest {
+  // Text query (e.g. “i3Font”) which will be translated into a trigram query
+  // (e.g. "3Fo" "Fon" "i3F" "ont").
+  string query = 1;
+}
+
+message FilesReply {
+  // A list of paths which match the requested trigram query (likely to match
+  // the regular expression from which the trigram query was derived, but can
+  // contain false positives).
+  repeated string path = 1;
+}
+
+message ReplaceIndexRequest {
+  string replacement_path = 1;
+}
+
+message ReplaceIndexReply {
+}
+
+// IndexBackend allows querying a trigram index.
+service IndexBackend {
+  // Files returns a list of files which match the specified query in the
+  // trigram index.
+  rpc Files(FilesRequest) returns (FilesReply) {}
+
+  // Replaces the loaded index with the specified replacement index. On a file
+  // system level, the specified file is mv'ed to the file specified by
+  // -index_path.
+  rpc ReplaceIndex(ReplaceIndexRequest) returns (ReplaceIndexReply) {}
+}

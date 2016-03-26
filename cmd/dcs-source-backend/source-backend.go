@@ -18,6 +18,9 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
+
+	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/proto"
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
@@ -33,6 +36,10 @@ var (
 	unpackedPath           = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
 		"Path to the unpacked sources")
+	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
+	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
+
+	indexBackend proto.IndexBackendClient
 )
 
 type SourceReply struct {
@@ -167,31 +174,6 @@ func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 	return files
 }
 
-func queryIndexBackend(query string) ([]string, error) {
-	var filenames []string
-	u, err := url.Parse("http://localhost:28081/index")
-	if err != nil {
-		return filenames, err
-	}
-	q := u.Query()
-	q.Set("q", query)
-	u.RawQuery = q.Encode()
-	resp, err := http.Get(u.String())
-	if err != nil {
-		return filenames, err
-	}
-
-	if resp.StatusCode != 200 {
-		return filenames, fmt.Errorf("Expected HTTP 200, got %q", resp.Status)
-	}
-	defer resp.Body.Close()
-	if err := json.NewDecoder(resp.Body).Decode(&filenames); err != nil {
-		return filenames, err
-	}
-
-	return filenames, nil
-}
-
 func sendProgressUpdate(conn net.Conn, connMu *sync.Mutex, filesProcessed, filesTotal int) (int64, error) {
 	seg := capn.NewBuffer(nil)
 	z := proto.NewRootZ(seg)
@@ -227,7 +209,7 @@ func streamingQuery(conn net.Conn) {
 	logprefix = fmt.Sprintf("%s [%q]", logprefix, r.Query)
 
 	// Ask the local index backend for all the filenames.
-	filenames, err := queryIndexBackend(r.Query)
+	resp, err := indexBackend.Files(context.Background(), &proto.FilesRequest{Query: r.Query})
 	if err != nil {
 		log.Printf("%s Error querying index backend for query %q: %v\n", logprefix, r.Query, err)
 		return
@@ -241,8 +223,8 @@ func streamingQuery(conn net.Conn) {
 	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
 
 	// Rank all the paths.
-	files := make(ranking.ResultPaths, 0, len(filenames))
-	for _, filename := range filenames {
+	files := make(ranking.ResultPaths, 0, len(resp.Path))
+	for _, filename := range resp.Path {
 		result := ranking.ResultPath{Path: filename}
 		result.Rank(&rankingopts)
 		if result.Ranking > -1 {
@@ -417,6 +399,13 @@ func main() {
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Debian Code Search source-backend")
+
+	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath)
+	if err != nil {
+		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
+	}
+	defer conn.Close()
+	indexBackend = proto.NewIndexBackendClient(conn)
 
 	listener, err := net.Listen("tcp", *listenAddressStreaming)
 	if err != nil {
