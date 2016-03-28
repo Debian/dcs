@@ -3,59 +3,31 @@ package main
 
 import (
 	"compress/gzip"
-	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
-	_ "github.com/lib/pq"
 	"github.com/stapelberg/godebiancontrol"
 )
 
-var mirrorUrl = flag.String("mirror_url",
-	"http://ftp.ch.debian.org/debian/",
-	"URL to the debian mirror to use")
-var dryRun = flag.Bool("dry_run", false, "Don’t actually write anything to the database.")
-var verbose = flag.Bool("verbose", false, "Print ranking information about every package")
-var popconInstSrc map[string]float32 = make(map[string]float32)
+var (
+	mirrorUrl = flag.String("mirror_url",
+		"http://httpredir.debian.org/debian",
+		"URL to the debian mirror to use")
 
-// Fills popconInstSrc from the Ultimate Debian Database (udd). The popcon
-// installation count is stored normalized by dividing through the total amount
-// of popcon installations.
-func fillPopconInst() {
-	db, err := sql.Open("postgres", "dbname=udd host=/var/run/postgresql/ sslmode=disable")
-	if err != nil {
-		log.Fatal(err)
-	}
+	verbose = flag.Bool("verbose",
+		false,
+		"Print ranking information about every package")
 
-	var totalInstallations int
-	var packageName string
-	var installations int
-	err = db.QueryRow("SELECT SUM(insts) FROM popcon").Scan(&totalInstallations)
-	if err != nil {
-		log.Fatalf("Could not get SUM(insts) FROM popcon: %v", err)
-	}
-
-	if *verbose {
-		log.Printf("total %d installations", totalInstallations)
-	}
-
-	rows, err := db.Query("SELECT source, insts FROM popcon_src")
-	if err != nil {
-		log.Fatal(err)
-	}
-	for rows.Next() {
-		if err = rows.Scan(&packageName, &installations); err != nil {
-			log.Fatal(err)
-		}
-
-		// XXX: We multiply 1000 here because all values are < 0.0009.
-		popconInstSrc[packageName] = (float32(installations) / float32(totalInstallations)) * 1000
-	}
-
-}
+	outputPath = flag.String("output_path",
+		"/var/dcs/ranking.json",
+		"Path to store the resulting ranking JSON data at. Will be overwritten atomically using rename(2), which also implies that TMPDIR= must point to a directory on the same file system as -output_path.")
+)
 
 func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
 	url := fmt.Sprintf("%s/dists/sid/main/%s", *mirrorUrl, name)
@@ -83,27 +55,22 @@ func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
 func main() {
 	flag.Parse()
 
-	fillPopconInst()
-
-	db, err := sql.Open("postgres", "dbname=dcs host=/var/run/postgresql/ sslmode=disable")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	insert, err := db.Prepare("INSERT INTO pkg_ranking (package, popcon, rdepends) VALUES ($1, $2, $3)")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer insert.Close()
-
-	update, err := db.Prepare("UPDATE pkg_ranking SET popcon = $2, rdepends = $3 WHERE package = $1")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer update.Close()
-
 	sourcePackages := mustLoadMirroredControlFile("source/Sources.gz")
 	binaryPackages := mustLoadMirroredControlFile("binary-amd64/Packages.gz")
+
+	popconInstSrc, err := popconInstallations(binaryPackages)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Normalize the installation count.
+	var totalInstallations float32
+	for _, insts := range popconInstSrc {
+		totalInstallations += insts
+	}
+	for srcpkg, insts := range popconInstSrc {
+		// We multiply 1000 here because all values are < 0.0009.
+		popconInstSrc[srcpkg] = (insts / totalInstallations) * 1000
+	}
 
 	reverseDeps := make(map[string]uint)
 	for _, pkg := range binaryPackages {
@@ -128,6 +95,12 @@ func main() {
 		}
 	}
 
+	type storedRanking struct {
+		Inst float32
+		Rdep float32
+	}
+	rankings := make(map[string]storedRanking)
+
 	for _, pkg := range sourcePackages {
 		rdepcount := float32(0)
 		for _, packageName := range strings.Split(pkg["Binary"], ",") {
@@ -143,19 +116,23 @@ func main() {
 		if *verbose {
 			fmt.Printf("%f %f %s\n", packageRank, rdepcount, srcpkg)
 		}
-		if *dryRun {
-			continue
-		}
-		result, err := update.Exec(srcpkg, packageRank, rdepcount)
-		affected := int64(0)
-		// The UPDATE succeeded, but let’s see whether it affected a row.
-		if err == nil {
-			affected, err = result.RowsAffected()
-		}
-		if err != nil || affected == 0 {
-			if _, err = insert.Exec(srcpkg, packageRank, rdepcount); err != nil {
-				log.Fatal(err)
-			}
-		}
+		rankings[srcpkg] = storedRanking{packageRank, rdepcount}
+	}
+
+	f, err := ioutil.TempFile("", "dcs-compute-ranking")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := json.NewEncoder(f).Encode(rankings); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := f.Close(); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := os.Rename(f.Name(), *outputPath); err != nil {
+		log.Fatal(err)
 	}
 }

@@ -2,14 +2,8 @@
 
 [Unit]
 Description=Debian Code Search: update ranking
-After=postgresql.service
 
 [Service]
 Restart=no
 Type=oneshot
-ExecStart=/usr/bin/wget -q http://udd.debian.org/udd-popcon.sql.xz -O /tmp/popcon.sql.xz
-ExecStart=/bin/sh -c "echo 'DROP TABLE popcon; DROP TABLE popcon_src;' | psql udd"
-ExecStart=/bin/sh -c "xz -d -c /tmp/popcon.sql.xz | psql udd"
-ExecStart=/bin/sh -c "psql dcs < /usr/share/dcs/schema.sql"
-ExecStart=/usr/bin/dcs-compute-ranking \
-	-mirror_url=http://http.debian.net/debian
+ExecStart=/usr/bin/dcs-compute-ranking
