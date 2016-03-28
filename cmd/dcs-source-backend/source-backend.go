@@ -379,6 +379,9 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 func main() {
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
+	if !strings.HasSuffix(*unpackedPath, "/") {
+		*unpackedPath = *unpackedPath + "/"
+	}
 	fmt.Println("Debian Code Search source-backend")
 
 	if err := ranking.ReadRankingData(*rankingDataPath); err != nil {
