@@ -11,7 +11,9 @@
 package ranking
 
 import (
+	"encoding/json"
 	"log"
+	"os"
 	"path"
 	"strings"
 )
@@ -19,21 +21,24 @@ import (
 // Represents an entry from our ranking database (determined by using the
 // meta information about source packages).
 type StoredRanking struct {
-	inst float32
-	rdep float32
+	Inst float32
+	Rdep float32
 }
 
 // Consumes a few hundred kilobytes of memory
 // ((sizeof(StoredRanking) = 8) * ≈ 17000).
 var storedRanking = make(map[string]StoredRanking)
 
-// Open a database connection and read in all the rankings. The amount of
-// rankings is in the tens of thousands (currently ≈ 17000) and it saves us
-// *a lot* of time when ranking queries which have many possible results (such
-// as "smart" with 201043 possible results).
-func init() {
-
-	ReadDB(storedRanking)
+// ReadRankingData reads the pre-computed rankings from |path|. It must be
+// called before ResultPath.Rank() is called, otherwise Rank() won’t return
+// meaningful results.
+func ReadRankingData(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return json.NewDecoder(f).Decode(&storedRanking)
 }
 
 // The regular expression trigram index provides us a path to a potential
@@ -68,10 +73,10 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 	ranking := storedRanking[sourcePackage]
 	rp.Ranking = 1
 	if opts.Inst {
-		rp.Ranking += ranking.inst
+		rp.Ranking += ranking.Inst
 	}
 	if opts.Rdep {
-		rp.Ranking += ranking.rdep
+		rp.Ranking += ranking.Rdep
 	}
 	if (opts.Filetype || opts.Weighted) && len(opts.Suffixes) > 0 {
 		suffix := strings.ToLower(path.Ext(rp.Path))
@@ -91,8 +96,8 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 		}
 	}
 	if opts.Weighted {
-		rp.Ranking += 0.3840 * ranking.inst
-		rp.Ranking += 0.3427 * ranking.rdep
+		rp.Ranking += 0.3840 * ranking.Inst
+		rp.Ranking += 0.3427 * ranking.Rdep
 	}
 }
 

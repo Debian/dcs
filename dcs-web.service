@@ -2,7 +2,6 @@
 
 [Unit]
 Description=Debian Code Search: web frontend
-After=postgresql.service
 
 [Service]
 ExecStart=/usr/bin/dcs-web \

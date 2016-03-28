@@ -33,6 +33,9 @@ var (
 	unpackedPath  = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
 		"Path to the unpacked sources")
+	rankingDataPath = flag.String("ranking_data_path",
+		"/var/dcs/ranking.json",
+		"Path to the JSON containing ranking data")
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 
@@ -377,6 +380,10 @@ func main() {
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 	fmt.Println("Debian Code Search source-backend")
+
+	if err := ranking.ReadRankingData(*rankingDataPath); err != nil {
+		log.Fatal(err)
+	}
 
 	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath)
 	if err != nil {
