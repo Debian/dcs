@@ -20,9 +20,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/proto"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/net/context"
+	_ "golang.org/x/net/trace"
 )
 
 var (
@@ -90,6 +94,11 @@ var (
 			Name: "index_files",
 			Help: "Number of files in the index.",
 		})
+
+	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
+	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
+
+	indexBackend proto.IndexBackendClient
 )
 
 func init() {
@@ -310,15 +319,8 @@ func mergeToShard() {
 	successfulMerges.Inc()
 
 	// Replace the current index with the newly created index.
-	resp, err := http.Get(fmt.Sprintf("http://localhost:28081/replace?shard=%s", filepath.Base(tmpIndexPath.Name())))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(resp.Body)
-		log.Fatalf("dcs-index-backend /replace response: %+v (body: %s)\n", resp, body)
+	if _, err := indexBackend.ReplaceIndex(context.Background(), &proto.ReplaceIndexRequest{ReplacementPath: filepath.Base(tmpIndexPath.Name())}); err != nil {
+		log.Fatalf("dcs-index-backend ReplaceIndex failed: %v", err)
 	}
 }
 
@@ -466,6 +468,13 @@ func main() {
 			mergeToShard()
 		}
 	}()
+
+	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath)
+	if err != nil {
+		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
+	}
+	defer conn.Close()
+	indexBackend = proto.NewIndexBackendClient(conn)
 
 	http.HandleFunc("/import/", importPackage)
 	http.HandleFunc("/merge", mergeOrError)

@@ -7,7 +7,9 @@ Description=Debian Code Search: package importer
 # Increase the maximum number of file descriptors since we need to open a
 # couple thousand index files when merging them together into a big shard.
 LimitNOFILE=8192
-ExecStart=/usr/bin/dcs-package-importer
+ExecStart=/usr/bin/dcs-package-importer \
+  -tls_cert_path=/usr/share/dcs/prod-cert.pem \
+  -tls_key_path=/usr/share/dcs/prod-key.pem
 
 [Install]
 WantedBy=multi-user.target
