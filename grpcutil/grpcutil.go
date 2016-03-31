@@ -4,6 +4,7 @@ package grpcutil
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -13,6 +14,12 @@ import (
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+)
+
+var (
+	requireClientAuth = flag.Bool("tls_require_client_auth",
+		true,
+		"Require TLS Client Authentification")
 )
 
 // grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
@@ -82,8 +89,10 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 		return fmt.Errorf("Could not parse %q as PEM file (contents: %q)", certFile, contents)
 	}
 
-	srv.TLSConfig.ClientCAs = roots
-	srv.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	if *requireClientAuth {
+		srv.TLSConfig.ClientCAs = roots
+		srv.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	}
 	srv.TLSConfig.Certificates = make([]tls.Certificate, 1)
 	srv.TLSConfig.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
 	return srv.Serve(tls.NewListener(ln, srv.TLSConfig))

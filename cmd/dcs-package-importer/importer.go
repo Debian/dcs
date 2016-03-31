@@ -266,7 +266,7 @@ func mergeToShard() {
 	filesInIndex.Set(float64(len(indexFiles)))
 
 	log.Printf("Got %d index files\n", len(indexFiles))
-	if len(indexFiles) == 1 {
+	if len(indexFiles) < 2 {
 		return
 	}
 	tmpIndexPath, err := ioutil.TempFile(*unpackedPath, "newshard")
@@ -441,6 +441,10 @@ func main() {
 
 	// Allow as many concurrent unpackAndIndex goroutines as we have cores.
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	if err := os.MkdirAll(*unpackedPath, 0755); err != nil {
+		log.Fatal(err)
+	}
 
 	setupFilters()
 
