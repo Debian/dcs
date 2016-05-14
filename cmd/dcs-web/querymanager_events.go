@@ -102,12 +102,15 @@ func getEvent(queryid string, lastseen int) (event, int) {
 	}
 	state[queryid].newEvent.L.Lock()
 	stateMu.Unlock()
-	for lastseen+1 >= len(state[queryid].events) {
+	for lastseen+1 >= len(s.events) {
 		log.Printf("[%s] lastseen=%d, waiting\n", queryid, lastseen)
-		state[queryid].newEvent.Wait()
+		s.newEvent.Wait()
+		stateMu.Lock()
+		s = state[queryid]
+		stateMu.Unlock()
 	}
-	state[queryid].newEvent.L.Unlock()
-	return state[queryid].events[lastseen+1], lastseen + 1
+	s.newEvent.L.Unlock()
+	return s.events[lastseen+1], lastseen + 1
 }
 
 func queryCompleted(queryid string) bool {
