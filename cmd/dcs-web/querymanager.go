@@ -191,7 +191,7 @@ func (qs *queryState) numResults() int {
 
 var (
 	state   = make(map[string]queryState)
-	stateMu sync.Mutex
+	stateMu sync.RWMutex
 )
 
 func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
@@ -199,11 +199,14 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
 	defer func() {
+		stateMu.RLock()
 		filesTotal := state[queryid].filesTotal[backendidx]
 
 		if state[queryid].filesProcessed[backendidx] == filesTotal {
+			stateMu.RUnlock()
 			return
 		}
+		stateMu.RUnlock()
 
 		if filesTotal == -1 {
 			filesTotal = 0
@@ -227,12 +230,15 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 		return
 	}
 
+	stateMu.RLock()
 	bstate := state[queryid].perBackend[backendidx]
+	stateMu.RUnlock()
 	tempFileWriter := bstate.tempFileWriter
 	buf := proto.NewBuffer(nil)
 	orderlyFinished := false
+	done := false
 
-	for !state[queryid].done {
+	for !done {
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
@@ -262,6 +268,9 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 		}
 
 		bstate.tempFileOffset += int64(len(buf.Bytes()))
+		stateMu.RLock()
+		done = state[queryid].done
+		stateMu.RUnlock()
 	}
 
 	// Drain the stream: the above loop might finish early (when the query is cancelled)
@@ -408,7 +417,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stateMu.Lock()
+	stateMu.RLock()
 	stats := make([]queryStats, len(state))
 	idx := 0
 	for queryid, s := range state {
@@ -431,7 +440,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		idx++
 	}
-	stateMu.Unlock()
+	stateMu.RUnlock()
 
 	sort.Sort(byStarted(stats))
 
@@ -462,9 +471,11 @@ func sendPaginationUpdate(queryid string, s queryState) {
 }
 
 func storeResult(queryid string, backendidx int, result *pb.Match, resultLen int) {
-	// Without acquiring a lock, just check if we need to consider this result
+	// Without acquiring a write lock, just check if we need to consider this result
 	// for the top 10 at all.
+	stateMu.RLock()
 	s := state[queryid]
+	stateMu.RUnlock()
 
 	if s.FirstPathRank > 0 {
 		// Now store the combined ranking of PathRanking (pre) and Ranking (post).
@@ -540,10 +551,13 @@ func failQuery(queryid string) {
 }
 
 func finishQuery(queryid string) {
-	log.Printf("[%s] done (in %v), closing all client channels.\n", queryid, time.Since(state[queryid].started))
+	stateMu.RLock()
+	started := state[queryid].started
+	stateMu.RUnlock()
+	log.Printf("[%s] done (in %v), closing all client channels.\n", queryid, time.Since(started))
 	addEvent(queryid, []byte{}, nil)
 
-	queryDurations.Observe(float64(time.Since(state[queryid].started) / time.Millisecond))
+	queryDurations.Observe(float64(time.Since(started) / time.Millisecond))
 }
 
 type ByModTime []os.FileInfo
@@ -608,10 +622,13 @@ func ensureEnoughSpaceAvailable() {
 }
 
 func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) error {
-	firstPathRank := state[queryid].FirstPathRank
+	stateMu.RLock()
+	s := state[queryid]
+	stateMu.RUnlock()
+	firstPathRank := s.FirstPathRank
 
-	state[queryid].tempFilesMu.Lock()
-	defer state[queryid].tempFilesMu.Unlock()
+	s.tempFilesMu.Lock()
+	defer s.tempFilesMu.Unlock()
 
 	if _, err := f.Write([]byte("[")); err != nil {
 		return err
@@ -619,7 +636,7 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 	var msg pb.SearchReply
 	buf := proto.NewBuffer(nil)
 	for idx, pointer := range pointers {
-		src := state[queryid].perBackend[pointer.backendidx].tempFile
+		src := s.perBackend[pointer.backendidx].tempFile
 		if _, err := src.Seek(pointer.offset, os.SEEK_SET); err != nil {
 			return err
 		}
@@ -747,7 +764,9 @@ func writeToDisk(queryid string) error {
 }
 
 func storeProgress(queryid string, backendidx int, progress *pb.ProgressUpdate) {
+	stateMu.RLock()
 	s := state[queryid]
+	stateMu.RUnlock()
 	s.filesMu.Lock()
 	s.filesTotal[backendidx] = int(progress.FilesTotal)
 	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
@@ -811,7 +830,9 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalf("Could not convert %q into a number: %v\n", matches[2], err)
 	}
+	stateMu.RLock()
 	s, ok := state[queryid]
+	stateMu.RUnlock()
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
@@ -819,10 +840,13 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.done {
 		started := time.Now()
 		for time.Since(started) < 60*time.Second {
+			stateMu.RLock()
 			if state[queryid].done {
 				s = state[queryid]
+				stateMu.RUnlock()
 				break
 			}
+			stateMu.RUnlock()
 			time.Sleep(100 * time.Millisecond)
 		}
 		if !s.done {
