@@ -155,6 +155,9 @@ func myPostingAnd(data []byte, count int, list []uint32, restrict []uint32) []ui
 }
 
 func myPostingOr(data []byte, count int, list []uint32, restrict []uint32) []uint32 {
+	if len(list)+count == 0 {
+		return nil
+	}
 	// reverse enough space to hold it all, we truncate later
 	result := make([]uint32, len(list)+count)
 	var dataptr *C.uint8_t
