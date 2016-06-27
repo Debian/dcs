@@ -334,6 +334,8 @@ func main() {
 	if err := launchInBackground(
 		"dcs-package-importer",
 		"-varz_avail_fs=",
+		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
+		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
 		"-unpacked_path="+*unpackedPath,
 		"-listen_address="+*listenPackageImporter); err != nil {
 		log.Fatal(err.Error())
