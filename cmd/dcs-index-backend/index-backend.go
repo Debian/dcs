@@ -20,7 +20,6 @@ import (
 	"github.com/google/codesearch/regexp"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
-	_ "golang.org/x/net/trace"
 	"google.golang.org/grpc"
 )
 

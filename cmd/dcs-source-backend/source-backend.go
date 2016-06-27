@@ -24,7 +24,6 @@ import (
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
-	_ "golang.org/x/net/trace"
 	"google.golang.org/grpc"
 )
 

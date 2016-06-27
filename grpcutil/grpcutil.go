@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/http2"
+	"golang.org/x/net/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -92,6 +93,9 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 	if *requireClientAuth {
 		srv.TLSConfig.ClientCAs = roots
 		srv.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		trace.AuthRequest = func(req *http.Request) (bool, bool) {
+			return true, true
+		}
 	}
 	srv.TLSConfig.Certificates = make([]tls.Certificate, 1)
 	srv.TLSConfig.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
