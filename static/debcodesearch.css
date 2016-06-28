@@ -1,6 +1,5 @@
-/* TODO: Verify that the CSS processing order is as specified in an HTML file
- * and then include debian.css first, debcodesearch.css last */
-@import url("debian.css");
+/* debian.css is imported by virtue of minifying it together with this file
+ * into debcodesearch.min.css. */
 
 #searchdiv {
 	text-align: center;
