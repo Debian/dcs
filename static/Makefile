@@ -1,4 +1,8 @@
-all: instant.min.js reconnecting-websocket.min.js Roboto-Regular.woff Roboto-Bold.woff Inconsolata.woff debcodesearch.min.css
+all: instant.min.js.gz reconnecting-websocket.min.js.gz Roboto-Regular.woff.gz Roboto-Bold.woff.gz Inconsolata.woff.gz debcodesearch.min.css.gz
+
+%.gz: %
+	echo "ZÖPFLI $<"
+	zopfli $<
 
 %.woff: %.?tf
 	echo "WOFF $<"
