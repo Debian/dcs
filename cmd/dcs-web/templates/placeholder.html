@@ -4,6 +4,13 @@ vim:ts=4:sw=4:expandtab
 <html lang="en">
 <head>
 <title>Debian Code Search: {{.q}}</title>
+<script type="text/javascript">
+<!--
+if (location.pathname.substr(0, '/search'.length) === '/search') {
+    window.location.replace('/results/{{.q_escaped}}/page_0');
+}
+-->
+</script>
 <link rel="stylesheet" href="debcodesearch.min.css">
 <style type="text/css">
 pre, code {
@@ -97,13 +104,5 @@ results are available.
 Note that you are seeing this page because you have JavaScript disabled. For a
 much better user experience with Debian Code Search, enable JavaScript.
 </p>
-
-<script type="text/javascript">
-<!--
-if (location.pathname.substr(0, '/search'.length) === '/search') {
-    window.location.replace('/results/{{.q_escaped}}/page_0');
-}
--->
-</script>
 
 {{ template "footer.html" }}

@@ -4,6 +4,13 @@ vim:ts=4:sw=4:expandtab
 <html lang="en">
 <head>
 <title>Debian Code Search: {{.q}}</title>
+<script type="text/javascript">
+<!--
+if (location.pathname.substr(0, '/search'.length) === '/search') {
+    window.location.replace('/results/{{.q_escaped}}/page_{{.page}}');
+}
+-->
+</script>
 <link rel="stylesheet" href="debcodesearch.min.css">
 <style type="text/css">
 pre, code {
@@ -117,12 +124,5 @@ PathRank: {{.PathRank}}, Rank: {{.Ranking}}</li>
 <p>
 {{.pagination}}
 </p>
-<script type="text/javascript">
-<!--
-if (location.pathname.substr(0, '/search'.length) === '/search') {
-    window.location.replace('/results/{{.q_escaped}}/page_{{.page}}');
-}
--->
-</script>
 
 {{ template "footer.html" }}
