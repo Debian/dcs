@@ -21,6 +21,18 @@
   src: local('Roboto Bold'), local('Roboto-Bold'), url(/Roboto-Bold.woff) format('woff');
 }
 </style>
+<script type="text/javascript">
+// TODO: remove duplication with the above CSS?
+var fontNormal = new FontFace("Roboto", "local('Roboto Regular'), local('Roboto-Regular'), url(/Roboto-Regular.woff) format('woff')", {
+  style: 'normal', weight: '400'
+});
+var fontBold = new FontFace("Roboto", "local('Roboto Bold'), local('Roboto-Bold'), url(/Roboto-Bold.woff) format('woff')", {
+  style: 'normal', weight: '700'
+});
+
+fontNormal.load();
+fontBold.load();
+</script>
 <link rel="stylesheet" href="/debcodesearch.min.css">
 <link rel="search" type="application/opensearchdescription+xml" href="/opensearch.xml">
 <link rel="shortcut icon" href="/favicon.ico">
