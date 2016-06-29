@@ -52,6 +52,10 @@ var (
 				500000, 1000000,
 			},
 		})
+
+	headroomPercentage = flag.Float64("headroom_percentage",
+		0.2,
+		"How much space should be kept free on the file system containing -query_results_path in order to be able to write query state. Default: 0.2, i.e. 20% of the total space should be kept free. Set to 0 to disable")
 )
 
 const (
@@ -589,7 +593,7 @@ func fsBytes(path string) (available uint64, total uint64) {
 // cleans up old query results otherwise.
 func ensureEnoughSpaceAvailable() {
 	available, total := fsBytes(*queryResultsPath)
-	headroom := uint64(0.2 * float64(total))
+	headroom := uint64(*headroomPercentage * float64(total))
 	log.Printf("%d bytes available, %d bytes headroom required (20%%)\n", available, headroom)
 	if available >= headroom {
 		return

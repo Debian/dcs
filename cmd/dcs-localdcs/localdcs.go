@@ -381,6 +381,7 @@ func main() {
 	if err := launchInBackground(
 		"dcs-web",
 		"-varz_avail_fs=",
+		"-headroom_percentage=0",
 		"-template_pattern=cmd/dcs-web/templates/*",
 		"-static_path=static/",
 		"-source_backends="+*listenSourceBackend,
