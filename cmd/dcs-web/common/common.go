@@ -21,8 +21,6 @@ var templatePattern = flag.String("template_pattern",
 var sourceBackends = flag.String("source_backends",
 	"localhost:28082",
 	"host:port (multiple values are comma-separated) of the source-backend(s)")
-var tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
-var tlsKeyPath = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 var SourceBackendStubs []proto.SourceBackendClient
 var UseSourcesDebianNet = flag.Bool("use_sources_debian_net",
 	false,
@@ -30,12 +28,12 @@ var UseSourcesDebianNet = flag.Bool("use_sources_debian_net",
 var Templates *template.Template
 
 // Must be called after flag.Parse()
-func Init() {
+func Init(tlsCertPath, tlsKeyPath string) {
 	loadTemplates()
 	addrs := strings.Split(*sourceBackends, ",")
 	SourceBackendStubs = make([]proto.SourceBackendClient, len(addrs))
 	for idx, addr := range addrs {
-		conn, err := grpcutil.DialTLS(addr, *tlsCertPath, *tlsKeyPath)
+		conn, err := grpcutil.DialTLS(addr, tlsCertPath, tlsKeyPath)
 		if err != nil {
 			log.Fatalf("could not connect to %q: %v", addr, err)
 		}

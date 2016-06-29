@@ -36,6 +36,9 @@ var (
 	listenAddress = flag.String("listen_address",
 		":28080",
 		"listen address ([host]:port)")
+	listenAddressTLS = flag.String("listen_address_tls",
+		"",
+		"listen address ([host]:port) for TLS")
 	memprofile = flag.String("memprofile", "", "Write memory profile to this file")
 	staticPath = flag.String("static_path",
 		"./static/",
@@ -43,6 +46,8 @@ var (
 	accessLogPath = flag.String("access_log_path",
 		"",
 		"Where to write access.log entries (in Apache Common Log Format). Disabled if empty.")
+	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
+	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 
 	accessLog *os.File
 
@@ -228,7 +233,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 
-	common.Init()
+	common.Init(*tlsCertPath, *tlsKeyPath)
 
 	if *accessLogPath != "" {
 		var err error
@@ -292,5 +297,8 @@ func main() {
 	http.Handle("/instantws", websocket.Handler(InstantServer))
 	http.Handle("/metrics", prometheus.Handler())
 
+	if *listenAddressTLS != "" {
+		go log.Fatal(http.ListenAndServeTLS(*listenAddressTLS, *tlsCertPath, *tlsKeyPath, nil))
+	}
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }

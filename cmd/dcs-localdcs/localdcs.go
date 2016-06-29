@@ -38,6 +38,9 @@ var (
 	listenWeb = flag.String("listen_web",
 		"localhost:28080",
 		"listen address ([host]:port) for dcs-web")
+	listenWebTLS = flag.String("listen_web_tls",
+		"",
+		"listen address ([host]:port) for dcs-web (TLS)")
 )
 
 func installBinaries() error {
@@ -387,9 +390,14 @@ func main() {
 		"-source_backends="+*listenSourceBackend,
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-listen_address="+*listenWeb); err != nil {
+		"-listen_address="+*listenWeb,
+		"-listen_address_tls="+*listenWebTLS); err != nil {
 		log.Fatal(err.Error())
 	}
 
-	log.Printf("dcs-web running at http://%s\n", *listenWeb)
+	listenAddresses := "http://" + *listenWeb
+	if *listenWebTLS != "" {
+		listenAddresses = listenAddresses + " and https://" + *listenWebTLS
+	}
+	log.Printf("dcs-web running at %s\n", listenAddresses)
 }
