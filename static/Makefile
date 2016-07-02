@@ -1,12 +1,8 @@
-all: instant.min.js.gz reconnecting-websocket.min.js.gz Roboto-Regular.woff.gz Roboto-Bold.woff.gz Inconsolata.woff.gz debcodesearch.min.css.gz
+all: instant.min.js.gz reconnecting-websocket.min.js.gz debcodesearch.min.css.gz
 
 %.gz: %
 	echo "ZÖPFLI $<"
 	zopfli $<
-
-%.woff: %.?tf
-	echo "WOFF $<"
-	sfnt2woff $<
 
 %.min.js: %.js
 	echo "MINIFY $<"
