@@ -39,7 +39,9 @@ var _ = math.Inf
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
-const _ = proto1.ProtoPackageIsVersion1
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto1.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type FilesRequest struct {
 	// Text query (e.g. “i3Font”) which will be translated into a trigram query
@@ -94,7 +96,7 @@ var _ grpc.ClientConn
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion1
+const _ = grpc.SupportPackageIsVersion3
 
 // Client API for IndexBackend service
 
@@ -150,28 +152,40 @@ func RegisterIndexBackendServer(s *grpc.Server, srv IndexBackendServer) {
 	s.RegisterService(&_IndexBackend_serviceDesc, srv)
 }
 
-func _IndexBackend_Files_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _IndexBackend_Files_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FilesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(IndexBackendServer).Files(ctx, in)
-	if err != nil {
-		return nil, err
+	if interceptor == nil {
+		return srv.(IndexBackendServer).Files(ctx, in)
 	}
-	return out, nil
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.IndexBackend/Files",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IndexBackendServer).Files(ctx, req.(*FilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-func _IndexBackend_ReplaceIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _IndexBackend_ReplaceIndex_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReplaceIndexRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(IndexBackendServer).ReplaceIndex(ctx, in)
-	if err != nil {
-		return nil, err
+	if interceptor == nil {
+		return srv.(IndexBackendServer).ReplaceIndex(ctx, in)
 	}
-	return out, nil
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.IndexBackend/ReplaceIndex",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IndexBackendServer).ReplaceIndex(ctx, req.(*ReplaceIndexRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 var _IndexBackend_serviceDesc = grpc.ServiceDesc{
@@ -187,8 +201,11 @@ var _IndexBackend_serviceDesc = grpc.ServiceDesc{
 			Handler:    _IndexBackend_ReplaceIndex_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: fileDescriptor0,
 }
+
+func init() { proto1.RegisterFile("indexbackend.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
 	// 202 bytes of a gzipped FileDescriptorProto

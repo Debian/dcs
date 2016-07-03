@@ -143,7 +143,7 @@ var _ grpc.ClientConn
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion1
+const _ = grpc.SupportPackageIsVersion3
 
 // Client API for SourceBackend service
 
@@ -216,16 +216,22 @@ func RegisterSourceBackendServer(s *grpc.Server, srv SourceBackendServer) {
 	s.RegisterService(&_SourceBackend_serviceDesc, srv)
 }
 
-func _SourceBackend_File_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _SourceBackend_File_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FileRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
-	out, err := srv.(SourceBackendServer).File(ctx, in)
-	if err != nil {
-		return nil, err
+	if interceptor == nil {
+		return srv.(SourceBackendServer).File(ctx, in)
 	}
-	return out, nil
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.SourceBackend/File",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SourceBackendServer).File(ctx, req.(*FileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _SourceBackend_Search_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -265,7 +271,10 @@ var _SourceBackend_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+	Metadata: fileDescriptor1,
 }
+
+func init() { proto1.RegisterFile("sourcebackend.proto", fileDescriptor1) }
 
 var fileDescriptor1 = []byte{
 	// 476 bytes of a gzipped FileDescriptorProto
