@@ -261,6 +261,7 @@ function addSearchResult(results, result) {
     // Remove any empty context lines (e.g. when the match is close to the
     // beginning or end of the file).
     context = $.grep(context, function(elm, idx) { return $.trim(elm) != ""; });
+    // TODO: only replace \t at the beginning of each context line
     context = context.join("<br>").replace("\t", "    ");
 
     // Split the path into source package (bold) and rest.
