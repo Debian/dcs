@@ -21,9 +21,14 @@ var (
 		"conf,dic,cfg,man,xml,xsl,html,sgml,pod,po,txt,tex,rtf,docbook,symbols",
 		"(comma-separated list of) suffixes of files that will be deleted from packages when importing")
 
-	ignoredDirnames  = make(map[string]bool)
-	ignoredFilenames = make(map[string]bool)
-	ignoredSuffixes  = make(map[string]bool)
+	onlySmallFilesSuffixesList = flag.String("only_small_files_suffixes",
+		"ref,result,S,out,rst,def,afm,ps,pao,tom,ovp,UPF,map,ucm,json,svg,ppd,acc,ipp,eps,sym,pass,F90,tei,stl,tmp,dmp,vtk,csv,stp,decTest,test,lla,pamphlet",
+		"(comma-separated list of) suffixes of files that will not be indexed if their size is more than 64 KB")
+
+	ignoredDirnames        = make(map[string]bool)
+	ignoredFilenames       = make(map[string]bool)
+	ignoredSuffixes        = make(map[string]bool)
+	onlySmallFilesSuffixes = make(map[string]bool)
 )
 
 func setupFilters() {
@@ -35,6 +40,9 @@ func setupFilters() {
 	}
 	for _, entry := range strings.Split(*ignoredSuffixesList, ",") {
 		ignoredSuffixes[entry] = true
+	}
+	for _, entry := range strings.Split(*onlySmallFilesSuffixesList, ",") {
+		onlySmallFilesSuffixes[entry] = true
 	}
 }
 
@@ -79,6 +87,9 @@ func ignored(info os.FileInfo, dir, filename string) bool {
 		if idx > -1 {
 			if ignoredSuffixes[filename[idx+1:]] &&
 				!strings.HasPrefix(strings.ToLower(filename), "cmakelists.txt") {
+				return true
+			}
+			if size > 65*1024 && onlySmallFilesSuffixes[filename[idx+1:]] {
 				return true
 			}
 		}
