@@ -15,7 +15,13 @@ cmd/dcs-index-backend/dcs-index-backend
 cmd/dcs-tail-fedmsg/dcs-tail-fedmsg
 cmd/dcs-source-backend/dcs-source-backend
 static/debcodesearch.min.css
+static/debcodesearch.min.css.gz
 static/instant.min.js
+static/instant.min.js.gz
+static/jquery.min.js.gz
 static/reconnecting-websocket.min.js
+static/reconnecting-websocket.min.js.gz
+static/Pics/openlogo-50.svg.gz
+static/Pics/rackspace.svg.gz
 debian/*.debhelper.log
 obj-*
