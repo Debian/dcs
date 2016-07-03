@@ -14,7 +14,7 @@ var (
 	// NB: we don’t skip "configure" since that might be a custom shell-script
 	// NB: we actually skip some autotools files because they blow up our index otherwise
 	ignoredFilenamesList = flag.String("ignored_filenames",
-		"NEWS,COPYING,LICENSE,CHANGES,Makefile.in,ltmain.sh,config.guess,config.sub,depcomp,aclocal.m4,libtool.m4,.gitignore",
+		"NEWS,COPYING,LICENSE,CHANGES,Makefile.in,ltmain.sh,config.guess,config.sub,depcomp,aclocal.m4,libtool.m4,.gitignore,57710_init_values.c,57711_init_values.c,57712_init_values.c",
 		"(comma-separated list of) names of files that will be deleted from packages when importing")
 
 	ignoredSuffixesList = flag.String("ignored_suffixes",
