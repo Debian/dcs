@@ -56,6 +56,13 @@ func ignored(info os.FileInfo, dir, filename string) bool {
 			return true
 		}
 	} else {
+		size := info.Size()
+		// index/write.go will skip the file if it’s too big, so we might as
+		// well skip it here and save the disk space.
+		if size > (1 << 30) {
+			return true
+		}
+
 		// TODO: peek inside the files (we’d have to read them anyways) and
 		// check for messages that indicate that the file is generated. either
 		// by autoconf or by bison for example.
