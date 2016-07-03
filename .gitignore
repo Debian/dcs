@@ -14,9 +14,6 @@ cmd/dcs-rs-cleanup/dcs-rs-cleanup
 cmd/dcs-index-backend/dcs-index-backend
 cmd/dcs-tail-fedmsg/dcs-tail-fedmsg
 cmd/dcs-source-backend/dcs-source-backend
-static/Inconsolata.woff
-static/Roboto-Bold.woff
-static/Roboto-Regular.woff
 static/debcodesearch.min.css
 static/instant.min.js
 static/reconnecting-websocket.min.js
