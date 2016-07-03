@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+// TODO: filter /debian/api/ (in every linux package), e.g.
+// linux_3.14.4-1/debian/abi/3.14-1/armel_none_orion5x
 var (
 	ignoredDirnamesList = flag.String("ignored_dirnames",
 		".pc,po,.git,libtool.m4",
