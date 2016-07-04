@@ -129,7 +129,12 @@ func InstantServer(ws *websocket.Conn) {
 		io.WriteString(h, q.Query)
 		identifier := fmt.Sprintf("%x", h.Sum64())
 
-		cached := maybeStartQuery(identifier, src, q.Query)
+		cached, err := maybeStartQuery(identifier, src, q.Query)
+		if err != nil {
+			log.Printf("[%s] could not start query: %v\n", src, err)
+			ws.Write([]byte(`{"Type":"error", "ErrorType":"failed"}`))
+			continue
+		}
 
 		// Create an apache common log format entry.
 		if accessLog != nil {

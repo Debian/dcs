@@ -245,7 +245,11 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	maybeStartQuery(queryid, src, q)
+	if _, err := maybeStartQuery(queryid, src, q); err != nil {
+		log.Printf("[%s] could not start query: %v\n", src, err)
+		http.Error(w, "Could not start query", http.StatusInternalServerError)
+		return
+	}
 	if !queryCompleted(queryid) {
 		// Prevent caching, as the placeholder is temporary.
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")

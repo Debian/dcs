@@ -198,7 +198,7 @@ var (
 	stateMu sync.RWMutex
 )
 
-func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
+func queryBackend(queryid, src string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
@@ -230,7 +230,7 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 	ctx, cancelfunc := context.WithCancel(context.Background())
 	stream, err := backend.Search(ctx, searchRequest)
 	if err != nil {
-		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", err)
+		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", queryid, src, err)
 		return
 	}
 
@@ -245,21 +245,21 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 	for !done {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			log.Printf("[%s] [src:%s] EOF\n", queryid, backend)
+			log.Printf("[%s] [src:%s] EOF\n", queryid, src, backend)
 			return
 		}
 		if err != nil {
-			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, backend, err)
+			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, src, backend, err)
 			return
 		}
 
 		buf.Reset()
 		if err := buf.Marshal(msg); err != nil {
-			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, backend, err)
+			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, src, backend, err)
 			return
 		}
 		if _, err := tempFileWriter.Write(buf.Bytes()); err != nil {
-			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, backend, err)
+			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, src, backend, err)
 			return
 		}
 
@@ -288,95 +288,122 @@ func queryBackend(queryid string, backend pb.SourceBackendClient, backendidx int
 		// stream as well.
 		cancelfunc()
 	}
-	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, backend)
+	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, src, backend)
 }
 
-func maybeStartQuery(queryid, src, query string) bool {
+// queryExistsLocked returns whether state for the query exists and whether
+// that state is expired.
+func queryExistsLocked(queryid string) (bool, bool) {
+	querystate, exists := state[queryid]
+	return exists, time.Since(querystate.started) > 30*time.Minute
+}
+
+// queryExists returns true if a query with the specified queryid exists and is
+// not expired yet.
+func queryExists(queryid string) bool {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
+	exists, expired := queryExistsLocked(queryid)
+	return exists && !expired
+}
+
+func startQuery(queryid string, querystate queryState) error {
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	querystate, running := state[queryid]
-	// XXX: Starting a new query while there may still be clients reading that
-	// query is not a great idea. Best fix may be to make getEvent() use a
-	// querystate instead of the string identifier.
-	if !running || time.Since(querystate.started) > 30*time.Minute {
-		// See if we can garbage-collect old queries.
-		if !running && len(state) >= 10 {
-			log.Printf("Trying to garbage collect queries (currently %d)\n", len(state))
-			for queryid, s := range state {
-				if len(state) < 10 {
-					break
-				}
-				if !s.done {
-					continue
-				}
-				for _, state := range s.perBackend {
-					state.tempFile.Close()
-				}
-				delete(state, queryid)
+	exists, expired := queryExistsLocked(queryid)
+	if exists && !expired {
+		return fmt.Errorf("query already exists")
+	}
+	// See if we need to garbage collect old queries. This is unnecessary when
+	// the query is expired, as we can just re-use the previous slot.
+	if !exists && len(state) >= 10 {
+		log.Printf("Trying to garbage collect queries (currently %d)\n", len(state))
+		for queryid, s := range state {
+			if len(state) < 10 {
+				break
 			}
-			log.Printf("Garbage collection done. %d queries remaining", len(state))
-		}
-		state[queryid] = queryState{
-			started:        time.Now(),
-			query:          query,
-			newEvent:       sync.NewCond(&sync.Mutex{}),
-			filesTotal:     make([]int, len(common.SourceBackendStubs)),
-			filesProcessed: make([]int, len(common.SourceBackendStubs)),
-			filesMu:        &sync.Mutex{},
-			perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
-			tempFilesMu:    &sync.Mutex{},
-		}
-
-		activeQueries.Add(1)
-
-		var err error
-		dir := filepath.Join(*queryResultsPath, queryid)
-		if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-			log.Printf("[%s] could not create %q: %v\n", queryid, dir, err)
-			failQuery(queryid)
-			return false
-		}
-
-		// TODO: it’d be so much better if we would correctly handle ESPACE errors
-		// in the code below (and above), but for that we need to carefully test it.
-		ensureEnoughSpaceAvailable()
-
-		for i := 0; i < len(common.SourceBackendStubs); i++ {
-			state[queryid].filesTotal[i] = -1
-			path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
-			f, err := os.Create(path)
-			if err != nil {
-				log.Printf("[%s] could not create %q: %v\n", queryid, path, err)
-				failQuery(queryid)
-				return false
+			if !s.done {
+				continue
 			}
-			state[queryid].perBackend[i] = &perBackendState{
-				packagePool:    stringpool.NewStringPool(),
-				tempFile:       f,
-				tempFileWriter: bufio.NewWriterSize(f, 65536),
-				allPackages:    make(map[string]bool),
+			for _, state := range s.perBackend {
+				state.tempFile.Close()
 			}
+			delete(state, queryid)
 		}
-		log.Printf("initial results = %v\n", state[queryid])
+		log.Printf("Garbage collection done. %d queries remaining", len(state))
+	}
+	state[queryid] = querystate
+	activeQueries.Add(1)
+	return nil
+}
 
-		// Rewrite the query into a query for source backends.
-		fakeUrl, err := url.Parse("?" + query)
-		if err != nil {
-			log.Fatal(err)
-		}
-		rewritten := search.RewriteQuery(*fakeUrl)
-		searchRequest := &pb.SearchRequest{
-			Query:        rewritten.Query().Get("q"),
-			RewrittenUrl: rewritten.String(),
-		}
-		log.Printf("[%s] querying for %+v\n", searchRequest)
-		for idx, backend := range common.SourceBackendStubs {
-			go queryBackend(queryid, backend, idx, searchRequest)
-		}
-		return false
+// XXX: Starting a new query while there may still be clients reading that
+// query is not a great idea. Best fix may be to make getEvent() use a
+// querystate instead of the string identifier.
+
+// maybeStartQuery starts a specified query if that query does not already
+// exist. Returns whether the query existed and any errors during query
+// creation.
+func maybeStartQuery(queryid, src, query string) (bool, error) {
+	if queryExists(queryid) {
+		return true, nil
 	}
 
-	return true
+	querystate := queryState{
+		started:        time.Now(),
+		query:          query,
+		newEvent:       sync.NewCond(&sync.Mutex{}),
+		filesTotal:     make([]int, len(common.SourceBackendStubs)),
+		filesProcessed: make([]int, len(common.SourceBackendStubs)),
+		filesMu:        &sync.Mutex{},
+		perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
+		tempFilesMu:    &sync.Mutex{},
+	}
+
+	dir := filepath.Join(*queryResultsPath, queryid)
+	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
+		return false, fmt.Errorf("could not create %q: %v", dir, err)
+	}
+
+	// TODO: it’d be so much better if we would correctly handle ESPACE errors
+	// in the code below (and above), but for that we need to carefully test it.
+	ensureEnoughSpaceAvailable()
+
+	for i := 0; i < len(common.SourceBackendStubs); i++ {
+		querystate.filesTotal[i] = -1
+		path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
+		f, err := os.Create(path)
+		if err != nil {
+			return false, fmt.Errorf("could not create %q: %v", path, err)
+		}
+		querystate.perBackend[i] = &perBackendState{
+			packagePool:    stringpool.NewStringPool(),
+			tempFile:       f,
+			tempFileWriter: bufio.NewWriterSize(f, 65536),
+			allPackages:    make(map[string]bool),
+		}
+	}
+	log.Printf("querystate = %v\n", querystate)
+
+	// Rewrite the query into a query for source backends.
+	fakeUrl, err := url.Parse("?" + query)
+	if err != nil {
+		log.Fatal(err)
+	}
+	rewritten := search.RewriteQuery(*fakeUrl)
+	searchRequest := &pb.SearchRequest{
+		Query:        rewritten.Query().Get("q"),
+		RewrittenUrl: rewritten.String(),
+	}
+	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
+	if err := startQuery(queryid, querystate); err != nil {
+		// Another goroutine must have raced us since we called queryExists().
+		return true, nil
+	}
+	for idx, backend := range common.SourceBackendStubs {
+		go queryBackend(queryid, src, backend, idx, searchRequest)
+	}
+	return false, nil
 }
 
 type queryStats struct {
