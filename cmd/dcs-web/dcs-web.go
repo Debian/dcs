@@ -53,6 +53,7 @@ var (
 
 	resultsPathRe  = regexp.MustCompile(`^/results/([^/]+)/(perpackage_` + strconv.Itoa(resultsPerPackage) + `_)?page_([0-9]+).json$`)
 	packagesPathRe = regexp.MustCompile(`^/results/([^/]+)/packages.json$`)
+	redirectPathRe = regexp.MustCompile(`^/(?:perpackage-)?results/([^/]+)(?:/[0-9]+)?/page_([0-9]+)`)
 
 	activeQueries = prometheus.NewGauge(
 		prometheus.GaugeOpts{
@@ -91,6 +92,84 @@ func validateQuery(query string) error {
 		return fmt.Errorf("Empty index query")
 	}
 	return nil
+}
+
+func EventsHandler(w http.ResponseWriter, r *http.Request) {
+	// The additional ":" at the end is necessary so that we don’t need to
+	// distinguish between the two cases (X-Forwarded-For, without a port, and
+	// RemoteAddr, with a part) in the code below.
+	src := r.Header.Get("X-Forwarded-For") + ":"
+	if src == ":" || (!strings.HasPrefix(r.RemoteAddr, "[::1]:") &&
+		!strings.HasPrefix(r.RemoteAddr, "127.0.0.1:")) {
+		src = r.RemoteAddr
+	}
+	q := "q=" + url.QueryEscape(r.URL.Path[len("/events/"):])
+
+	log.Printf("[%s] (events) Received query %q\n", src, q)
+	if err := validateQuery("?" + q); err != nil {
+		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
+		http.Error(w, "Invalid query", http.StatusBadRequest)
+		return
+	}
+
+	// Uniquely (well, good enough) identify this query for a couple of minutes
+	// (as long as we want to cache results). We could try to normalize the
+	// query before hashing it, but that seems hardly worth the complexity.
+	h := fnv.New64()
+	io.WriteString(h, q)
+	identifier := fmt.Sprintf("%x", h.Sum64())
+
+	cached, err := maybeStartQuery(identifier, src, q)
+	if err != nil {
+		log.Printf("[%s] could not start query: %v\n", src, err)
+		http.Error(w, "Could not start query", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+
+	// Create an apache common log format entry.
+	if accessLog != nil {
+		responseCode := 200
+		if cached {
+			responseCode = 304
+		}
+		remoteIP := src
+		if idx := strings.LastIndex(remoteIP, ":"); idx > -1 {
+			remoteIP = remoteIP[:idx]
+		}
+		fmt.Fprintf(accessLog, "%s - - [%s] \"GET /events/%s HTTP/1.1\" %d -\n",
+			remoteIP, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
+	}
+
+	// TODO: use Last-Event-ID header
+	lastseen := -1
+	sent := 0
+	for {
+		message, sequence := getEvent(identifier, lastseen)
+		lastseen = sequence
+		// This message was obsoleted by a more recent one, e.g. a more
+		// recent progress update obsoletes all earlier progress updates.
+		if *message.obsolete {
+			continue
+		}
+		if len(message.data) == 0 {
+			break
+		}
+		if _, err := fmt.Fprintf(w, "id: %d\ndata: %s\n\n", sequence, message.data); err != nil {
+			log.Printf("[%s] aborting, could not write: %v\n", src, err)
+			return
+		}
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		sent++
+	}
+
+	if sent == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		fmt.Fprintln(w, "No content")
+	}
 }
 
 func InstantServer(ws *websocket.Conn) {
@@ -180,8 +259,6 @@ func InstantServer(ws *websocket.Conn) {
 func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: ideally, this would also start the search in the background to avoid waiting for the round-trip to the client.
 
-	// TODO: also, what about non-javascript clients?
-
 	// Try to match /page_n.json or /perpackage_2_page_n.json
 	matches := resultsPathRe.FindStringSubmatch(r.URL.Path)
 	log.Printf("matches for %q = %v\n", r.URL.Path, matches)
@@ -189,10 +266,16 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		// See whether it’s /packages.json, then.
 		matches = packagesPathRe.FindStringSubmatch(r.URL.Path)
 		if matches == nil || len(matches) != 2 {
-			// While this just serves index.html, the javascript part of index.html
-			// realizes the path starts with /results/ and starts the search, then
-			// requests the specified page on search completion.
-			http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
+			matches = redirectPathRe.FindStringSubmatch(r.URL.Path)
+			if len(matches) < 3 {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+			pageSuffix := "&page=" + matches[2]
+			if matches[2] == "0" {
+				pageSuffix = ""
+			}
+			http.Redirect(w, r, "/search?q="+matches[1]+pageSuffix, http.StatusFound)
 			return
 		}
 
@@ -238,7 +321,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.Parse()
 
-	common.Init(*tlsCertPath, *tlsKeyPath)
+	common.Init(*tlsCertPath, *tlsKeyPath, *staticPath)
 
 	if *accessLogPath != "" {
 		var err error
@@ -263,6 +346,9 @@ func main() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Check if a static file was requested with full name
 		name := filepath.Join(*staticPath, r.URL.Path)
+		if r.URL.Path == "/" {
+			name = filepath.Join(*staticPath, "index.html")
+		}
 		if _, err := os.Stat(name); err == nil {
 			http.ServeFile(w, r, name)
 			return
@@ -275,7 +361,13 @@ func main() {
 			return
 		}
 
-		http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
+		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]interface{}{
+			"criticalcss": common.CriticalCss,
+			"version":     common.Version,
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	})
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
@@ -298,6 +390,7 @@ func main() {
 	http.HandleFunc("/perpackage-results/", PerPackageResultsHandler)
 	http.HandleFunc("/queryz", QueryzHandler)
 	http.HandleFunc("/track", Track)
+	http.HandleFunc("/events/", EventsHandler)
 
 	http.Handle("/instantws", websocket.Handler(InstantServer))
 	http.Handle("/metrics", prometheus.Handler())

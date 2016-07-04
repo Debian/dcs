@@ -4,8 +4,9 @@ vim:ts=4:sw=4:expandtab
 <html lang="en">
 <head>
 <title>Debian Code Search: {{.q}}</title>
-<link rel="stylesheet" href="debcodesearch.min.css">
 <style type="text/css">
+{{ .criticalcss }}
+
 pre, code {
     /* We need to make sure that the line numbers and the code itself have
     no padding/margin so the positions match. The !important is to
@@ -57,8 +58,8 @@ pre {
     width: {{.lnrwidth}}em;
 }
 </style>
-<link rel="stylesheet" href="//yandex.st/highlightjs/7.0/styles/default.min.css">
-<script src="//yandex.st/highlightjs/7.0/highlight.min.js"></script>
+<link rel="preload" href="/non-critical.min.css" as="style" onload="this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="/non-critical.min.css"></noscript>
 </head>
 <body>
 
@@ -66,16 +67,15 @@ pre {
    <div id="upperheader">
    <div id="logo">
   <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
-  </div> <!-- end logo -->
-  <p class="section"><a href="/">Code Search</a></p>
+  </div>
+  <p class="section"><a href="/">CODE SEARCH</a></p>
   <div id="searchbox">
 <form action="/search" method="get">
 <input type="text" name="q" value="{{.q}}">
 <input type="submit" value="Search">
 </form>
   </div>
- </div> <!-- end upperheader -->
-<!--UdmComment-->
+ </div>
 <div id="navbar">
 <p class="hidecss"><a href="#content">Skip Quicknav</a></p>
 <ul>
@@ -83,11 +83,14 @@ pre {
    <li><a href="./about">About Code Search</a></li>
    <li><a href="./faq">FAQ</a></li>
 </ul>
-</div> <!-- end navbar -->
+</div>
 	<p id="breadcrumbs">&nbsp; search results</p>
-</div> <!-- end header -->
-<!--/UdmComment-->
+</div>
 <div id="content">
+
+{{ template "javascript-results.html" }}
+
+<noscript>
 
 <h2>Search Results by package for "{{.q}}"</h2>
 
@@ -120,12 +123,6 @@ PathRank: {{.PathRank}}, Rank: {{.Ranking}}</li>
 {{.pagination}}
 </p>
 
-<script type="text/javascript">
-<!--
-if (location.pathname.substr(0, '/search'.length) === '/search') {
-    window.location.replace('/perpackage-results/{{.q_escaped}}/2/page_{{.page}}');
-}
--->
-</script>
+</noscript>
 
 {{ template "footer.html" }}

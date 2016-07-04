@@ -1,0 +1,224 @@
+#searchdiv {
+	text-align: center;
+}
+
+#searchdiv input[type=text] {
+	width: 350px;
+	padding: 7px;
+}
+
+.alert {
+	padding: 15px;
+	padding-top: 12px;
+	margin-bottom: 20px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+}
+
+.alert-warning {
+	color: #8a6d3b;
+	background-color: #fcf8e3;
+	border-color: #faebcc;
+}
+
+.alert-danger {
+	color: #cc1446;
+	background-color: #f2dede;
+	border-color: #ebccd1;
+}
+
+.pagination a:link
+, .perpackage-pagination a:link
+, #packages a:link
+, .pagination a:visited
+, .perpackage-pagination a:visited
+, #packages a:visited {
+	text-decoration: none;
+}
+.pagination a:hover
+, .perpackage-pagination a:hover
+, #packages a:hover
+, .perpackage-pagination a:visited:hover
+, .pagination a:visited:hover
+, #packages a:visited:hover {
+	text-decoration: underline;
+}
+
+.perpackage-pagination a, .pagination a {
+	margin-left:  0.2em;
+	margin-right: 0.2em;
+}
+
+#perpackage, #perpackage-results, .perpackage-pagination {
+	position: relative;
+	background-color: #fff;
+}
+
+#options {
+	padding-bottom: 1.5em;
+	margin-top: 0.15em;
+}
+
+#options input {
+	margin-left: 0;
+}
+
+#perpackage-results h2 {
+	padding-top: 0.4em;
+	padding-bottom: 0.25em;
+	padding-right: 0.4em;
+	text-transform: uppercase;
+	font-family: 'Inconsolata';
+	font-size: 17px;
+	font-weight: bold;
+	letter-spacing: 2px;
+	margin-bottom: 0.5em;
+	margin-top: 1.5em;
+}
+
+#perpackage-results .packagename {
+	text-transform: uppercase;
+}
+
+#perpackage-results ul {
+	margin-top: 0;
+}
+
+#perpackage-results ul li:first-child {
+	padding-top: 0.5em;
+	border-top: 1px solid rgba(0,0,0,0.15);
+}
+
+#perpackage>h2, #normalresults>h2 {
+	font-size: 20px;
+	border: 0;
+	background-color: #f5f6f7;
+	padding-top: 0.4em;
+	padding-bottom: 0.5em;
+	padding-left: 15px;
+	margin: 0;
+	padding-right: 0.4em;
+	border-radius: 4px;
+}
+
+h1, h2 {
+	font-weight: normal;
+	letter-spacing: initial;
+}
+
+h1 {
+	font-size: 1.8em;
+	line-height: 0.83333;
+	margin: 0.83333em 0 0.83333em 0;
+}
+
+h2 {
+	font-size: 1.4em;
+	line-height: 1.0714286;
+	margin: 1.0714286em 0 1.0714286em 0;
+}
+
+pre, code {
+    font-family: 'Inconsolata', monospace !important;
+    font-size: 14px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+a code {
+    font-size: 17px !important;
+    color: #00E;
+}
+
+#results a, #perpackage-results a {
+    text-decoration: none;
+    border-bottom: 1px solid;
+}
+
+#results, #perpackage-results ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+#results li small, #perpackage-results small {
+    opacity: 0;
+}
+
+#results small:hover, #perpackage-results small:hover {
+    opacity: 0.75;
+}
+
+#results li {
+    margin-bottom: 1em;
+}
+
+#results small {
+    opacity: 0.4;
+}
+
+.pagination, .perpackage-pagination {
+    margin-top: 2em;
+    margin-bottom: 2em;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+pre {
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: em;
+}
+
+#packages {
+    display: table;
+    table-layout: fixed;
+    width: 100%;
+    max-width: 100%;
+}
+
+#packages span {
+    display: table-cell;
+}
+
+#packages span:first-child {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+#packages span.showhint {
+/* TODO: instead of specifying a percentage, can we make this auto-size? use http://jsfiddle.net/L8S9L/2/ for testing */
+    width: 5%;
+    padding-left: 0.5em;
+}
+
+#packages span.showhint a {
+   text-decoration: none;
+}
+
+@keyframes movefromright {
+        from { transform: translate3d(-100%, 0, 0); }
+        to   { transform: none; }
+}
+
+.ppanimation {
+	box-shadow: rgba(213, 213, 213, 0.658824) 4px 0px 1px -3px;
+	animation-duration: 0.30s;
+	animation-name: movefromright;
+	animation-direction: alternate;
+}
+
+.animation-reverse {
+	animation-direction: reverse;
+}

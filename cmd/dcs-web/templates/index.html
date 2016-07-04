@@ -1,0 +1,49 @@
+<!--
+vim:ts=4:sw=4:expandtab
+--><!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Debian Code Search</title>
+<style type="text/css">
+{{ .criticalcss }}
+</style>
+<link rel="preload" href="/non-critical.min.css" as="style" onload="this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="/non-critical.min.css"></noscript>
+</head>
+<body>
+
+<div id="header">
+   <div id="upperheader">
+   <div id="logo">
+  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
+  </div>
+  <p class="section"><a href="/">Code Search</a></p>
+  <div id="searchbox">
+  </div>
+ </div>
+<div id="navbar">
+<p class="hidecss"><a href="#content">Skip Quicknav</a></p>
+<ul>
+   <li><a href="./">Search</a></li>
+   <li><a href="./about">About Code Search</a></li>
+   <li><a href="./faq">FAQ</a></li>
+</ul>
+</div>
+	<p id="breadcrumbs">&nbsp; search results</p>
+</div>
+<div id="content">
+
+<div id="searchdiv">
+<h1>Debian Code Search</h1>
+<p>Search all 130 GiB of source code within Debian:</p>
+<div class="formplaceholder"></div>
+<form id="searchform" action="/search" method="get" style="display: inline-block">
+<input type="text" name="q" autofocus="autofocus">
+<input type="submit" value="Search">
+</form>
+<p>
+<a href="/faq#keywords">See the FAQ for supported keywords</a>
+</p>
+</div>
+
+{{ template "footer.html" }}

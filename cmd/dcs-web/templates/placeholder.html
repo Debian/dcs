@@ -4,15 +4,9 @@ vim:ts=4:sw=4:expandtab
 <html lang="en">
 <head>
 <title>Debian Code Search: {{.q}}</title>
-<script type="text/javascript">
-<!--
-if (location.pathname.substr(0, '/search'.length) === '/search') {
-    window.location.replace('/results/{{.q_escaped}}/page_0');
-}
--->
-</script>
-<link rel="stylesheet" href="debcodesearch.min.css">
 <style type="text/css">
+{{ .criticalcss }}
+
 pre, code {
     /* We need to make sure that the line numbers and the code itself have
     no padding/margin so the positions match. The !important is to
@@ -64,7 +58,11 @@ pre {
     width: {{.lnrwidth}}em;
 }
 </style>
+<link rel="preload" href="/non-critical.min.css" as="style" onload="this.rel='stylesheet'">
+<noscript>
+<link rel="stylesheet" href="/non-critical.min.css">
 <meta http-equiv="refresh" content="5">
+</noscript>
 </head>
 <body>
 
@@ -72,16 +70,15 @@ pre {
    <div id="upperheader">
    <div id="logo">
   <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
-  </div> <!-- end logo -->
-  <p class="section"><a href="/">Code Search</a></p>
+  </div>
+  <p class="section"><a href="/">CODE SEARCH</a></p>
   <div id="searchbox">
 <form action="/search" method="get">
 <input type="text" name="q" value="{{.q}}">
 <input type="submit" value="Search">
 </form>
   </div>
- </div> <!-- end upperheader -->
-<!--UdmComment-->
+ </div>
 <div id="navbar">
 <p class="hidecss"><a href="#content">Skip Quicknav</a></p>
 <ul>
@@ -89,12 +86,14 @@ pre {
    <li><a href="./about">About Code Search</a></li>
    <li><a href="./faq">FAQ</a></li>
 </ul>
-</div> <!-- end navbar -->
+</div>
 	<p id="breadcrumbs">&nbsp; search results</p>
-</div> <!-- end header -->
-<!--/UdmComment-->
+</div>
 <div id="content">
 
+{{ template "javascript-results.html" }}
+
+<noscript>
 <p>
 Still searching. This page will refresh itself every 5 seconds until the search
 results are available.
@@ -104,5 +103,6 @@ results are available.
 Note that you are seeing this page because you have JavaScript disabled. For a
 much better user experience with Debian Code Search, enable JavaScript.
 </p>
+</noscript>
 
 {{ template "footer.html" }}

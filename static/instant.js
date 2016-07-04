@@ -8,13 +8,7 @@ var packagesPerPage = 5;
 var resultsPerPackage = 2;
 
 var animationFallback;
-var showConnectProgress;
-var tryHTTPS = true;
-var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
-var connection = new ReconnectingWebSocket(websocket_url);
 var searchterm;
-var queryDone = false;
-var queryStarted = false;
 
 // fatal (bool): Whether all ongoing operations should be cancelled.
 //
@@ -52,7 +46,6 @@ function error(fatal, permanent, unique_id, message) {
 // Setting temporary to true will reset the text to the last non-temporary text
 // upon completion (which is a call with percentage == 100).
 function progress(percentage, temporary, text) {
-    fixProgressbar();
     if (percentage == 0) {
         $('#progressbar span').text(text);
         $('#progressbar .progress-bar').css('width', '10%');
@@ -75,152 +68,31 @@ function progress(percentage, temporary, text) {
     }
 }
 
-// Animates the search form from the middle of the page to the top right.
-function animateSearchForm() {
-    // A bit hackish: we rip the search form out of the DOM and use
-    // position: absolute, so that we can later animate it across the page
-    // into the top right #searchbox div.
-    var sf = $('#searchform');
-    var pos = sf.position();
-    $('#searchbox .formplaceholder').css({ width: sf.width(), height: sf.height() });
-    pos.position = 'absolute';
-    $('#searchdiv .formplaceholder').css('height', sf.height());
-    sf.detach();
-    sf.appendTo('#content');
-    sf.css(pos);
-
-    sf.animate($('#searchbox').position(), 'fast', function() {
-        $('#searchdiv').hide();
-        // Unset focus
-        $('#searchform input[name=q]').blur();
-    });
-}
-
-function showResultsPage() {
-    $('#results li').remove();
+function sendQuery(term) {
     $('#normalresults').show();
     $('#progressbar').show();
     $('#options').hide();
     $('#packageshint').hide();
-    $('.pagination').text('');
-    $('.perpackage-pagination').text('');
-}
-
-function sendQuery() {
-    if (queryStarted && !queryDone) {
-        // We need to cancel the current query and start a new one. The best
-        // way to this (currently) is to force the browser to restart the
-        // entire client code by navigating to the results URL of the new
-        // query.
-        window.location.replace(pageUrl(0, false));
-    }
-
-    showResultsPage();
-    $('#packages').text('');
-    $('#errors div.alert-danger').remove();
-    var query = {
-        "Query": "q=" + encodeURIComponent(searchterm)
-    };
-    connection.send(JSON.stringify(query));
-    document.title = searchterm + ' · Debian Code Search';
-    var entries = localStorage.getItem("autocomplete");
-    if (entries === null) {
-        localStorage["autocomplete"] = JSON.stringify([searchterm]);
+    if (typeof(EventSource) !== 'undefined') {
+        // EventSource is supported by Chrome 9+ and Firefox 6+.
+        var eventsrc = new EventSource("/events/" + term);
+        eventsrc.onmessage = onEvent;
     } else {
-        entries = JSON.parse(entries);
-        if (entries.indexOf(searchterm) === -1) {
-            entries.push(searchterm);
-        }
-        localStorage["autocomplete"] = JSON.stringify(entries);
+        // Fall back to WebSockets, which need an additional round trip
+        // (because they do not work over HTTP2).
+        var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
+        var connection = new WebSocket(websocket_url);
+        var queryMsg = JSON.stringify({
+            "Query": "q=" + encodeURIComponent(searchterm)
+        });
+        connection.onopen = function() {
+            connection.send(queryMsg);
+        };
+        connection.onmessage = onEvent;
     }
-    animateSearchForm();
-
+    document.title = searchterm + ' · Debian Code Search';
     progress(0, false, 'Checking which files to grep…');
-    queryDone = false;
-    queryStarted = true;
 }
-
-connection.onopen = function() {
-    clearTimeout(showConnectProgress);
-    $('#searchform input').attr('disabled', false);
-
-    // The URL dictates a search query, so start it.
-    if (!queryDone &&
-        (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
-         window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0)) {
-        var parts = new RegExp("results/([^/]+)").exec(window.location.pathname);
-        searchterm = decodeURIComponent(parts[1]);
-        sendQuery();
-    }
-
-    $('#searchform').off('submit').on('submit', function(ev) {
-        searchterm = $('#searchform input[name=q]').val();
-        sendQuery();
-        history.pushState({ searchterm: searchterm, nr: 0, perpkg: false }, 'page ' + 0, '/results/' + encodeURIComponent(searchterm) + '/page_0');
-        ev.preventDefault();
-    });
-
-    // This is triggered when the user navigates (e.g. via back button) between
-    // pages that were created using history.pushState().
-    $(window).off('popstate').on('popstate', function(ev) {
-        var state = ev.originalEvent.state;
-        if (state == null) {
-            // Restore the original page.
-            $('#normalresults, #perpackage, #progressbar, #errors, #packages, #options').hide();
-            $('#searchdiv').show();
-            $('#searchdiv .formplaceholder').after($('#searchform'));
-            $('#searchform').css('position', 'static');
-            restoreAutocomplete();
-        } else {
-            if (!$('#normalresults').is(':visible') &&
-                !$('#perpackage').is(':visible')) {
-                showResultsPage();
-                animateSearchForm();
-                // The following are necessary because we don’t send the query
-                // anew and don’t get any progress messages (the final progress
-                // message triggers displaying certain elements).
-                $('#packages, #errors, #options').show();
-            }
-            $('#enable-perpackage').prop('checked', state.perpkg);
-            changeGrouping();
-            if (state.perpkg) {
-                loadPerPkgPage(state.nr);
-            } else {
-                loadPage(state.nr);
-            }
-        }
-    });
-};
-
-connection.onerror = function(e) {
-    // We could display an error, but since the page is supposed to fall back
-    // gracefully, why would the user be concerned if the search takes a tiny
-    // bit longer than usual?
-    // error(false, true, 'websocket_broken', 'Could not open WebSocket connection to ' + e.target.URL);
-
-    // Some transparent proxies don’t support WebSockets, e.g. Orange (big
-    // mobile provider in Switzerland) removes “Upgrade: ” headers from the
-    // HTTP requests. Therefore, we try to use wss:// if the connection was
-    // being made via ws://.
-    if (tryHTTPS) {
-        connection.url = websocket_url.replace('ws://', 'wss://');
-        tryHTTPS = false;
-    }
-};
-
-connection.onclose = function(e) {
-    // XXX: ideally, we’d only display the message if the reconnect takes longer than, say, a second?
-    var msg = error(false, false, null, 'Lost connection to Debian Code Search. Reconnecting…');
-    $('#searchform input').attr('disabled', true);
-
-    var oldHandler = connection.onopen;
-    connection.onopen = function() {
-        $('#searchform input').attr('disabled', false);
-        msg.remove();
-        connection.onopen = oldHandler;
-        oldHandler();
-    };
-};
 
 var queryid;
 var resultpages;
@@ -285,15 +157,13 @@ function addSearchResult(results, result) {
     if (items.size() > 10) {
         items.last().remove();
     }
-
-    fixProgressbar();
 }
 
 function loadPage(nr) {
     // There’s pagination at the top and at the bottom of the page. In case the
     // user used the bottom one, it makes sense to scroll back to the top. In
     // case the user used the top one, the scrolling won’t be noticed.
-    window.scrollTo(0, 0);
+    scrollTo(0, 0);
 
     // Start the progress bar after 200ms. If the page was in the cache, this
     // timer will be cancelled by the load callback below. If it wasn’t, 200ms
@@ -302,8 +172,8 @@ function loadPage(nr) {
         progress(0, true, 'Loading search result page ' + (nr+1) + '…');
     }, 200);
 
-    var pathname = '/results/' + encodeURIComponent(searchterm) + '/page_' + nr;
-    if (location.pathname != pathname) {
+    var pathname = pageUrl(nr, false);
+    if (location.toString() !== pathname) {
         history.pushState({ searchterm: searchterm, nr: nr, perpkg: false }, 'page ' + nr, pathname);
     }
     $.ajax('/results/' + queryid + '/page_' + nr + '.json')
@@ -334,7 +204,7 @@ function loadPerPkgPage(nr, preload) {
         // There’s pagination at the top and at the bottom of the page. In case the
         // user used the bottom one, it makes sense to scroll back to the top. In
         // case the user used the top one, the scrolling won’t be noticed.
-        window.scrollTo(0, 0);
+        scrollTo(0, 0);
 
         // Start the progress bar after 20ms. If the page was in the cache,
         // this timer will be cancelled by the load callback below. If it
@@ -343,8 +213,8 @@ function loadPerPkgPage(nr, preload) {
         progress_bar_start = setTimeout(function() {
             progress(0, true, 'Loading per-package search result page ' + (nr+1) + '…');
         }, 20);
-        var pathname = '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + nr;
-        if (location.pathname != pathname) {
+        var pathname = pageUrl(nr, true);
+        if (location.toString() !== pathname) {
             history.pushState({ searchterm: searchterm, nr: nr, perpkg: true }, 'page ' + nr, pathname);
         }
     }
@@ -364,7 +234,11 @@ function loadPerPkgPage(nr, preload) {
                 $.each(meta.Results, function(idx, result) {
                     addSearchResult(ul, result);
                 });
-                var allResultsURL = '/results/' + encodeURIComponent(searchterm + ' package:' + meta.Package) + '/page_0';
+                var u = new URL(location);
+                u.searchParams.set('q', searchterm + ' package:' + meta.Package);
+                u.searchParams["delete"]('page');
+                u.searchParams["delete"]('perpkg');
+                var allResultsURL = u.toString();
                 ul.append('<li><a href="' + allResultsURL + '">show all results in package <span class="packagename">' + meta.Package + '</span></a></li>');
                 if (!preload) {
                     progress(100, true, null);
@@ -377,11 +251,18 @@ function loadPerPkgPage(nr, preload) {
 }
 
 function pageUrl(page, perpackage) {
-    if (perpackage) {
-        return '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + page;
+    var u = new URL(location);
+    if (page === 0) {
+        u.searchParams["delete"]('page');
     } else {
-        return '/results/' + encodeURIComponent(searchterm) + '/page_' + page;
+        u.searchParams.set('page', page);
     }
+    if (perpackage) {
+        u.searchParams.set('perpkg', 1);
+    } else {
+        u.searchParams["delete"]('perpkg');
+    }
+    return u.toString();
 }
 
 function updatePagination(currentpage, resultpages, perpackage) {
@@ -425,7 +306,84 @@ function escapeForHTML(input) {
     return $('<div/>').text(input).html();
 }
 
-connection.onmessage = function(e) {
+function getDefault(searchparams, name, def) {
+    var val = searchparams.get(name);
+    return (val === null ? def : val);
+}
+
+function onQueryDone(msg) {
+    if (msg.Results === 0) {
+        progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
+        error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you read the FAQ to make sure your syntax is correct?');
+        return;
+    }
+
+    $('#options').show();
+
+    progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
+
+    // Request the results, but grouped by Debian source package.
+    // Having these available means we can directly show them when the
+    // user decides to switch to perpackage mode.
+    loadPerPkgPage(0, true);
+
+    $.ajax('/results/' + queryid + '/packages.json')
+        .done(function(data, textStatus, xhr) {
+            var p = $('#packages');
+            p.text('');
+            packages = data.Packages;
+            updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
+            if (data.Packages.length === 1) {
+                p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
+                $('#enable-perpackage').attr('disabled', 'disabled');
+                $('label[for=enable-perpackage]').css('opacity', '0.5');
+            } else if (data.Packages.length > 1) {
+                // We are limiting the amount of packages because
+                // some browsers (e.g. Chrome 40) will stop
+                // displaying text with “white-space: nowrap” once
+                // it becomes too long.
+                var u = new URL(location);
+                u.searchParams["delete"]('page');
+                u.searchParams["delete"]('perpkg');
+                var pkgLink = function(packageName) {
+                    u.searchParams.set('q', searchterm + ' package:' + packageName);
+                    return '<a href="' + u.toString() + '">' + packageName + '</a>';
+                };
+                var packagesList = data.Packages.slice(0, 1000).map(pkgLink).join(', ');
+                p.append('<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
+                if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
+                    p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
+                    $('#packageshint').text('');
+                    $('#packageshint').append('To see all packages which contain results: <pre>curl -s ' + location.protocol + '//' + location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
+                }
+
+                $('#enable-perpackage').attr('disabled', null);
+                $('label[for=enable-perpackage]').css('opacity', '1.0');
+
+                if (location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
+                    var parts = new RegExp("/perpackage-results/([^/]+)/2/page_([0-9]+)").exec(location.pathname);
+                    $('#enable-perpackage').prop('checked', true);
+                    changeGrouping();
+                    loadPerPkgPage(parseInt(parts[2]), false);
+                }
+
+                if (location.pathname === '/search') {
+                    var u = new URL(location);
+                    if (u.searchParams.get('perpkg') !== '1') {
+                        return;
+                    }
+                    $('#enable-perpackage').prop('checked', true);
+                    changeGrouping();
+                    loadPerPkgPage(parseInt(getDefault(u.searchParams, 'page', 0)), false);
+                }
+            }
+        })
+        .fail(function(xhr, textStatus, errorThrown) {
+            error(true, true, null, 'Loading search result package list failed: ' + errorThrown);
+        });
+}
+
+function onEvent(e) {
     var msg = JSON.parse(e.data);
     switch (msg.Type) {
         case "progress":
@@ -435,62 +393,8 @@ connection.onmessage = function(e) {
                  false,
                  msg.FilesProcessed + ' / ' + msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
         if (msg.FilesProcessed == msg.FilesTotal) {
-            queryDone = true;
-            if (msg.Results === 0) {
-                progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
-                error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you read the FAQ to make sure your syntax is correct?');
-            } else {
-                $('#options').show();
-
-                progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
-
-                // Request the results, but grouped by Debian source package.
-                // Having these available means we can directly show them when the
-                // user decides to switch to perpackage mode.
-                loadPerPkgPage(0, true);
-
-                $.ajax('/results/' + queryid + '/packages.json')
-                    .done(function(data, textStatus, xhr) {
-                        var p = $('#packages');
-                        p.text('');
-                        packages = data.Packages;
-                        updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
-                        if (data.Packages.length === 1) {
-                            p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
-                            $('#enable-perpackage').attr('disabled', 'disabled');
-                            $('label[for=enable-perpackage]').css('opacity', '0.5');
-                        } else if (data.Packages.length > 1) {
-                            // We are limiting the amount of packages because
-                            // some browsers (e.g. Chrome 40) will stop
-                            // displaying text with “white-space: nowrap” once
-                            // it becomes too long.
-                            var pkgLink = function(packageName) {
-                                var url = '/results/' + encodeURIComponent(searchterm + ' package:' + packageName) + '/page_0';
-                                return '<a href="' + url + '">' + packageName + '</a>';
-                            };
-                            var packagesList = data.Packages.slice(0, 1000).map(pkgLink).join(', ');
-                            p.append('<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
-                            if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
-                                p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
-                                $('#packageshint').text('');
-                                $('#packageshint').append('To see all packages which contain results: <pre>curl -s ' + window.location.protocol + '//' + window.location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
-                            }
-
-                            $('#enable-perpackage').attr('disabled', null);
-                            $('label[for=enable-perpackage]').css('opacity', '1.0');
-
-                            if (window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
-                                var parts = new RegExp("/perpackage-results/([^/]+)/2/page_([0-9]+)").exec(window.location.pathname);
-                                $('#enable-perpackage').prop('checked', true);
-                                changeGrouping();
-                                loadPerPkgPage(parseInt(parts[2]));
-                            }
-                        }
-                    })
-                    .fail(function(xhr, textStatus, errorThrown) {
-                        error(true, true, null, 'Loading search result package list failed: ' + errorThrown);
-                    });
-            }
+            this.close();
+            onQueryDone(msg);
         }
         break;
 
@@ -503,9 +407,16 @@ connection.onmessage = function(e) {
         currentpage_pkg = 0;
         updatePagination(currentpage, resultpages, false);
 
-        if (window.location.pathname.lastIndexOf('/results/', 0) === 0) {
-            var parts = new RegExp("/results/([^/]+)/page_([0-9]+)").exec(window.location.pathname);
+        if (location.pathname.lastIndexOf('/results/', 0) === 0) {
+            var parts = new RegExp("/results/([^/]+)/page_([0-9]+)").exec(location.pathname);
             loadPage(parseInt(parts[2]));
+        }
+        if (location.pathname === '/search') {
+            var u = new URL(location);
+            if (u.searchParams.get('perpkg') !== null) {
+                break;
+            }
+            loadPage(parseInt(getDefault(u.searchParams, 'page', 0)));
         }
         break;
 
@@ -527,7 +438,7 @@ connection.onmessage = function(e) {
         addSearchResult($('ul#results'), msg);
         break;
     }
-};
+}
 
 function setPositionAbsolute(selector) {
     var element = $(selector);
@@ -578,10 +489,12 @@ function changeGrouping() {
         $('#perpackage').show();
     }
 
+    var u = new URL(location);
     if (shouldPerPkg) {
         ppelements.removeClass('animation-reverse');
-        var pathname = '/perpackage-results/' + encodeURIComponent(searchterm) + '/2/page_' + currentpage_pkg;
-        if (location.pathname != pathname) {
+        u.searchParams.set('perpkg', 1);
+        var pathname = u.toString();
+        if (location.toString() != pathname) {
             history.pushState(
                 { searchterm: searchterm, nr: currentpage_pkg, perpkg: true },
                 'page ' + currentpage_pkg,
@@ -593,8 +506,9 @@ function changeGrouping() {
         $('#perpackage').show();
     } else {
         ppelements.addClass('animation-reverse');
-        var pathname = '/results/' + encodeURIComponent(searchterm) + '/page_' + currentpage;
-        if (location.pathname != pathname) {
+        u.searchParams["delete"]('perpkg');
+        var pathname = u.toString();
+        if (location.toString() != pathname) {
             history.pushState(
                 { searchterm: searchterm, nr: currentpage, perpkg: false },
                 'page ' + currentpage,
@@ -618,42 +532,11 @@ function changeGrouping() {
     ppelements.addClass('ppanimation');
 }
 
-// Restore autocomplete from localstorage. This is necessary because the form
-// never gets submitted (we intercept the submit event). All the alternatives
-// are worse and have side-effects.
-function restoreAutocomplete() {
-    var entries = localStorage.getItem("autocomplete");
-    if (entries !== null) {
-        entries = JSON.parse(entries);
-        var dataList = document.getElementById('autocomplete');
-        $('datalist').empty();
-        $.each(entries, function() {
-            var option = document.createElement('option');
-            option.value = this;
-            dataList.appendChild(option);
-        });
-    }
-}
-
-// This function needs to be called every time a scrollbar can appear (any DOM
-// changes!) or the size of the window is changed.
-//
-// This is because span.progressbar-front-text needs to be the same width as
-// div#progressbar, but there is no way to specify that in pure CSS :|.
-function fixProgressbar() {
-    $('.progressbar-front-text').css('width', $('#progressbar').css('width'));
-}
-
 $(window).load(function() {
-    // Try to restore autocomplete settings even before the connection is
-    // established. If localStorage contains an entry, the user has used the
-    // instant search at least once, so chances are she’ll use it again.
-    restoreAutocomplete();
-
     // Pressing “/” anywhere on the page focuses the search field.
     $(document).keydown(function(e) {
         if (e.which == 191) {
-            var q = $('#searchform input[name=q]');
+            var q = $('#searchbox input[name=q]');
             if (q.is(':focus')) {
                 return;
             }
@@ -661,10 +544,6 @@ $(window).load(function() {
             e.preventDefault();
         }
     });
-
-    fixProgressbar();
-
-    $(window).resize(fixProgressbar);
 
     function bindAnimationEvent(element, name, cb) {
         var prefixes = ["webkit", "MS", "moz", "o", ""];
@@ -690,19 +569,33 @@ $(window).load(function() {
         }
     });
 
-    if (window.location.pathname.lastIndexOf('/results/', 0) === 0 ||
-        window.location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
-        var parts = new RegExp("results/([^/]+)").exec(window.location.pathname);
-        $('#searchform input[name=q]').val(decodeURIComponent(parts[1]));
-
-        // If the websocket is not connected within 100ms, indicate progress.
-        if (connection.readyState != WebSocket.OPEN) {
-            $('#searchform input').attr('disabled', true);
-            showConnectProgress = setTimeout(function() {
-                $('#progressbar').show();
-                progress(0, true, 'Connecting…');
-            }, 100);
-        }
+    // Recognize old URL patterns for backwards compatibility:
+    if (location.pathname.lastIndexOf('/results/', 0) === 0 ||
+        location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
+        var parts = new RegExp("results/([^/]+)").exec(location.pathname);
+        searchterm = decodeURIComponent(parts[1]);
+        sendQuery(parts[1]);
     }
-});
 
+    if (location.pathname === '/search') {
+        // Parse the URL again, location lacks searchParams.
+        var u = new URL(location);
+        searchterm = u.searchParams.get('q');
+        sendQuery(encodeURIComponent(searchterm));
+    }
+
+    // This is triggered when the user navigates (e.g. via back button) between
+    // pages that were created using history.pushState().
+    $(window).on('popstate', function(ev) {
+        var u = new URL(location);
+        var perpkg = (u.searchParams.get('perpkg') === '1');
+        var nr = getDefault(u.searchParams, 'page', 0);
+        $('#enable-perpackage').prop('checked', perpkg);
+        changeGrouping();
+        if (perpkg) {
+            loadPerPkgPage(nr);
+        } else {
+            loadPage(nr);
+        }
+    });
+});

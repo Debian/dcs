@@ -6,7 +6,9 @@ package common
 import (
 	"flag"
 	"html/template"
+	"io/ioutil"
 	"log"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -15,6 +17,7 @@ import (
 )
 
 var Version string = "unknown"
+var CriticalCss template.CSS
 var templatePattern = flag.String("template_pattern",
 	"templates/*",
 	"Pattern matching the HTML templates (./templates/* by default)")
@@ -28,8 +31,13 @@ var UseSourcesDebianNet = flag.Bool("use_sources_debian_net",
 var Templates *template.Template
 
 // Must be called after flag.Parse()
-func Init(tlsCertPath, tlsKeyPath string) {
+func Init(tlsCertPath, tlsKeyPath, staticPath string) {
 	loadTemplates()
+	b, err := ioutil.ReadFile(filepath.Join(staticPath, "critical.min.css"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	CriticalCss = template.CSS(string(b))
 	addrs := strings.Split(*sourceBackends, ",")
 	SourceBackendStubs = make([]proto.SourceBackendClient, len(addrs))
 	for idx, addr := range addrs {

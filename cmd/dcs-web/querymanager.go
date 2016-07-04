@@ -848,11 +848,16 @@ func storeProgress(queryid string, backendidx int, progress *pb.ProgressUpdate) 
 func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	matches := perPackagePathRe.FindStringSubmatch(r.URL.Path)
 	if matches == nil || len(matches) != 3 {
-		// TODO: what about non-js clients?
-		// While this just serves index.html, the javascript part of index.html
-		// realizes the path starts with /perpackage-results/ and starts the
-		// search, then requests the specified page on search completion.
-		http.ServeFile(w, r, filepath.Join(*staticPath, "index.html"))
+		matches = redirectPathRe.FindStringSubmatch(r.URL.Path)
+		if len(matches) < 3 {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		pageSuffix := "&page=" + matches[2]
+		if matches[2] == "0" {
+			pageSuffix = ""
+		}
+		http.Redirect(w, r, "/search?q="+matches[1]+pageSuffix+"&perpkg=1", http.StatusFound)
 		return
 	}
 

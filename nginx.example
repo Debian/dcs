@@ -145,6 +145,17 @@ server {
         proxy_pass http://dcsweb;
     }
 
+    location /events/ {
+        limit_req zone=one burst=3 nodelay;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+
+        proxy_pass http://dcsweb;
+    }
+
     location = /track {
         limit_req zone=results burst=5 nodelay;
 

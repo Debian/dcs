@@ -1,0 +1,32 @@
+<div id="progressbar" style="display:none">
+  <div class="progress-bar progress-active" style="transition: none; width: 10%">
+    <span>Connecting to Debian Code Search…</span>
+    <div class="stripes">&nbsp;</div>
+    &nbsp;
+  </div>
+</div>
+<div id="errors">
+</div>
+
+<div id="packages">
+</div>
+<div id="packageshint" style="display: none">
+</div>
+
+<div id="options" style="display: none">
+<input type="checkbox" id="enable-perpackage" disabled="disabled" onclick="changeGrouping()"><label for="enable-perpackage" style="opacity: 0.5">Group search results by Debian source package</label>
+</div>
+
+<div id="normalresults" style="display: none">
+<h2>All results</h2>
+<div class="pagination"></div>
+<ul id="results"></ul>
+<div class="pagination"></div>
+</div>
+
+<div id="perpackage" class="ppanimation" style="display: none">
+<h2>Results by package</h2>
+<div class="perpackage-pagination"></div>
+<div id="perpackage-results"></div>
+<div class="perpackage-pagination"></div>
+</div>

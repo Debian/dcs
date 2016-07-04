@@ -187,14 +187,15 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 	filterurl := baseurl.String()
 
 	if err := common.Templates.ExecuteTemplate(w, "perpackage-results.html", map[string]interface{}{
-		"results":    results,
-		"filterurl":  filterurl,
-		"packages":   packages,
-		"pagination": template.HTML(pagination),
-		"q":          r.Form.Get("q"),
-		"q_escaped":  escapeForUrl(r.Form.Get("q")),
-		"page":       page,
-		"version":    common.Version,
+		"criticalcss": common.CriticalCss,
+		"results":     results,
+		"filterurl":   filterurl,
+		"packages":    packages,
+		"pagination":  template.HTML(pagination),
+		"q":           r.Form.Get("q"),
+		"q_escaped":   escapeForUrl(r.Form.Get("q")),
+		"page":        page,
+		"version":     common.Version,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -256,9 +257,10 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
-			"q":         r.Form.Get("q"),
-			"q_escaped": qEscaped,
-			"version":   common.Version,
+			"criticalcss": common.CriticalCss,
+			"q":           r.Form.Get("q"),
+			"q_escaped":   qEscaped,
+			"version":     common.Version,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -327,15 +329,16 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	filterurl := baseurl.String()
 
 	if err := common.Templates.ExecuteTemplate(w, "results.html", map[string]interface{}{
-		"perpkgurl":  perpkgurl,
-		"filterurl":  filterurl,
-		"results":    halfrendered,
-		"packages":   packages,
-		"pagination": template.HTML(pagination),
-		"q":          r.Form.Get("q"),
-		"q_escaped":  qEscaped,
-		"page":       page,
-		"version":    common.Version,
+		"criticalcss": common.CriticalCss,
+		"perpkgurl":   perpkgurl,
+		"filterurl":   filterurl,
+		"results":     halfrendered,
+		"packages":    packages,
+		"pagination":  template.HTML(pagination),
+		"q":           r.Form.Get("q"),
+		"q_escaped":   qEscaped,
+		"page":        page,
+		"version":     common.Version,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
