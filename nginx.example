@@ -197,8 +197,9 @@ server {
     }
 
     location / {
-        # Cache static files for 24 hours.
-        expires 24h;
+        # Cache static files for half a year. We use cache busters (e.g. a ?2
+        # parameter) for every asset that needs updating.
+        expires 182d;
 
         # First attempt to serve request as file, then
         # as directory, then fall back to displaying a 404.
