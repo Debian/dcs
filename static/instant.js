@@ -235,9 +235,11 @@ function loadPerPkgPage(nr, preload) {
                     addSearchResult(ul, result);
                 });
                 var u = new URL(location);
-                u.searchParams.set('q', searchterm + ' package:' + meta.Package);
-                u.searchParams["delete"]('page');
-                u.searchParams["delete"]('perpkg');
+                var sp = new URLSearchParams(u.search.slice(1));
+                sp.set('q', searchterm + ' package:' + meta.Package);
+                sp["delete"]('page');
+                sp["delete"]('perpkg');
+                u.search = "?" + sp.toString();
                 var allResultsURL = u.toString();
                 ul.append('<li><a href="' + allResultsURL + '">show all results in package <span class="packagename">' + meta.Package + '</span></a></li>');
                 if (!preload) {
@@ -252,16 +254,18 @@ function loadPerPkgPage(nr, preload) {
 
 function pageUrl(page, perpackage) {
     var u = new URL(location);
+    var sp = new URLSearchParams(u.search.slice(1));
     if (page === 0) {
-        u.searchParams["delete"]('page');
+        sp["delete"]('page');
     } else {
-        u.searchParams.set('page', page);
+        sp.set('page', page);
     }
     if (perpackage) {
-        u.searchParams.set('perpkg', 1);
+        sp.set('perpkg', 1);
     } else {
-        u.searchParams["delete"]('perpkg');
+        sp["delete"]('perpkg');
     }
+    u.search = "?" + sp.toString();
     return u.toString();
 }
 
@@ -343,10 +347,12 @@ function onQueryDone(msg) {
                 // displaying text with “white-space: nowrap” once
                 // it becomes too long.
                 var u = new URL(location);
-                u.searchParams["delete"]('page');
-                u.searchParams["delete"]('perpkg');
+                var sp = new URLSearchParams(u.search.slice(1));
+                sp["delete"]('page');
+                sp["delete"]('perpkg');
                 var pkgLink = function(packageName) {
-                    u.searchParams.set('q', searchterm + ' package:' + packageName);
+                    sp.set('q', searchterm + ' package:' + packageName);
+                    u.search = "?" + sp.toString();
                     return '<a href="' + u.toString() + '">' + packageName + '</a>';
                 };
                 var packagesList = data.Packages.slice(0, 1000).map(pkgLink).join(', ');
@@ -369,12 +375,13 @@ function onQueryDone(msg) {
 
                 if (location.pathname === '/search') {
                     var u = new URL(location);
-                    if (u.searchParams.get('perpkg') !== '1') {
+                    var sp = new URLSearchParams(u.search.slice(1));
+                    if (sp.get('perpkg') !== '1') {
                         return;
                     }
                     $('#enable-perpackage').prop('checked', true);
                     changeGrouping();
-                    loadPerPkgPage(parseInt(getDefault(u.searchParams, 'page', 0)), false);
+                    loadPerPkgPage(parseInt(getDefault(sp, 'page', 0)), false);
                 }
             }
         })
@@ -413,10 +420,11 @@ function onEvent(e) {
         }
         if (location.pathname === '/search') {
             var u = new URL(location);
-            if (u.searchParams.get('perpkg') !== null) {
+            var sp = new URLSearchParams(u.search.slice(1));
+            if (sp.get('perpkg') !== null) {
                 break;
             }
-            loadPage(parseInt(getDefault(u.searchParams, 'page', 0)));
+            loadPage(parseInt(getDefault(sp, 'page', 0)));
         }
         break;
 
@@ -490,9 +498,11 @@ function changeGrouping() {
     }
 
     var u = new URL(location);
+    var sp = new URLSearchParams(u.search.slice(1));
     if (shouldPerPkg) {
         ppelements.removeClass('animation-reverse');
-        u.searchParams.set('perpkg', 1);
+        sp.set('perpkg', 1);
+        u.search = "?" + sp.toString();
         var pathname = u.toString();
         if (location.toString() != pathname) {
             history.pushState(
@@ -506,7 +516,8 @@ function changeGrouping() {
         $('#perpackage').show();
     } else {
         ppelements.addClass('animation-reverse');
-        u.searchParams["delete"]('perpkg');
+        sp["delete"]('perpkg');
+        u.search = "?" + sp.toString();
         var pathname = u.toString();
         if (location.toString() != pathname) {
             history.pushState(
@@ -534,7 +545,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js');
+        navigator.serviceWorker.register('/service-worker.min.js?2');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
@@ -582,18 +593,17 @@ $(window).load(function() {
     }
 
     if (location.pathname === '/search') {
-        // Parse the URL again, location lacks searchParams.
-        var u = new URL(location);
-        searchterm = u.searchParams.get('q');
+        var sp = new URLSearchParams(location.search.slice(1));
+        searchterm = sp.get('q');
         sendQuery(encodeURIComponent(searchterm));
     }
 
     // This is triggered when the user navigates (e.g. via back button) between
     // pages that were created using history.pushState().
     $(window).on('popstate', function(ev) {
-        var u = new URL(location);
-        var perpkg = (u.searchParams.get('perpkg') === '1');
-        var nr = getDefault(u.searchParams, 'page', 0);
+        var sp = new URLSearchParams(location.search.slice(1));
+        var perpkg = (sp.get('perpkg') === '1');
+        var nr = getDefault(sp, 'page', 0);
         $('#enable-perpackage').prop('checked', perpkg);
         changeGrouping();
         if (perpkg) {

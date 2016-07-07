@@ -1,5 +1,5 @@
 // vim:ts=4:sw=4:et
-var version = 'v1/';
+var version = 'v2/';
 
 var assets = {
     '/non-critical.min.css': true,
@@ -9,13 +9,13 @@ var assets = {
     '/url-search-params.min.js': true,
     '/loadCSS.min.js': true,
     '/cssrelpreload.min.js': true,
-    '/instant.min.js?6': true,
+    '/instant.min.js?7': true,
     // Only cache fonts in woff2 format, all browsers which support service
     // workers also support woff2.
     '/Inconsolata.woff2': true,
     '/Roboto-Regular.woff2': true,
     '/Roboto-Bold.woff2': true,
-    '/placeholder.html': true
+    '/placeholder.html?2': true
 };
 
 self.addEventListener("install", function(event) {
@@ -63,7 +63,7 @@ self.addEventListener("fetch", function(event) {
         return;
     }
     if (u.pathname === '/search') {
-        event.respondWith(caches.match('/placeholder.html').then(function(response) {
+        event.respondWith(caches.match('/placeholder.html?2').then(function(response) {
             if (!response) {
                 return fetch(event.request);
             }
