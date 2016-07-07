@@ -1,4 +1,4 @@
-all: instant.min.js instant.min.js.gz debcodesearch.min.css.gz non-critical.min.css non-critical.min.css.gz critical.min.css critical.min.css.gz loadCSS.min.js loadCSS.min.js.gz cssrelpreload.min.js cssrelpreload.min.js.gz url-search-params.min.js.gz
+all: instant.min.js instant.min.js.gz debcodesearch.min.css.gz non-critical.min.css non-critical.min.css.gz critical.min.css critical.min.css.gz loadCSS.min.js loadCSS.min.js.gz cssrelpreload.min.js cssrelpreload.min.js.gz url-search-params.min.js.gz service-worker.min.js service-worker.min.js.gz
 
 %.gz: %
 	echo "ZÖPFLI $<"

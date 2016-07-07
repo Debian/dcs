@@ -190,6 +190,10 @@ server {
         proxy_pass http://dcsweb;
     }
 
+    location /placeholder.html {
+        proxy_pass http://dcsweb;
+    }
+
     # Everything else must be a static page, so we directly deliver (with
     # appropriate caching headers).
     location /research/ {

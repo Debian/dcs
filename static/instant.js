@@ -533,6 +533,10 @@ function changeGrouping() {
 }
 
 $(window).load(function() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.min.js');
+    }
+
     // Pressing “/” anywhere on the page focuses the search field.
     $(document).keydown(function(e) {
         if (e.which == 191) {

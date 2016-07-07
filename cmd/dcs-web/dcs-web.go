@@ -391,6 +391,18 @@ func main() {
 	http.HandleFunc("/queryz", QueryzHandler)
 	http.HandleFunc("/track", Track)
 	http.HandleFunc("/events/", EventsHandler)
+	// Used by the service worker.
+	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
+		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
+			"criticalcss": common.CriticalCss,
+			"version":     common.Version,
+			"q":           "%q%",
+			"q_escaped":   "%q_escaped%",
+		}); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
 
 	http.Handle("/instantws", websocket.Handler(InstantServer))
 	http.Handle("/metrics", prometheus.Handler())
