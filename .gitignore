@@ -27,6 +27,8 @@ static/loadCSS.min.js
 static/loadCSS.min.js.gz
 static/non-critical.min.css
 static/non-critical.min.css.gz
+static/service-worker.min.js
+static/service-worker.min.js.gz
 static/url-search-params.min.js.gz
 static/Pics/openlogo-50.svg.gz
 static/Pics/rackspace.svg.gz
