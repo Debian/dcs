@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/stapelberg/godebiancontrol"
@@ -119,7 +120,7 @@ func main() {
 		rankings[srcpkg] = storedRanking{packageRank, rdepcount}
 	}
 
-	f, err := ioutil.TempFile("", "dcs-compute-ranking")
+	f, err := ioutil.TempFile(filepath.Dir(*outputPath), "dcs-compute-ranking")
 	if err != nil {
 		log.Fatal(err)
 	}
