@@ -20,7 +20,7 @@ import (
 var (
 	requireClientAuth = flag.Bool("tls_require_client_auth",
 		true,
-		"Require TLS Client Authentification")
+		"Require TLS Client Authentication")
 )
 
 // grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
