@@ -682,6 +682,7 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 			}
 		}
 		buf.SetBuf(rdbuf)
+		msg.Reset()
 		if err := buf.Unmarshal(&msg); err != nil {
 			return err
 		}
