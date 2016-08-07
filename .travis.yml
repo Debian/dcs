@@ -18,6 +18,6 @@ script:
   # Check whether files are syntactically correct.
   - "gofmt -l $(find . -name '*.go' | tr '\\n' ' ') >/dev/null"
   # Check whether files were not gofmt'ed.
-  - "gosrc=$(find . -name '*.go' \! -path './vendor/*' | tr '\\n' ' '); [ $(gofmt -l $gosrc 2>&- | wc -l) -eq 0 ] || (echo 'gofmt was not run on these files:'; gofmt -l $gosrc 2>&-; false)"
+  - "gosrc=$(find . -name '*.go' \\! -path './vendor/*' | tr '\\n' ' '); [ $(gofmt -l $gosrc 2>&- | wc -l) -eq 0 ] || (echo 'gofmt was not run on these files:'; gofmt -l $gosrc 2>&-; false)"
 # TODO(stapelberg): re-enable after switching to gRPC
 #  - go tool vet ./...
