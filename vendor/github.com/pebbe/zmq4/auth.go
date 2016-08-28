@@ -5,8 +5,10 @@ This file implements functionality very similar to that of the xauth module in c
 Notable differences in here:
 
  - domains are supported
+ - domains are used in AuthAllow and AuthDeny too
  - usernames/passwords are read from memory, not from file
  - public keys are read from memory, not from file
+ - an address can be a single IP address, or an IP address and mask in CIDR notation
  - additional functions for configuring server or client socket with a single command
 
 */
@@ -15,7 +17,8 @@ package zmq4
 
 import (
 	"errors"
-	"fmt"
+	"log"
+	"net"
 )
 
 const CURVE_ALLOW_ANY = "*"
@@ -27,13 +30,99 @@ var (
 	auth_init    = false
 	auth_verbose = false
 
-	auth_allow = make(map[string]bool)
-	auth_deny  = make(map[string]bool)
+	auth_allow     = make(map[string]map[string]bool)
+	auth_deny      = make(map[string]map[string]bool)
+	auth_allow_net = make(map[string][]*net.IPNet)
+	auth_deny_net  = make(map[string][]*net.IPNet)
 
 	auth_users = make(map[string]map[string]string)
 
 	auth_pubkeys = make(map[string]map[string]bool)
+
+	auth_meta_handler = auth_meta_handler_default
 )
+
+func auth_meta_handler_default(version, request_id, domain, address, identity, mechanism string, credentials ...string) (metadata map[string]string) {
+	return map[string]string{}
+}
+
+func auth_isIP(addr string) bool {
+	if net.ParseIP(addr) != nil {
+		return true
+	}
+	if _, _, err := net.ParseCIDR(addr); err == nil {
+		return true
+	}
+	return false
+}
+
+func auth_is_allowed(domain, address string) bool {
+	for _, d := range []string{domain, "*"} {
+		if a, ok := auth_allow[d]; ok {
+			if a[address] {
+				return true
+			}
+		}
+	}
+	addr := net.ParseIP(address)
+	if addr != nil {
+		for _, d := range []string{domain, "*"} {
+			if a, ok := auth_allow_net[d]; ok {
+				for _, m := range a {
+					if m.Contains(addr) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func auth_is_denied(domain, address string) bool {
+	for _, d := range []string{domain, "*"} {
+		if a, ok := auth_deny[d]; ok {
+			if a[address] {
+				return true
+			}
+		}
+	}
+	addr := net.ParseIP(address)
+	if addr != nil {
+		for _, d := range []string{domain, "*"} {
+			if a, ok := auth_deny_net[d]; ok {
+				for _, m := range a {
+					if m.Contains(addr) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+func auth_has_allow(domain string) bool {
+	for _, d := range []string{domain, "*"} {
+		if a, ok := auth_allow[d]; ok {
+			if len(a) > 0 || len(auth_allow_net[d]) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func auth_has_deny(domain string) bool {
+	for _, d := range []string{domain, "*"} {
+		if a, ok := auth_deny[d]; ok {
+			if len(a) > 0 || len(auth_deny_net[d]) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 func auth_do_handler() {
 	for {
@@ -41,16 +130,19 @@ func auth_do_handler() {
 		msg, err := auth_handler.RecvMessage(0)
 		if err != nil {
 			if auth_verbose {
-				fmt.Println("AUTH: Terminating")
+				log.Println("AUTH: Quitting:", err)
 			}
 			break
 		}
 
 		if msg[0] == "QUIT" {
 			if auth_verbose {
-				fmt.Println("AUTH: Quiting")
+				log.Println("AUTH: Quitting: received QUIT message")
 			}
-			auth_handler.SendMessage("QUIT")
+			_, err := auth_handler.SendMessage("QUIT")
+			if err != nil && auth_verbose {
+				log.Println("AUTH: Quitting: bouncing QUIT message:", err)
+			}
 			break
 		}
 
@@ -59,11 +151,12 @@ func auth_do_handler() {
 			panic("AUTH: version != 1.0")
 		}
 
-		sequence := msg[1]
+		request_id := msg[1]
 		domain := msg[2]
 		address := msg[3]
-		//identity := msg[4]  // TODO: what is this used for?
+		identity := msg[4]
 		mechanism := msg[5]
+		credentials := msg[6:]
 
 		username := ""
 		password := ""
@@ -82,28 +175,28 @@ func auth_do_handler() {
 		allowed := false
 		denied := false
 
-		if len(auth_allow) > 0 {
-			if auth_allow[address] {
+		if auth_has_allow(domain) {
+			if auth_is_allowed(domain, address) {
 				allowed = true
 				if auth_verbose {
-					fmt.Printf("AUTH: PASSED (whitelist) address=%s\n", address)
+					log.Printf("AUTH: PASSED (whitelist) domain=%q address=%q\n", domain, address)
 				}
 			} else {
 				denied = true
 				if auth_verbose {
-					fmt.Printf("AUTH: DENIED (not in whitelist) address=%s\n", address)
+					log.Printf("AUTH: DENIED (not in whitelist) domain=%q address=%q\n", domain, address)
 				}
 			}
-		} else if len(auth_deny) > 0 {
-			if auth_deny[address] {
+		} else if auth_has_deny(domain) {
+			if auth_is_denied(domain, address) {
 				denied = true
 				if auth_verbose {
-					fmt.Printf("AUTH: DENIED (blacklist) address=%s\n", address)
+					log.Printf("AUTH: DENIED (blacklist) domain=%q address=%q\n", domain, address)
 				}
 			} else {
 				allowed = true
 				if auth_verbose {
-					fmt.Printf("AUTH: PASSED (not in blacklist) address=%s\n", address)
+					log.Printf("AUTH: PASSED (not in blacklist) domain=%q address=%q\n", domain, address)
 				}
 			}
 		}
@@ -113,7 +206,7 @@ func auth_do_handler() {
 			if mechanism == "NULL" && !allowed {
 				// For NULL, we allow if the address wasn't blacklisted
 				if auth_verbose {
-					fmt.Printf("AUTH: ALLOWED (NULL)\n")
+					log.Printf("AUTH: ALLOWED (NULL)\n")
 				}
 				allowed = true
 			} else if mechanism == "PLAIN" {
@@ -125,13 +218,31 @@ func auth_do_handler() {
 			}
 		}
 		if allowed {
-			auth_handler.SendMessage(version, sequence, "200", "OK", "", "")
+			m := auth_meta_handler(version, request_id, domain, address, identity, mechanism, credentials...)
+			user_id := ""
+			if uid, ok := m["User-Id"]; ok {
+				user_id = uid
+				delete(m, "User-Id")
+			}
+			metadata := make([]byte, 0)
+			for key, value := range m {
+				if len(key) < 256 {
+					metadata = append(metadata, auth_meta_blob(key, value)...)
+				}
+			}
+			auth_handler.SendMessage(version, request_id, "200", "OK", user_id, metadata)
 		} else {
-			auth_handler.SendMessage(version, sequence, "400", "NO ACCESS", "", "")
+			auth_handler.SendMessage(version, request_id, "400", "NO ACCESS", "", "")
 		}
 	}
 
-	auth_handler.Close()
+	err := auth_handler.Close()
+	if err != nil && auth_verbose {
+		log.Println("AUTH: Quitting: Close:", err)
+	}
+	if auth_verbose {
+		log.Println("AUTH: Quit")
+	}
 }
 
 func authenticate_plain(domain, username, password string) bool {
@@ -139,14 +250,14 @@ func authenticate_plain(domain, username, password string) bool {
 		if m, ok := auth_users[dom]; ok {
 			if m[username] == password {
 				if auth_verbose {
-					fmt.Printf("AUTH: ALLOWED (PLAIN) domain=%s username=%s password=%s\n", dom, username, password)
+					log.Printf("AUTH: ALLOWED (PLAIN) domain=%q username=%q password=%q\n", dom, username, password)
 				}
 				return true
 			}
 		}
 	}
 	if auth_verbose {
-		fmt.Printf("AUTH: DENIED (PLAIN) domain=%s username=%s password=%s\n", domain, username, password)
+		log.Printf("AUTH: DENIED (PLAIN) domain=%q username=%q password=%q\n", domain, username, password)
 	}
 	return false
 }
@@ -156,20 +267,20 @@ func authenticate_curve(domain, client_key string) bool {
 		if m, ok := auth_pubkeys[dom]; ok {
 			if m[CURVE_ALLOW_ANY] {
 				if auth_verbose {
-					fmt.Printf("AUTH: ALLOWED (CURVE allow any client, domain=%s)\n", dom)
+					log.Printf("AUTH: ALLOWED (CURVE any client) domain=%q\n", dom)
 				}
 				return true
 			}
 			if m[client_key] {
 				if auth_verbose {
-					fmt.Printf("AUTH: ALLOWED (CURVE) domain=%s client_key=%s\n", dom, client_key)
+					log.Printf("AUTH: ALLOWED (CURVE) domain=%q client_key=%q\n", dom, client_key)
 				}
 				return true
 			}
 		}
 	}
 	if auth_verbose {
-		fmt.Printf("AUTH: DENIED (CURVE) domain=%s client_key=%s\n", domain, client_key)
+		log.Printf("AUTH: DENIED (CURVE) domain=%q client_key=%q\n", domain, client_key)
 	}
 	return false
 }
@@ -181,7 +292,7 @@ func authenticate_curve(domain, client_key string) bool {
 func AuthStart() (err error) {
 	if auth_init {
 		if auth_verbose {
-			fmt.Println("AUTH: Already running")
+			log.Println("AUTH: Already running")
 		}
 		return errors.New("Auth is already running")
 	}
@@ -190,6 +301,7 @@ func AuthStart() (err error) {
 	if err != nil {
 		return
 	}
+	auth_handler.SetLinger(0)
 	err = auth_handler.Bind("inproc://zeromq.zap.01")
 	if err != nil {
 		auth_handler.Close()
@@ -201,6 +313,7 @@ func AuthStart() (err error) {
 		auth_handler.Close()
 		return
 	}
+	auth_quit.SetLinger(0)
 	err = auth_quit.Connect("inproc://zeromq.zap.01")
 	if err != nil {
 		auth_handler.Close()
@@ -211,7 +324,7 @@ func AuthStart() (err error) {
 	go auth_do_handler()
 
 	if auth_verbose {
-		fmt.Println("AUTH: Starting")
+		log.Println("AUTH: Starting")
 	}
 
 	auth_init = true
@@ -223,25 +336,36 @@ func AuthStart() (err error) {
 func AuthStop() {
 	if !auth_init {
 		if auth_verbose {
-			fmt.Println("AUTH: Not running, can't stop")
+			log.Println("AUTH: Not running, can't stop")
 		}
 		return
 	}
 	if auth_verbose {
-		fmt.Println("AUTH: Stopping")
+		log.Println("AUTH: Stopping")
 	}
-	auth_quit.SendMessage("QUIT")
-	auth_quit.RecvMessage(0)
-	auth_quit.Close()
+	_, err := auth_quit.SendMessageDontwait("QUIT")
+	if err != nil && auth_verbose {
+		log.Println("AUTH: Stopping: SendMessageDontwait(\"QUIT\"):", err)
+	}
+	_, err = auth_quit.RecvMessage(0)
+	if err != nil && auth_verbose {
+		log.Println("AUTH: Stopping: RecvMessage:", err)
+	}
+	err = auth_quit.Close()
+	if err != nil && auth_verbose {
+		log.Println("AUTH: Stopping: Close:", err)
+	}
 	if auth_verbose {
-		fmt.Println("AUTH: Stopped")
+		log.Println("AUTH: Stopped")
 	}
 
 	auth_init = false
 
 }
 
-// Allow (whitelist) some IP addresses.
+// Allow (whitelist) some addresses for a domain.
+//
+// An address can be a single IP address, or an IP address and mask in CIDR notation.
 //
 // For NULL, all clients from these addresses will be accepted.
 //
@@ -249,22 +373,79 @@ func AuthStop() {
 //
 // You can call this method multiple times to whitelist multiple IP addresses.
 //
-// If you whitelist a single address, any non-whitelisted addresses are treated as blacklisted.
-func AuthAllow(addresses ...string) {
-	for _, address := range addresses {
-		auth_allow[address] = true
+// If you whitelist a single address for a domain, any non-whitelisted addresses
+// for that domain are treated as blacklisted.
+//
+// Use domain "*" for all domains.
+//
+// For backward compatibility: if domain can be parsed as an IP address, it will be
+// interpreted as another address, and it and all remaining addresses will be added
+// to all domains.
+func AuthAllow(domain string, addresses ...string) {
+	if auth_isIP(domain) {
+		auth_allow_for_domain("*", domain)
+		auth_allow_for_domain("*", addresses...)
+	} else {
+		auth_allow_for_domain(domain, addresses...)
 	}
 }
 
-// Deny (blacklist) some IP addresses.
+func auth_allow_for_domain(domain string, addresses ...string) {
+	if _, ok := auth_allow[domain]; !ok {
+		auth_allow[domain] = make(map[string]bool)
+		auth_allow_net[domain] = make([]*net.IPNet, 0)
+	}
+	for _, address := range addresses {
+		if _, ipnet, err := net.ParseCIDR(address); err == nil {
+			auth_allow_net[domain] = append(auth_allow_net[domain], ipnet)
+		} else if net.ParseIP(address) != nil {
+			auth_allow[domain][address] = true
+		} else {
+			if auth_verbose {
+				log.Printf("AUTH: Allow for domain %q: %q is not a valid address or network\n", domain, address)
+			}
+		}
+	}
+}
+
+// Deny (blacklist) some addresses for a domain.
+//
+// An address can be a single IP address, or an IP address and mask in CIDR notation.
 //
 // For all security mechanisms, this rejects the connection without any further authentication.
 //
-// Use either a whitelist, or a blacklist, not both. If you define both a whitelist
-// and a blacklist, only the whitelist takes effect.
-func AuthDeny(addresses ...string) {
+// Use either a whitelist for a domain, or a blacklist for a domain, not both.
+// If you define both a whitelist and a blacklist for a domain, only the whitelist takes effect.
+//
+// Use domain "*" for all domains.
+//
+// For backward compatibility: if domain can be parsed as an IP address, it will be
+// interpreted as another address, and it and all remaining addresses will be added
+// to all domains.
+func AuthDeny(domain string, addresses ...string) {
+	if auth_isIP(domain) {
+		auth_deny_for_domain("*", domain)
+		auth_deny_for_domain("*", addresses...)
+	} else {
+		auth_deny_for_domain(domain, addresses...)
+	}
+}
+
+func auth_deny_for_domain(domain string, addresses ...string) {
+	if _, ok := auth_deny[domain]; !ok {
+		auth_deny[domain] = make(map[string]bool)
+		auth_deny_net[domain] = make([]*net.IPNet, 0)
+	}
 	for _, address := range addresses {
-		auth_deny[address] = true
+		if _, ipnet, err := net.ParseCIDR(address); err == nil {
+			auth_deny_net[domain] = append(auth_deny_net[domain], ipnet)
+		} else if net.ParseIP(address) != nil {
+			auth_deny[domain][address] = true
+		} else {
+			if auth_verbose {
+				log.Printf("AUTH: Deny for domain %q: %q is not a valid address or network\n", domain, address)
+			}
+		}
 	}
 }
 
@@ -325,6 +506,56 @@ func AuthCurveRemoveAll(domain string) {
 // Enable verbose tracing of commands and activity.
 func AuthSetVerbose(verbose bool) {
 	auth_verbose = verbose
+}
+
+/*
+This function sets the metadata handler that is called by the ZAP
+handler to retrieve key/value properties that should be set on reply
+messages in case of a status code "200" (succes).
+
+Default properties are `Socket-Type`, which is already set, and
+`Identity` and `User-Id` that are empty by default. The last two can be
+set, and more properties can be added.
+
+The `User-Id` property is used for the `user id` frame of the reply
+message. All other properties are stored in the `metadata` frame of the
+reply message.
+
+The default handler returns an empty map.
+
+For the meaning of the handler arguments, and other details, see:
+http://rfc.zeromq.org/spec:27#toc10
+*/
+func AuthSetMetadataHandler(
+	handler func(
+		version, request_id, domain, address, identity, mechanism string, credentials ...string) (metadata map[string]string)) {
+	auth_meta_handler = handler
+}
+
+/*
+This encodes a key/value pair into the format used by a ZAP handler.
+
+Returns an error if key is more then 255 characters long.
+*/
+func AuthMetaBlob(key, value string) (blob []byte, err error) {
+	if len(key) > 255 {
+		return []byte{}, errors.New("Key too long")
+	}
+	return auth_meta_blob(key, value), nil
+}
+
+func auth_meta_blob(name, value string) []byte {
+	l1 := len(name)
+	l2 := len(value)
+	b := make([]byte, l1+l2+5)
+	b[0] = byte(l1)
+	b[l1+1] = byte(l2 >> 24 & 255)
+	b[l1+2] = byte(l2 >> 16 & 255)
+	b[l1+3] = byte(l2 >> 8 & 255)
+	b[l1+4] = byte(l2 & 255)
+	copy(b[1:], []byte(name))
+	copy(b[5+l1:], []byte(value))
+	return b
 }
 
 //. Additional functions for configuring server or client socket with a single command

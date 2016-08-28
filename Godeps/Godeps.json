@@ -28,7 +28,7 @@
 		},
 		{
 			"ImportPath": "github.com/pebbe/zmq4",
-			"Rev": "a082a5f40b31599ed0aa72cdd2369154db701e85"
+			"Rev": "eccbb48ddab7c3989994739b07868056997893da"
 		},
 		{
 			"ImportPath": "github.com/prometheus/client_golang/prometheus",
