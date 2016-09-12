@@ -545,13 +545,13 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?2');
+        navigator.serviceWorker.register('/service-worker.min.js?3');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
     $(document).keydown(function(e) {
-        if (e.which == 191) {
-            var q = $('#searchbox input[name=q]');
+        if (e.key == '/') {
+            var q = $('#searchbox input[name=q], #searchform input[name=q]');
             if (q.is(':focus')) {
                 return;
             }
