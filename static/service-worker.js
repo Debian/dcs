@@ -9,7 +9,7 @@ var assets = {
     '/url-search-params.min.js': true,
     '/loadCSS.min.js': true,
     '/cssrelpreload.min.js': true,
-    '/instant.min.js?8': true,
+    '/instant.min.js?9': true,
     // Only cache fonts in woff2 format, all browsers which support service
     // workers also support woff2.
     '/Inconsolata.woff2': true,
@@ -17,6 +17,21 @@ var assets = {
     '/Roboto-Bold.woff2': true,
     '/placeholder.html?2': true
 };
+
+var entityMap = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': '&quot;',
+  "'": '&#39;',
+  "/": '&#x2F;'
+};
+
+function escapeHtml(string) {
+  return String(string).replace(/[&<>"'\/]/g, function (s) {
+    return entityMap[s];
+  });
+}
 
 self.addEventListener("install", function(event) {
     event.waitUntil(
@@ -81,6 +96,11 @@ self.addEventListener("fetch", function(event) {
             if (q === undefined) {
                 return response;
             }
+
+            // HTML escape q and qEscaped so that they are safe to
+            // string-replace into the placeholder document.
+            q = escapeHtml(q);
+            qEscaped = escapeHtml(qEscaped);
 
             var init = {
                 status: response.status,
