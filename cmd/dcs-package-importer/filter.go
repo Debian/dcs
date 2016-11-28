@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"strings"
@@ -31,6 +32,13 @@ var (
 	ignoredFilenames       = make(map[string]bool)
 	ignoredSuffixes        = make(map[string]bool)
 	onlySmallFilesSuffixes = make(map[string]bool)
+
+	errIgnoredDirnames        = errors.New("file listed in -ignored_dirnames")
+	errIgnoredFilenames       = errors.New("file listed in -ignored_filenames")
+	errIgnoredSuffixes        = errors.New("file listed in -ignored_suffixes")
+	errOnlySmallFilesSuffixes = errors.New("file listed in -only_small_files_suffixes but larger than 64 KB")
+	errTooLarge               = errors.New("file larger than 1GiB")
+	errManpageSuffix          = errors.New("file seems to be a man page as per its suffix")
 )
 
 func setupFilters() {
@@ -60,42 +68,47 @@ func hasManpageSuffix(filename string) bool {
 // Returns true for files that should not be indexed for various reasons:
 // • generated files
 // • non-source (but text) files, e.g. .doc, .svg, …
-func ignored(info os.FileInfo, dir, filename string) bool {
+func ignored(info os.FileInfo, dir, filename string) error {
 	if info.IsDir() {
 		if ignoredDirnames[filename] {
-			return true
+			return errIgnoredDirnames
 		}
 	} else {
 		size := info.Size()
 		// index/write.go will skip the file if it’s too big, so we might as
 		// well skip it here and save the disk space.
 		if size > (1 << 30) {
-			return true
+			return errTooLarge
 		}
 
 		// TODO: peek inside the files (we’d have to read them anyways) and
 		// check for messages that indicate that the file is generated. either
 		// by autoconf or by bison for example.
-		if ignoredFilenames[filename] ||
-			// Don’t match /debian/changelog or /debian/README, but
-			// exclude changelog and readme files generally.
-			(!strings.HasSuffix(dir, "/debian/") &&
-				strings.HasPrefix(strings.ToLower(filename), "changelog") ||
-				strings.HasPrefix(strings.ToLower(filename), "readme")) ||
-			hasManpageSuffix(filename) {
-			return true
+		if ignoredFilenames[filename] {
+			return errIgnoredFilenames
+		}
+
+		// Don’t match /debian/changelog or /debian/README, but
+		// exclude changelog and readme files generally.
+		if !strings.HasSuffix(dir, "/debian/") &&
+			strings.HasPrefix(strings.ToLower(filename), "changelog") ||
+			strings.HasPrefix(strings.ToLower(filename), "readme") {
+			return errIgnoredFilenames
+		}
+		if hasManpageSuffix(filename) {
+			return errManpageSuffix
 		}
 		idx := strings.LastIndex(filename, ".")
 		if idx > -1 {
 			if ignoredSuffixes[filename[idx+1:]] &&
 				!strings.HasPrefix(strings.ToLower(filename), "cmakelists.txt") {
-				return true
+				return errIgnoredSuffixes
 			}
 			if size > 65*1024 && onlySmallFilesSuffixes[filename[idx+1:]] {
-				return true
+				return errOnlySmallFilesSuffixes
 			}
 		}
 	}
 
-	return false
+	return nil
 }

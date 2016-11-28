@@ -336,6 +336,7 @@ func main() {
 	// Start package importer and import testdata/
 	if err := launchInBackground(
 		"dcs-package-importer",
+		"-debug_skip",
 		"-varz_avail_fs=",
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),

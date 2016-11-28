@@ -42,6 +42,10 @@ var (
 		"",
 		"write cpu profile to this file")
 
+	debugSkip = flag.Bool("debug_skip",
+		false,
+		"Print log messages when files are skipped")
+
 	tmpdir string
 
 	indexQueue chan string
@@ -343,13 +347,16 @@ func indexPackage(pkg string) {
 		func(path string, info os.FileInfo, err error) error {
 			if dir, filename := filepath.Split(path); filename != "" {
 				skip := ignored(info, dir, filename)
-				if skip && info.IsDir() {
+				if *debugSkip && skip != nil {
+					log.Printf("Skipping %q: %v", path, skip)
+				}
+				if skip != nil && info.IsDir() {
 					if err := os.RemoveAll(path); err != nil {
 						log.Fatalf("Could not remove directory %q: %v\n", path, err)
 					}
 					return filepath.SkipDir
 				}
-				if skip && !info.IsDir() {
+				if skip != nil && !info.IsDir() {
 					if err := os.Remove(path); err != nil {
 						log.Fatalf("Could not remove file %q: %v\n", path, err)
 					}
@@ -371,6 +378,7 @@ func indexPackage(pkg string) {
 			}
 
 			if err := index.AddFile(path, path[stripLen:]); err != nil {
+				log.Printf("Could not index %q: %v\n", path, err)
 				if err := os.Remove(path); err != nil {
 					log.Fatalf("Could not remove file %q: %v\n", path, err)
 				}
