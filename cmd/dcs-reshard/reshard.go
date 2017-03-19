@@ -19,7 +19,7 @@ import (
 
 var (
 	mirrorUrl = flag.String("mirror_url",
-		"http://ftp.ch.debian.org/debian",
+		"http://deb.debian.org/debian",
 		"Debian mirror URL")
 	oldShardsStr = flag.String("old_shards",
 		"10.209.68.76:21010,10.209.68.12:21010,10.209.68.22:21010,10.209.68.74:21010,10.209.66.198:21010",

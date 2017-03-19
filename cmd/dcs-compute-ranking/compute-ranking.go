@@ -18,7 +18,7 @@ import (
 
 var (
 	mirrorUrl = flag.String("mirror_url",
-		"http://httpredir.debian.org/debian",
+		"http://deb.debian.org/debian",
 		"URL to the debian mirror to use")
 
 	verbose = flag.Bool("verbose",
