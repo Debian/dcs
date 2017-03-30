@@ -5,7 +5,9 @@ package zmq4
 #cgo windows CFLAGS: -I/usr/local/include
 #cgo windows LDFLAGS: -L/usr/local/lib -lzmq
 #include <zmq.h>
+#if ZMQ_VERSION_MINOR < 2
 #include <zmq_utils.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include "zmq4.h"
@@ -41,9 +43,9 @@ int zmq_proxy_steerable (const void *frontend, const void *backend, const void *
     return -1;
 }
 
-#endif
+#endif // Version < 4.0.5
 
-#endif
+#endif // Version == 4.0.x
 
 void zmq4_get_event40(zmq_msg_t *msg, int *ev, int *val) {
     zmq_event_t event;
@@ -83,6 +85,7 @@ var (
 	ErrorMoreExpected          = errors.New("More expected")
 	ErrorNotImplemented405     = errors.New("Not implemented, requires 0MQ version 4.0.5")
 	ErrorNotImplemented41      = errors.New("Not implemented, requires 0MQ version 4.1")
+	ErrorNotImplemented42      = errors.New("Not implemented, requires 0MQ version 4.2")
 	ErrorNotImplementedWindows = errors.New("Not implemented on Windows")
 	ErrorNoSocket              = errors.New("No such socket")
 )
@@ -210,6 +213,27 @@ func (ctx *Context) GetMaxSockets() (int, error) {
 	return getOption(ctx, C.ZMQ_MAX_SOCKETS)
 }
 
+/*
+Returns the maximum message size in the default context.
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func GetMaxMsgsz() (int, error) {
+	return defaultCtx.GetMaxMsgsz()
+}
+
+/*
+Returns the maximum message size.
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func (ctx *Context) GetMaxMsgsz() (int, error) {
+	if minor < 2 {
+		return 0, ErrorNotImplemented42
+	}
+	return getOption(ctx, C.ZMQ_MAX_MSGSZ)
+}
+
 // Returns the IPv6 option in the default context.
 func GetIpv6() (bool, error) {
 	return defaultCtx.GetIpv6()
@@ -218,6 +242,31 @@ func GetIpv6() (bool, error) {
 // Returns the IPv6 option.
 func (ctx *Context) GetIpv6() (bool, error) {
 	i, e := getOption(ctx, C.ZMQ_IPV6)
+	if i == 0 {
+		return false, e
+	}
+	return true, e
+}
+
+/*
+Returns the blocky setting in the default context.
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func GetBlocky() (bool, error) {
+	return defaultCtx.GetBlocky()
+}
+
+/*
+Returns the blocky setting.
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func (ctx *Context) GetBlocky() (bool, error) {
+	if minor < 2 {
+		return false, ErrorNotImplemented42
+	}
+	i, e := getOption(ctx, C.ZMQ_BLOCKY)
 	if i == 0 {
 		return false, e
 	}
@@ -301,6 +350,31 @@ func SetThreadPriority(n int) error {
 }
 
 /*
+Set maximum message size in the default context.
+
+Default value: INT_MAX
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func SetMaxMsgsz(n int) error {
+	return defaultCtx.SetMaxMsgsz(n)
+}
+
+/*
+Set maximum message size.
+
+Default value: INT_MAX
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func (ctx *Context) SetMaxMsgsz(n int) error {
+	if minor < 2 {
+		return ErrorNotImplemented42
+	}
+	return setOption(ctx, C.ZMQ_MAX_MSGSZ, n)
+}
+
+/*
 Sets the maximum number of sockets allowed in the default context.
 
 Default value: 1024
@@ -342,6 +416,35 @@ func (ctx *Context) SetIpv6(i bool) error {
 		n = 1
 	}
 	return setOption(ctx, C.ZMQ_IPV6, n)
+}
+
+/*
+Sets the blocky behavior in the default context.
+
+See: http://api.zeromq.org/4-2:zmq-ctx-set#toc3
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func SetBlocky(i bool) error {
+	return defaultCtx.SetBlocky(i)
+}
+
+/*
+Sets the blocky behavior.
+
+See: http://api.zeromq.org/4-2:zmq-ctx-set#toc3
+
+Returns ErrorNotImplemented42 with ZeroMQ version < 4.2
+*/
+func (ctx *Context) SetBlocky(i bool) error {
+	if minor < 2 {
+		return ErrorNotImplemented42
+	}
+	n := 0
+	if i {
+		n = 1
+	}
+	return setOption(ctx, C.ZMQ_BLOCKY, n)
 }
 
 //. Sockets

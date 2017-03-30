@@ -58,38 +58,34 @@ var (
 )
 
 type cpuTimeMetric struct {
-	counter *prometheus.CounterVec
+	desc *prometheus.Desc
 }
 
 func (ct *cpuTimeMetric) Describe(ch chan<- *prometheus.Desc) {
-	ct.counter.Describe(ch)
+	ch <- ct.desc
 }
 
 func (ct cpuTimeMetric) Collect(ch chan<- prometheus.Metric) {
 	var rusage syscall.Rusage
 	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &rusage); err == nil {
-		m := ct.counter.WithLabelValues("user")
-		m.Set(float64(syscall.TimevalToNsec(rusage.Utime)))
-		ch <- m
+		ch <- prometheus.MustNewConstMetric(ct.desc, prometheus.CounterValue, float64(syscall.TimevalToNsec(rusage.Utime)), "user")
 
-		m = ct.counter.WithLabelValues("system")
-		m.Set(float64(syscall.TimevalToNsec(rusage.Stime)))
-		ch <- m
+		ch <- prometheus.MustNewConstMetric(ct.desc, prometheus.CounterValue, float64(syscall.TimevalToNsec(rusage.Stime)), "system")
 	}
 }
 
 type diskStatsMetric struct {
-	reads        *prometheus.CounterVec
-	writes       *prometheus.CounterVec
-	readbytes    *prometheus.CounterVec
-	writtenbytes *prometheus.CounterVec
+	reads        *prometheus.Desc
+	writes       *prometheus.Desc
+	readbytes    *prometheus.Desc
+	writtenbytes *prometheus.Desc
 }
 
 func (ct *diskStatsMetric) Describe(ch chan<- *prometheus.Desc) {
-	ct.reads.Describe(ch)
-	ct.writes.Describe(ch)
-	ct.readbytes.Describe(ch)
-	ct.writtenbytes.Describe(ch)
+	ch <- ct.reads
+	ch <- ct.writes
+	ch <- ct.readbytes
+	ch <- ct.writtenbytes
 }
 
 func (ct diskStatsMetric) Collect(ch chan<- prometheus.Metric) {
@@ -117,18 +113,10 @@ func (ct diskStatsMetric) Collect(ch chan<- prometheus.Metric) {
 		if !strings.HasSuffix(device, "da") {
 			continue
 		}
-		m := ct.reads.WithLabelValues(device)
-		m.Set(float64(reads))
-		ch <- m
-		m = ct.writes.WithLabelValues(device)
-		m.Set(float64(writes))
-		ch <- m
-		m = ct.readbytes.WithLabelValues(device)
-		m.Set(float64(readsectors * bytesPerSector))
-		ch <- m
-		m = ct.writtenbytes.WithLabelValues(device)
-		m.Set(float64(writtensectors * bytesPerSector))
-		ch <- m
+		ch <- prometheus.MustNewConstMetric(ct.reads, prometheus.CounterValue, float64(reads), device)
+		ch <- prometheus.MustNewConstMetric(ct.writes, prometheus.CounterValue, float64(writes), device)
+		ch <- prometheus.MustNewConstMetric(ct.readbytes, prometheus.CounterValue, float64(readsectors*bytesPerSector), device)
+		ch <- prometheus.MustNewConstMetric(ct.writtenbytes, prometheus.CounterValue, float64(writtensectors*bytesPerSector), device)
 	}
 }
 
@@ -136,48 +124,33 @@ func init() {
 	prometheus.MustRegister(memAllocBytesGauge)
 	prometheus.MustRegister(availFSGauge)
 
-	prometheus.MustRegister(&cpuTimeMetric{prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Subsystem: "process",
-			Name:      "cpu_nsec",
-			Help:      "CPU time spent in ns, split by user/system.",
-		},
-		[]string{"mode"},
-	)})
+	prometheus.MustRegister(&cpuTimeMetric{
+		desc: prometheus.NewDesc("process_cpu_nsec",
+			"CPU time spent in ns, split by user/system.",
+			[]string{"mode"},
+			nil),
+	})
 
 	prometheus.MustRegister(&diskStatsMetric{
-		reads: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Subsystem: "system",
-				Name:      "disk_reads",
-				Help:      "Disk reads, per device name (e.g. xvda).",
-			},
+		reads: prometheus.NewDesc("system_disk_reads",
+			"Disk reads, per device name (e.g. xvda).",
 			[]string{"device"},
-		),
-		writes: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Subsystem: "system",
-				Name:      "disk_writes",
-				Help:      "Disk writes, per device name (e.g. xvda).",
-			},
+			nil),
+
+		writes: prometheus.NewDesc("system_disk_writes",
+			"Disk writes, per device name (e.g. xvda).",
 			[]string{"device"},
-		),
-		readbytes: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Subsystem: "system",
-				Name:      "disk_read_bytes",
-				Help:      "Bytes read from disk, per device name (e.g. xvda).",
-			},
+			nil),
+
+		readbytes: prometheus.NewDesc("disk_read_bytes",
+			"Bytes read from disk, per device name (e.g. xvda).",
 			[]string{"device"},
-		),
-		writtenbytes: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Subsystem: "system",
-				Name:      "disk_written_bytes",
-				Help:      "Bytes written to disk, per device name (e.g. xvda).",
-			},
+			nil),
+
+		writtenbytes: prometheus.NewDesc("disk_written_bytes",
+			"Bytes written to disk, per device name (e.g. xvda).",
 			[]string{"device"},
-		),
+			nil),
 	})
 }
 
