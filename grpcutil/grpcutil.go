@@ -23,6 +23,12 @@ var (
 		"Require TLS Client Authentication")
 )
 
+func init() {
+	// Disable grpc tracing until
+	// https://github.com/grpc/grpc-go/issues/695 is fixed.
+	grpc.EnableTracing = false
+}
+
 // grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
 // connections or otherHandler otherwise. Copied from cockroachdb.
 func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
