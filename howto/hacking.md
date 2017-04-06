@@ -10,7 +10,7 @@ If you don’t already have Go installed, use:
 
 ```bash
 sudo apt-get install golang-go
-export GOPATH=~/gocode
+export GOPATH=~/go
 export PATH=$GOPATH/bin:$PATH
 ```
 
