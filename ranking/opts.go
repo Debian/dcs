@@ -57,14 +57,13 @@ func boolFromQuery(query url.Values, name string) bool {
 }
 
 func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
-	// what exactly happens here? what does the number assign do?
-	// i'm just trying to add support for Objective-C source files
 	switch filetype {
 	case "c":
 		(*suffixes)[".c"] = 0.75
 		(*suffixes)[".h"] = 0.75
-	case "m":
+	case "objc":
 		(*suffixes)[".m"] = 0.75
+		(*suffixes)[".h"] = 0.75
 	case "c++":
 		(*suffixes)[".cpp"] = 0.75
 		(*suffixes)[".cxx"] = 0.75
