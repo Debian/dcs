@@ -61,6 +61,15 @@ func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
 	case "c":
 		(*suffixes)[".c"] = 0.75
 		(*suffixes)[".h"] = 0.75
+	case "objc":
+		(*suffixes)[".m"] = 0.75
+		(*suffixes)[".h"] = 0.75
+		(*suffixes)[".c"] = 0.75
+	case "objc++":
+		(*suffixes)[".mm"] = 0.75
+		(*suffixes)[".cc"] = 0.75
+		(*suffixes)[".cpp"] = 0.75
+		(*suffixes)[".h"] = 0.75
 	case "c++":
 		(*suffixes)[".cpp"] = 0.75
 		(*suffixes)[".cxx"] = 0.75
