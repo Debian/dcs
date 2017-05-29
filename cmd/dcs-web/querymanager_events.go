@@ -96,20 +96,12 @@ func getEvent(queryid string, lastseen int) (event, int) {
 	// We need to prevent new events being added, otherwise we could deadlock.
 	stateMu.Lock()
 	s := state[queryid]
-	if lastseen+1 < len(s.events) {
-		stateMu.Unlock()
-		return s.events[lastseen+1], lastseen + 1
-	}
-	state[queryid].newEvent.L.Lock()
-	stateMu.Unlock()
 	for lastseen+1 >= len(s.events) {
 		log.Printf("[%s] lastseen=%d, waiting\n", queryid, lastseen)
 		s.newEvent.Wait()
-		stateMu.Lock()
 		s = state[queryid]
-		stateMu.Unlock()
 	}
-	s.newEvent.L.Unlock()
+	stateMu.Unlock()
 	return s.events[lastseen+1], lastseen + 1
 }
 

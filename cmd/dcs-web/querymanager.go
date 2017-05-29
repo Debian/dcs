@@ -352,7 +352,7 @@ func maybeStartQuery(queryid, src, query string) (bool, error) {
 	querystate := queryState{
 		started:        time.Now(),
 		query:          query,
-		newEvent:       sync.NewCond(&sync.Mutex{}),
+		newEvent:       sync.NewCond(&stateMu),
 		filesTotal:     make([]int, len(common.SourceBackendStubs)),
 		filesProcessed: make([]int, len(common.SourceBackendStubs)),
 		filesMu:        &sync.Mutex{},
