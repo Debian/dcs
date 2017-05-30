@@ -414,6 +414,42 @@ func indexPackage(pkg string) {
 	successfulPackageIndexes.Inc()
 }
 
+func unpack(dscPath, unpacked string) error {
+	cmd := exec.Command("dpkg-source", "--no-copy", "--no-check", "-x",
+		dscPath, unpacked)
+	// Just display dpkg-source’s stderr in our process’s stderr.
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	files, err := ioutil.ReadDir(unpacked)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if !file.Mode().IsRegular() {
+			continue
+		}
+		if strings.Contains(file.Name(), ".tar.") {
+			// shell out to tar so that we don’t need to deal with the various
+			// compression formats
+			cmd := exec.Command("tar", "xf", file.Name())
+			cmd.Dir = unpacked
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return err
+			}
+			// The tarball will be discarded later, but we might as well remove
+			// it now to speed things up.
+			os.Remove(filepath.Join(unpacked, file.Name()))
+		}
+	}
+
+	return nil
+}
+
 // This goroutine reads package names from the indexQueue channel, unpacks the
 // package, deletes all unnecessary files and indexes it.
 // By default, the number of simultaneous goroutines running this function is
@@ -430,11 +466,7 @@ func unpackAndIndex() {
 			log.Printf("removing unpacked dir: %v\n", err)
 		}
 
-		cmd := exec.Command("dpkg-source", "--no-copy", "--no-check", "-x",
-			filepath.Join(tmpdir, dscPath), unpacked)
-		// Just display dpkg-source’s stderr in our process’s stderr.
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		if err := unpack(filepath.Join(tmpdir, dscPath), unpacked); err != nil {
 			log.Printf("Skipping package %s: %v\n", pkg, err)
 			failedDpkgSourceExtracts.Inc()
 			continue
