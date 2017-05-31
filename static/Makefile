@@ -15,3 +15,5 @@ all: instant.min.js instant.min.js.gz debcodesearch.min.css.gz non-critical.min.
 debcodesearch.min.css: debian.css debcodesearch.css
 	echo "MINIFY $^"
 	(cat $^) | yui-compressor --type css > $@ || (cat $^) | yuicompressor --type css > $@ || (cat $^) | perl -MCSS::Minifier -E 'open(IN, "<", "/dev/stdin"); say CSS::Minifier::minify(input => *IN)' > $@
+
+.DELETE_ON_ERROR:
