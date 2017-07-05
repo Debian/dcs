@@ -436,10 +436,12 @@ function onEvent(e) {
         } else if (msg.ErrorType == "failed") {
             error(false, true, msg.ErrorType, "This query failed due to an unexpected internal server error.");
         } else if (msg.ErrorType == "invalidquery") {
-            error(false, true, msg.ErrorType, "This query was refused by the server, because it is too short or malformed.");
+            error(false, true, msg.ErrorType, "This query was refused by the server: " + msg.ErrorMessage);
         } else {
             error(false, true, msg.ErrorType, msg.ErrorType);
         }
+        this.close();
+        onQueryDone(msg);
         break;
 
         default:
