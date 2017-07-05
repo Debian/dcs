@@ -351,7 +351,7 @@ func main() {
 		}
 	}
 
-	fmt.Println("Debian Code Search webapp")
+	fmt.Printf("Debian Code Search webapp, version %s\n", common.Version)
 
 	health.StartChecking()
 
