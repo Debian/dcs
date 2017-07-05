@@ -95,6 +95,8 @@ func validateQuery(query string) error {
 }
 
 func EventsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+
 	// The additional ":" at the end is necessary so that we don’t need to
 	// distinguish between the two cases (X-Forwarded-For, without a port, and
 	// RemoteAddr, with a part) in the code below.
@@ -108,7 +110,19 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[%s] (events) Received query %q\n", src, q)
 	if err := validateQuery("?" + q); err != nil {
 		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
-		http.Error(w, "Invalid query", http.StatusBadRequest)
+		b, _ := json.Marshal(struct {
+			Type         string
+			ErrorType    string
+			ErrorMessage string
+		}{
+			Type:         "error",
+			ErrorType:    "invalidquery",
+			ErrorMessage: err.Error(),
+		})
+		if _, err := fmt.Fprintf(w, "id: %d\ndata: %s\n\n", 0, string(b)); err != nil {
+			log.Printf("[%s] aborting, could not write: %v\n", src, err)
+			return
+		}
 		return
 	}
 
@@ -125,8 +139,6 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
 
 	// Create an apache common log format entry.
 	if accessLog != nil {
