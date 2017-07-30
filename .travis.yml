@@ -6,7 +6,7 @@ dist: trusty
 language: go
 
 go:
-  - 1.6
+  - 1.8
 
 addons:
   apt:
