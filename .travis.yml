@@ -13,6 +13,9 @@ addons:
     packages:
     - libzmq3-dev
 
+install:
+  - go get -t -v $(go list ./... | grep -v /vendor/)
+
 script:
   - go test ./...
   # Check whether files are syntactically correct.
