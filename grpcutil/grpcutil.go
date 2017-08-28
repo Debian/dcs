@@ -60,7 +60,9 @@ func DialTLS(addr, certFile, keyFile string) (*grpc.ClientConn, error) {
 		RootCAs:      roots,
 		Certificates: []tls.Certificate{cert}})
 
-	return grpc.Dial(addr, grpc.WithTransportCredentials(auth))
+	return grpc.Dial(addr,
+		grpc.WithTransportCredentials(auth),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(512*1024*1024)))
 }
 
 func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Server)) error {
@@ -74,7 +76,10 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 		return err
 	}
 
-	s := grpc.NewServer(grpc.Creds(auth))
+	s := grpc.NewServer(
+		grpc.Creds(auth),
+		grpc.MaxRecvMsgSize(512*1024*1024),
+		grpc.MaxSendMsgSize(512*1024*1024))
 
 	register(s)
 
