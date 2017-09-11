@@ -27,6 +27,7 @@ import (
 	pb "github.com/Debian/dcs/proto"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/golang/protobuf/proto"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 )
@@ -198,7 +199,7 @@ var (
 	stateMu sync.RWMutex
 )
 
-func queryBackend(queryid, src string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
+func queryBackend(ctx context.Context, queryid, src string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
@@ -227,7 +228,7 @@ func queryBackend(queryid, src string, backend pb.SourceBackendClient, backendid
 		})
 	}()
 
-	ctx, cancelfunc := context.WithCancel(context.Background())
+	ctx, cancelfunc := context.WithCancel(ctx)
 	stream, err := backend.Search(ctx, searchRequest)
 	if err != nil {
 		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", queryid, src, err)
@@ -344,10 +345,18 @@ func startQuery(queryid string, querystate queryState) error {
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns whether the query existed and any errors during query
 // creation.
-func maybeStartQuery(queryid, src, query string) (bool, error) {
+func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, error) {
 	if queryExists(queryid) {
 		return true, nil
 	}
+
+	// carry over the tracing span id to a background context: queries are
+	// executed independent of the client, so that when a link is posted
+	// somewhere popular, we don’t duplicate a bunch of work.
+	// TODO(golang.org/issues/19643): replace the code below once a “detach” API
+	// is available
+	span := opentracing.SpanFromContext(ctx)
+	ctx = opentracing.ContextWithSpan(context.Background(), span)
 
 	querystate := queryState{
 		started:        time.Now(),
@@ -401,7 +410,7 @@ func maybeStartQuery(queryid, src, query string) (bool, error) {
 		return true, nil
 	}
 	for idx, backend := range common.SourceBackendStubs {
-		go queryBackend(queryid, src, backend, idx, searchRequest)
+		go queryBackend(ctx, queryid, src, backend, idx, searchRequest)
 	}
 	return false, nil
 }

@@ -2,10 +2,22 @@
 
 
 [[projects]]
+  name = "github.com/apache/thrift"
+  packages = ["lib/go/thrift"]
+  revision = "b2a4d4ae21c789b689dd162deb819665567f481c"
+  version = "0.10.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
   revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/codahale/hdrhistogram"
+  packages = ["."]
+  revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
   branch = "master"
@@ -20,10 +32,28 @@
   revision = "a45d81b686e85d01f2838439deaf72126ccd5a96"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/grpc-ecosystem/go-grpc-middleware"
+  packages = [".","tags","tracing/opentracing","util/metautils"]
+  revision = "645b33ed7ba8739747bf2df55d0349d4bba2e7f6"
+
+[[projects]]
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
   revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/opentracing-contrib/go-stdlib"
+  packages = ["nethttp"]
+  revision = "48e4d763b2fbcd10e666e6a1742acdf8cc2286ef"
+
+[[projects]]
+  name = "github.com/opentracing/opentracing-go"
+  packages = [".","ext","log"]
+  revision = "1949ddbfd147afd4d964a9f00b24eb291e0e7c38"
+  version = "v1.0.2"
 
 [[projects]]
   branch = "master"
@@ -62,6 +92,18 @@
   revision = "157e2f8a8f43c43000f7f80be2355ba9580bb5e0"
 
 [[projects]]
+  name = "github.com/uber/jaeger-client-go"
+  packages = [".","config","internal/spanlog","log","rpcmetrics","thrift-gen/agent","thrift-gen/jaeger","thrift-gen/sampling","thrift-gen/zipkincore","utils"]
+  revision = "3e3870040def0ebdaf65a003863fa64f5cb26139"
+  version = "v2.9.0"
+
+[[projects]]
+  name = "github.com/uber/jaeger-lib"
+  packages = ["metrics"]
+  revision = "575c678b2873b62aaadd0fa5817a2aeb3155dc4d"
+  version = "v1.0.0"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context","http2","http2/hpack","idna","internal/timeseries","lex/httplex","trace","websocket"]
@@ -88,6 +130,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "faecd23ed930449ea5ca58176f3d69d4d74ab2d5d6f0930660552319a47936c0"
+  inputs-digest = "169ac3be766144fe4c6122de0fa91aebcd9483dabe4bec1c80f277d0adfbba3d"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -22,7 +22,11 @@ import (
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
+	opentracing "github.com/opentracing/opentracing-go"
+	olog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber/jaeger-client-go"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -37,6 +41,9 @@ var (
 		"Path to the JSON containing ranking data")
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
+	jaegerAgent = flag.String("jaeger_agent",
+		"localhost:5775",
+		"host:port of a github.com/uber/jaeger agent")
 
 	indexBackend proto.IndexBackendClient
 )
@@ -186,14 +193,18 @@ func sendProgressUpdate(stream proto.SourceBackend_SearchServer, connMu *sync.Mu
 // Reads a single JSON request from the TCP connection, performs the search and
 // sends results back over the TCP connection as they appear.
 func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_SearchServer) error {
+	ctx := stream.Context()
 	connMu := new(sync.Mutex)
 	logprefix := fmt.Sprintf("[%q]", in.Query)
+	span := opentracing.SpanFromContext(ctx)
 
 	// Ask the local index backend for all the filenames.
-	resp, err := indexBackend.Files(context.Background(), &proto.FilesRequest{Query: in.Query})
+	resp, err := indexBackend.Files(ctx, &proto.FilesRequest{Query: in.Query})
 	if err != nil {
 		return fmt.Errorf("%s Error querying index backend for query %q: %v\n", logprefix, in.Query, err)
 	}
+
+	span.LogFields(olog.Int("files.possible", len(resp.Path)))
 
 	// Parse the (rewritten) URL to extract all ranking options/keywords.
 	rewritten, err := url.Parse(in.RewrittenUrl)
@@ -201,8 +212,10 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 		return err
 	}
 	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
+	span.LogFields(olog.String("rankingopts", fmt.Sprintf("%+v", rankingopts)))
 
 	// Rank all the paths.
+	rankspan, _ := opentracing.StartSpanFromContext(ctx, "Rank")
 	files := make(ranking.ResultPaths, 0, len(resp.Path))
 	for _, filename := range resp.Path {
 		result := ranking.ResultPath{Path: filename}
@@ -211,9 +224,14 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 			files = append(files, result)
 		}
 	}
+	rankspan.Finish()
 
 	// Filter all files that should be excluded.
+	filterspan, _ := opentracing.StartSpanFromContext(ctx, "Filter")
 	files = filterByKeywords(rewritten, files)
+	filterspan.Finish()
+
+	span.LogFields(olog.Int("files.filtered", len(files)))
 
 	// While not strictly necessary, this will lead to better results being
 	// discovered (and returned!) earlier, so let’s spend a few cycles on
@@ -224,6 +242,8 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 	if err != nil {
 		return fmt.Errorf("%s Could not compile regexp: %v\n", logprefix, err)
 	}
+
+	span.LogFields(olog.String("regexp", re.String()))
 
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
 
@@ -376,7 +396,28 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
+
+	cfg := jaegercfg.Configuration{
+		Sampler: &jaegercfg.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jaegercfg.ReporterConfig{
+			BufferFlushInterval: 1 * time.Second,
+			LocalAgentHostPort:  *jaegerAgent,
+		},
+	}
+	closer, err := cfg.InitGlobalTracer(
+		"dcs-source-backend",
+		jaegercfg.Logger(jaeger.StdLogger),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer closer.Close()
+
 	rand.Seed(time.Now().UnixNano())
 	if !strings.HasSuffix(*unpackedPath, "/") {
 		*unpackedPath = *unpackedPath + "/"

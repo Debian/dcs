@@ -21,6 +21,7 @@ import (
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	dcsregexp "github.com/Debian/dcs/regexp"
+	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // XXX: Using a dcsregexp.Match anonymous struct member doesn’t work,
@@ -206,6 +207,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 // page= page number
 // perpkg= per-package grouping
 func Search(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not parse form data", http.StatusInternalServerError)
 		return
@@ -216,6 +218,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Empty query", http.StatusNotFound)
 		return
 	}
+
+	span := opentracing.SpanFromContext(ctx)
+	span.SetOperationName("Serverrendered: " + r.Form.Get("q"))
 
 	// We encode a URL that contains _only_ the q parameter.
 	q := url.Values{"q": []string{r.Form.Get("q")}}.Encode()
@@ -246,7 +251,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := maybeStartQuery(queryid, src, q); err != nil {
+	if _, err := maybeStartQuery(ctx, queryid, src, q); err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
 		return

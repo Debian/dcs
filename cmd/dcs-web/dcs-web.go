@@ -27,7 +27,11 @@ import (
 	"github.com/Debian/dcs/index"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
+	"github.com/opentracing-contrib/go-stdlib/nethttp"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/uber/jaeger-client-go"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 	_ "golang.org/x/net/trace"
 	"golang.org/x/net/websocket"
 )
@@ -48,6 +52,9 @@ var (
 		"Where to write access.log entries (in Apache Common Log Format). Disabled if empty.")
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
+	jaegerAgent = flag.String("jaeger_agent",
+		"localhost:5775",
+		"host:port of a github.com/uber/jaeger agent")
 
 	accessLog *os.File
 
@@ -95,6 +102,9 @@ func validateQuery(query string) error {
 }
 
 func EventsHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	span := opentracing.SpanFromContext(ctx)
+	span.SetOperationName("Events: " + r.URL.Path[len("/events/"):])
 	w.Header().Set("Content-Type", "text/event-stream")
 
 	// The additional ":" at the end is necessary so that we don’t need to
@@ -133,7 +143,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	cached, err := maybeStartQuery(identifier, src, q)
+	cached, err := maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
@@ -185,6 +195,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func InstantServer(ws *websocket.Conn) {
+	ctx := ws.Request().Context()
 	// The additional ":" at the end is necessary so that we don’t need to
 	// distinguish between the two cases (X-Forwarded-For, without a port, and
 	// RemoteAddr, with a part) in the code below.
@@ -207,6 +218,10 @@ func InstantServer(ws *websocket.Conn) {
 			return
 		}
 		log.Printf("[%s] Received query %v\n", src, q)
+
+		span := opentracing.SpanFromContext(ctx)
+		span.SetOperationName("Websocket: " + q.Query)
+
 		if err := validateQuery("?" + q.Query); err != nil {
 			log.Printf("[%s] Query %q failed validation: %v\n", src, q.Query, err)
 			ws.Write([]byte(`{"Type":"error", "ErrorType":"invalidquery"}`))
@@ -220,7 +235,7 @@ func InstantServer(ws *websocket.Conn) {
 		io.WriteString(h, q.Query)
 		identifier := fmt.Sprintf("%x", h.Sum64())
 
-		cached, err := maybeStartQuery(identifier, src, q.Query)
+		cached, err := maybeStartQuery(ctx, identifier, src, q.Query)
 		if err != nil {
 			log.Printf("[%s] could not start query: %v\n", src, err)
 			ws.Write([]byte(`{"Type":"error", "ErrorType":"failed"}`))
@@ -331,7 +346,30 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
+
+	// Initialize the global tracer as early as possible:
+	// common.Init uses gRPC.
+	cfg := jaegercfg.Configuration{
+		Sampler: &jaegercfg.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jaegercfg.ReporterConfig{
+			BufferFlushInterval: 1 * time.Second,
+			LocalAgentHostPort:  *jaegerAgent,
+		},
+	}
+	tracer, closer, err := cfg.New(
+		"dcs-web",
+		jaegercfg.Logger(jaeger.StdLogger),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	opentracing.SetGlobalTracer(tracer)
+	defer closer.Close()
 
 	common.Init(*tlsCertPath, *tlsKeyPath, *staticPath)
 
@@ -383,7 +421,6 @@ func main() {
 	})
 	http.HandleFunc("/favicon.ico", http.NotFound)
 	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
-	http.HandleFunc("/search", Search)
 	http.HandleFunc("/show", show.Show)
 	http.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("writing memprof")
@@ -402,7 +439,16 @@ func main() {
 	http.HandleFunc("/perpackage-results/", PerPackageResultsHandler)
 	http.HandleFunc("/queryz", QueryzHandler)
 	http.HandleFunc("/track", Track)
-	http.HandleFunc("/events/", EventsHandler)
+
+	traced := http.NewServeMux()
+	traced.HandleFunc("/search", Search)
+	traced.HandleFunc("/events/", EventsHandler)
+	traced.Handle("/instantws", websocket.Handler(InstantServer))
+	traceHandler := nethttp.Middleware(tracer, traced)
+	http.Handle("/events/", traceHandler)
+	http.Handle("/instantws", traceHandler)
+	http.Handle("/search", traceHandler)
+
 	// Used by the service worker.
 	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
@@ -416,7 +462,6 @@ func main() {
 		}
 	})
 
-	http.Handle("/instantws", websocket.Handler(InstantServer))
 	http.Handle("/metrics", prometheus.Handler())
 
 	if *listenAddressTLS != "" {

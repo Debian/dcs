@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/trace"
 	"google.golang.org/grpc"
@@ -62,7 +63,9 @@ func DialTLS(addr, certFile, keyFile string) (*grpc.ClientConn, error) {
 
 	return grpc.Dial(addr,
 		grpc.WithTransportCredentials(auth),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(512*1024*1024)))
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(512*1024*1024)),
+		grpc.WithStreamInterceptor(grpc_opentracing.StreamClientInterceptor()),
+		grpc.WithUnaryInterceptor(grpc_opentracing.UnaryClientInterceptor()))
 }
 
 func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Server)) error {
@@ -79,7 +82,9 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 	s := grpc.NewServer(
 		grpc.Creds(auth),
 		grpc.MaxRecvMsgSize(512*1024*1024),
-		grpc.MaxSendMsgSize(512*1024*1024))
+		grpc.MaxSendMsgSize(512*1024*1024),
+		grpc.StreamInterceptor(grpc_opentracing.StreamServerInterceptor()),
+		grpc.UnaryInterceptor(grpc_opentracing.UnaryServerInterceptor()))
 
 	register(s)
 
