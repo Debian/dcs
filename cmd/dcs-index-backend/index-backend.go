@@ -45,20 +45,23 @@ type server struct {
 // doPostingQuery runs the actual query. This code is in a separate function so
 // that we can use defer (to be safe against panics in the index querying code)
 // and still don’t hold the mutex for longer than we need to.
-func (s *server) doPostingQuery(query *index.Query) []string {
+func (s *server) doPostingQuery(query *index.Query, stream proto.IndexBackend_FilesServer) error {
 	s.ixMutex.Lock()
 	defer s.ixMutex.Unlock()
 	t0 := time.Now()
 	post := s.ix.PostingQuery(query)
 	t1 := time.Now()
 	fmt.Printf("[%s] postingquery done in %v, %d results\n", s.id, t1.Sub(t0), len(post))
-	files := make([]string, len(post))
-	for idx, fileid := range post {
-		files[idx] = s.ix.Name(fileid)
+	var reply proto.FilesReply
+	for _, fileid := range post {
+		reply.Path = s.ix.Name(fileid)
+		if err := stream.Send(&reply); err != nil {
+			return err
+		}
 	}
 	t2 := time.Now()
 	fmt.Printf("[%s] filenames collected in %v\n", s.id, t2.Sub(t1))
-	return files
+	return nil
 }
 
 // Handles requests to /index by compiling the q= parameter into a regular
@@ -66,7 +69,7 @@ func (s *server) doPostingQuery(query *index.Query) []string {
 // list of matching filenames in a JSON array.
 // TODO: This doesn’t handle file name regular expressions at all yet.
 // TODO: errors aren’t properly signaled to the requester
-func (s *server) Files(ctx context.Context, in *proto.FilesRequest) (*proto.FilesReply, error) {
+func (s *server) Files(in *proto.FilesRequest, stream proto.IndexBackend_FilesServer) error {
 	if *cpuProfile != "" {
 		f, err := os.Create(*cpuProfile)
 		if err != nil {
@@ -79,13 +82,11 @@ func (s *server) Files(ctx context.Context, in *proto.FilesRequest) (*proto.File
 
 	re, err := regexp.Compile(in.Query)
 	if err != nil {
-		return nil, fmt.Errorf("regexp.Compile: %s\n", err)
+		return fmt.Errorf("regexp.Compile: %s\n", err)
 	}
 	query := index.RegexpQuery(re.Syntax)
 	log.Printf("[%s] query: text = %s, regexp = %s\n", s.id, in.Query, query)
-	return &proto.FilesReply{
-		Path: s.doPostingQuery(query),
-	}, nil
+	return s.doPostingQuery(query, stream)
 }
 
 func (s *server) ReplaceIndex(ctx context.Context, in *proto.ReplaceIndexRequest) (*proto.ReplaceIndexReply, error) {

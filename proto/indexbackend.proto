@@ -10,10 +10,10 @@ message FilesRequest {
 }
 
 message FilesReply {
-  // A list of paths which match the requested trigram query (likely to match
+  // A path which match the requested trigram query (likely to match
   // the regular expression from which the trigram query was derived, but can
   // contain false positives).
-  repeated string path = 1;
+  string path = 1;
 }
 
 message ReplaceIndexRequest {
@@ -27,7 +27,7 @@ message ReplaceIndexReply {
 service IndexBackend {
   // Files returns a list of files which match the specified query in the
   // trigram index.
-  rpc Files(FilesRequest) returns (FilesReply) {}
+  rpc Files(FilesRequest) returns (stream FilesReply) {}
 
   // Replaces the loaded index with the specified replacement index. On a file
   // system level, the specified file is mv'ed to the file specified by

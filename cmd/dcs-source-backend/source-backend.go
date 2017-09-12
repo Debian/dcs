@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -199,12 +200,24 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 	span := opentracing.SpanFromContext(ctx)
 
 	// Ask the local index backend for all the filenames.
-	resp, err := indexBackend.Files(ctx, &proto.FilesRequest{Query: in.Query})
+	fstream, err := indexBackend.Files(ctx, &proto.FilesRequest{Query: in.Query})
 	if err != nil {
 		return fmt.Errorf("%s Error querying index backend for query %q: %v\n", logprefix, in.Query, err)
 	}
 
-	span.LogFields(olog.Int("files.possible", len(resp.Path)))
+	var possible []string
+	for {
+		resp, err := fstream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		possible = append(possible, resp.Path)
+	}
+
+	span.LogFields(olog.Int("files.possible", len(possible)))
 
 	// Parse the (rewritten) URL to extract all ranking options/keywords.
 	rewritten, err := url.Parse(in.RewrittenUrl)
@@ -216,8 +229,8 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 
 	// Rank all the paths.
 	rankspan, _ := opentracing.StartSpanFromContext(ctx, "Rank")
-	files := make(ranking.ResultPaths, 0, len(resp.Path))
-	for _, filename := range resp.Path {
+	files := make(ranking.ResultPaths, 0, len(possible))
+	for _, filename := range possible {
 		result := ranking.ResultPath{Path: filename}
 		result.Rank(&rankingopts)
 		if result.Ranking > -1 {
