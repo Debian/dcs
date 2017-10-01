@@ -219,8 +219,8 @@ func InstantServer(ws *websocket.Conn) {
 		}
 		log.Printf("[%s] Received query %v\n", src, q)
 
-		span := opentracing.SpanFromContext(ctx)
-		span.SetOperationName("Websocket: " + q.Query)
+		// span := opentracing.SpanFromContext(ctx)
+		// span.SetOperationName("Websocket: " + q.Query)
 
 		if err := validateQuery("?" + q.Query); err != nil {
 			log.Printf("[%s] Query %q failed validation: %v\n", src, q.Query, err)
@@ -446,7 +446,10 @@ func main() {
 	traced.Handle("/instantws", websocket.Handler(InstantServer))
 	traceHandler := nethttp.Middleware(tracer, traced)
 	http.Handle("/events/", traceHandler)
-	http.Handle("/instantws", traceHandler)
+	// TODO: find a way to trace /instantws calls — re-implement the
+	// http.Hijacker interface in nethttp.Middleware?
+	// http.Handle("/instantws", traceHandler)
+	http.Handle("/instantws", websocket.Handler(InstantServer))
 	http.Handle("/search", traceHandler)
 
 	// Used by the service worker.
