@@ -9,13 +9,13 @@ var assets = {
     '/url-search-params.min.js': true,
     '/loadCSS.min.js': true,
     '/cssrelpreload.min.js': true,
-    '/instant.min.js?10': true,
+    '/instant.min.js?11': true,
     // Only cache fonts in woff2 format, all browsers which support service
     // workers also support woff2.
     '/Inconsolata.woff2': true,
     '/Roboto-Regular.woff2': true,
     '/Roboto-Bold.woff2': true,
-    '/placeholder.html?2': true
+    '/placeholder.html?3': true
 };
 
 var entityMap = {
@@ -78,7 +78,7 @@ self.addEventListener("fetch", function(event) {
         return;
     }
     if (u.pathname === '/search') {
-        event.respondWith(caches.match('/placeholder.html?2').then(function(response) {
+        event.respondWith(caches.match('/placeholder.html?3').then(function(response) {
             if (!response) {
                 return fetch(event.request);
             }
