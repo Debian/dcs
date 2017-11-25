@@ -248,7 +248,7 @@ func importTestdata() error {
 	}
 
 	// Wait with merging until all packages were imported, but up to 5s max.
-	for try := 0; try < 20; try++ {
+	for try := 0; try < 5; try++ {
 		resp, err := http.Get("http://" + *listenPackageImporter + "/metrics")
 		if err != nil {
 			time.Sleep(250 * time.Millisecond)
@@ -262,10 +262,31 @@ func importTestdata() error {
 		if strings.Contains(string(body), fmt.Sprintf("package_indexes_successful %d", numPackages)) {
 			break
 		}
+		time.Sleep(1 * time.Second)
 	}
 
 	_, err := http.Get("http://" + *listenPackageImporter + "/merge")
-	return err
+	if err != nil {
+		return err
+	}
+	// Wait for up to 20s until the merge completed
+	for try := 0; try < 20; try++ {
+		resp, err := http.Get("http://" + *listenPackageImporter + "/metrics")
+		if err != nil {
+			time.Sleep(250 * time.Millisecond)
+			continue
+		}
+		body, err := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(body), "merges_successful 1") {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	return nil
 }
 
 func main() {
