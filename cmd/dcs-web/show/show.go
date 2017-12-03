@@ -26,8 +26,8 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	line := int(line64)
 	log.Printf("Showing file %s, line %d\n", filename, line)
 
-	if *common.UseSourcesDebianNet && health.IsHealthy("sources.debian.net") {
-		destination := fmt.Sprintf("http://sources.debian.net/src/%s?hl=%d#L%d",
+	if *common.UseSourcesDebianNet && health.IsHealthy("sources.debian.org") {
+		destination := fmt.Sprintf("https://sources.debian.org/src/%s?hl=%d#L%d",
 			strings.Replace(filename, "_", "/", 1), line, line)
 		log.Printf("SDN is healthy. Redirecting to %s\n", destination)
 		http.Redirect(w, r, destination, 302)
