@@ -91,10 +91,13 @@ func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 	// Filter the filenames if the "package:" keyword was specified.
 	if pkg != "" {
 		fmt.Printf("Filtering for package %q\n", pkg)
+		pkgRegexp, err := regexp.Compile(pkg)
+		if err != nil {
+			return files
+		}
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
-			// XXX: Do we want this to be a regular expression match, too?
-			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] != pkg {
+			if pkgRegexp.MatchString(file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]], true, true) == -1 {
 				continue
 			}
 
@@ -107,10 +110,13 @@ func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 	// Filter the filenames if the "-package:" keyword was specified.
 	for _, npkg := range npkgs {
 		fmt.Printf("Excluding matches for package %q\n", npkg)
+		npkgRegexp, err := regexp.Compile(npkg)
+		if err != nil {
+			return files
+		}
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
-			// XXX: Do we want this to be a regular expression match, too?
-			if file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]] == npkg {
+			if npkgRegexp.MatchString(file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]], true, true) != -1 {
 				continue
 			}
 
