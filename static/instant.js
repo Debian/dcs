@@ -318,7 +318,7 @@ function getDefault(searchparams, name, def) {
 function onQueryDone(msg) {
     if (msg.Results === 0) {
         progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
-        error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you read the FAQ to make sure your syntax is correct?');
+        error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Please read the FAQ to make sure your syntax is correct.');
         return;
     }
 
