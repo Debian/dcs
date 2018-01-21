@@ -547,7 +547,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?6');
+        navigator.serviceWorker.register('/service-worker.min.js?7');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
