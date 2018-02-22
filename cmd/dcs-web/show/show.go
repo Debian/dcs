@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -27,8 +28,13 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Showing file %s, line %d\n", filename, line)
 
 	if *common.UseSourcesDebianNet && health.IsHealthy("sources.debian.org") {
-		destination := fmt.Sprintf("https://sources.debian.org/src/%s?hl=%d#L%d",
-			strings.Replace(filename, "_", "/", 1), line, line)
+		u, _ := url.Parse("https://sources.debian.org/")
+		u.Path = "/src/" + strings.Replace(filename, "_", "/", 1)
+		q := u.Query()
+		q.Set("hl", strconv.Itoa(line))
+		u.RawQuery = q.Encode()
+		u.Fragment = "L" + strconv.Itoa(line)
+		destination := u.String()
 		log.Printf("SDN is healthy. Redirecting to %s\n", destination)
 		http.Redirect(w, r, destination, 302)
 		return
