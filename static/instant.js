@@ -75,7 +75,7 @@ function sendQuery(term) {
     $('#packageshint').hide();
     if (typeof(EventSource) !== 'undefined') {
         // EventSource is supported by Chrome 9+ and Firefox 6+.
-        var eventsrc = new EventSource("/events/" + term);
+        var eventsrc = new EventSource("/events/?q=" + term);
         eventsrc.onmessage = onEvent;
     } else {
         // Fall back to WebSockets, which need an additional round trip
@@ -547,7 +547,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?7');
+        navigator.serviceWorker.register('/service-worker.min.js?8');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.

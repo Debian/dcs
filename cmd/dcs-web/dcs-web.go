@@ -103,8 +103,12 @@ func validateQuery(query string) error {
 
 func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	query := r.FormValue("q")
+	if query == "" {
+		query = strings.TrimPrefix(r.URL.Path, "/events/")
+	}
 	span := opentracing.SpanFromContext(ctx)
-	span.SetOperationName("Events: " + r.URL.Path[len("/events/"):])
+	span.SetOperationName("Events: " + query)
 	w.Header().Set("Content-Type", "text/event-stream")
 
 	// The additional ":" at the end is necessary so that we don’t need to
@@ -115,7 +119,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 		!strings.HasPrefix(r.RemoteAddr, "127.0.0.1:")) {
 		src = r.RemoteAddr
 	}
-	q := "q=" + url.QueryEscape(r.URL.Path[len("/events/"):])
+	q := "q=" + url.QueryEscape(query)
 
 	log.Printf("[%s] (events) Received query %q\n", src, q)
 	if err := validateQuery("?" + q); err != nil {
