@@ -236,7 +236,7 @@ function loadPerPkgPage(nr, preload) {
                 });
                 var u = new URL(location);
                 var sp = new URLSearchParams(u.search.slice(1));
-                sp.set('q', searchterm + ' package:' + meta.Package);
+                sp.set('q', searchterm + ' package:\\Q' + meta.Package + '\\E');
                 sp["delete"]('page');
                 sp["delete"]('perpkg');
                 u.search = "?" + sp.toString();
@@ -351,7 +351,7 @@ function onQueryDone(msg) {
                 sp["delete"]('page');
                 sp["delete"]('perpkg');
                 var pkgLink = function(packageName) {
-                    sp.set('q', searchterm + ' package:' + packageName);
+                    sp.set('q', searchterm + ' package:\\Q' + packageName + '\\E');
                     u.search = "?" + sp.toString();
                     return '<a href="' + u.toString() + '">' + packageName + '</a>';
                 };
@@ -547,7 +547,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?8');
+        navigator.serviceWorker.register('/service-worker.min.js?9');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
