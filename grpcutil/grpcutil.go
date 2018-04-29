@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/Debian/dcs/internal/addrfd"
 	"github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/trace"
@@ -112,5 +113,6 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 	}
 	srv.TLSConfig.Certificates = make([]tls.Certificate, 1)
 	srv.TLSConfig.Certificates[0], err = tls.LoadX509KeyPair(certFile, keyFile)
+	addrfd.MustWrite(ln.Addr().String())
 	return srv.Serve(tls.NewListener(ln, srv.TLSConfig))
 }

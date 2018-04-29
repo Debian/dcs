@@ -2,7 +2,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -19,10 +18,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Debian/dcs/goroutinez"
+	"google.golang.org/grpc"
+
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/index"
-	"github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/internal/proto/indexbackendpb"
+	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
@@ -33,6 +34,10 @@ var (
 	listenAddress = flag.String("listen_address",
 		":21010",
 		"listen address ([host]:port)")
+
+	indexBackendAddr = flag.String("index_backend",
+		"localhost:28081",
+		"index backend host:port address")
 
 	unpackedPath = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
@@ -47,9 +52,6 @@ var (
 		"Print log messages when files are skipped")
 
 	tmpdir string
-
-	indexQueue chan string
-	mergeQueue chan bool
 
 	failedDpkgSourceExtracts = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -101,8 +103,6 @@ var (
 
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
-
-	indexBackend proto.IndexBackendClient
 )
 
 func init() {
@@ -114,6 +114,11 @@ func init() {
 	prometheus.MustRegister(successfulPackageImports)
 	prometheus.MustRegister(successfulPackageIndexes)
 	prometheus.MustRegister(filesInIndex)
+}
+
+type server struct {
+	unpacksem chan struct{} // semaphore for unpackAndIndex
+	mergesem  chan struct{} // semaphore for merge
 }
 
 // Accepts arbitrary files for a given package and starts unpacking once a .dsc
@@ -128,53 +133,50 @@ func init() {
 //
 // All the files are stored in the same directory and after the .dsc is stored,
 // the package is unpacked with dpkg-source, then indexed.
-func importPackage(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	path := r.URL.Path[len("/import/"):]
-	pkg := filepath.Dir(path)
-	filename := filepath.Base(path)
+func (s *server) Import(ctx context.Context, req *packageimporterpb.ImportRequest) (*packageimporterpb.ImportReply, error) {
+	pkg := req.GetSourcePackage()
+	filename := req.GetFilename()
+	path := pkg + "/" + filename
 
 	err := os.Mkdir(filepath.Join(tmpdir, pkg), 0755)
 	if err != nil && !os.IsExist(err) {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		failedPackageImports.Inc()
-		return
+		return nil, err
 	}
-
 	file, err := os.Create(filepath.Join(tmpdir, path))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		failedPackageImports.Inc()
-		return
+		return nil, err
 	}
 	defer file.Close()
-	written, err := io.Copy(file, r.Body)
+	written, err := file.Write(req.GetContent())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		failedPackageImports.Inc()
-		return
+		return nil, err
 	}
 	log.Printf("Wrote %d bytes into %s\n", written, path)
 
-	fmt.Fprintf(w, "thank you for sending file %s for package %s!\n", filename, pkg)
 	if strings.HasSuffix(filename, ".dsc") {
-		indexQueue <- path
+		s.unpacksem <- struct{}{}        // acquire
+		defer func() { <-s.unpacksem }() // release
+		if err := unpackAndIndex(path); err != nil {
+			return nil, err
+		}
 	}
 
 	successfulPackageImports.Inc()
+	return &packageimporterpb.ImportReply{}, nil
 }
 
 // Tries to start a merge and errors in case one is already in progress.
-func mergeOrError(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (s *server) Merge(context.Context, *packageimporterpb.MergeRequest) (*packageimporterpb.MergeReply, error) {
 	select {
-	case mergeQueue <- true:
-		fmt.Fprintf(w, "Merge started.")
+	case s.mergesem <- struct{}{}: // acquire
 	default:
-		http.Error(w, "Merge already in progress, please try again later.", http.StatusInternalServerError)
+		return nil, fmt.Errorf("Merge already in progress, please try again later.")
 	}
+	defer func() { <-s.mergesem }() // release
+	if err := mergeToShard(); err != nil {
+		return nil, err
+	}
+	return &packageimporterpb.MergeReply{}, nil
 }
 
 func packageNames() []string {
@@ -197,41 +199,22 @@ func packageNames() []string {
 	return names
 }
 
-func listPackages(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (s *server) Packages(ctx context.Context, req *packageimporterpb.PackagesRequest) (*packageimporterpb.PackagesReply, error) {
 	names := packageNames()
-
-	type ListPackageReply struct {
-		Packages []string
-	}
-
-	var reply ListPackageReply
-	reply.Packages = make([]string, 0, len(names))
+	var reply packageimporterpb.PackagesReply
+	reply.SourcePackage = make([]string, 0, len(names))
 	for _, name := range names {
 		if strings.HasSuffix(name, ".idx") && name != "full.idx" {
-			reply.Packages = append(reply.Packages, name[:len(name)-len(".idx")])
+			reply.SourcePackage = append(reply.SourcePackage, name[:len(name)-len(".idx")])
 		}
 	}
-
-	jsonReply, err := json.Marshal(&reply)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Serialization error: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := w.Write(jsonReply); err != nil {
-		log.Printf("Could not send listPackages reply: %v\n", err)
-	}
+	return &reply, nil
 }
 
-func garbageCollect(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-
-	pkg := r.FormValue("package")
+func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.GarbageCollectRequest) (*packageimporterpb.GarbageCollectReply, error) {
+	pkg := req.GetSourcePackage()
 	if pkg == "" {
-		http.Error(w, "No ?package= provided", http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("no source_package provided")
 	}
 
 	names := packageNames()
@@ -249,25 +232,23 @@ func garbageCollect(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !found {
-		http.Error(w, "No such package", http.StatusInternalServerError)
-		return
+		return nil, fmt.Errorf("no such package")
 	}
 
 	if err := os.RemoveAll(filepath.Join(*unpackedPath, pkg)); err != nil {
-		http.Error(w, fmt.Sprintf("Could not garbage collect package %q: %v", pkg, err), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	if err := os.Remove(filepath.Join(*unpackedPath, pkg+".idx")); err != nil {
-		http.Error(w, fmt.Sprintf("Could not garbage collect package index for %q: %v", pkg, err), http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
 	successfulGarbageCollects.Inc()
+	return &packageimporterpb.GarbageCollectReply{}, nil
 }
 
 // Merges all packages in *unpackedPath into a big index shard.
-func mergeToShard() {
+func mergeToShard() error {
 	names := packageNames()
 	indexFiles := make([]string, 0, len(names))
 	for _, name := range names {
@@ -278,13 +259,12 @@ func mergeToShard() {
 
 	filesInIndex.Set(float64(len(indexFiles)))
 
-	log.Printf("Got %d index files\n", len(indexFiles))
 	if len(indexFiles) < 2 {
-		return
+		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
 	tmpIndexPath, err := ioutil.TempFile(*unpackedPath, "newshard")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if *cpuProfile != "" {
@@ -315,24 +295,37 @@ func mergeToShard() {
 	fullIdxPath := filepath.Join(*unpackedPath, "full.idx")
 	if _, err := os.Stat(fullIdxPath); os.IsNotExist(err) {
 		if err := os.Rename(tmpIndexPath.Name(), fullIdxPath); err != nil {
-			log.Fatal(err)
+			return err
 		}
-		return
+		return nil
 	}
 
 	successfulMerges.Inc()
 
-	// Replace the current index with the newly created index.
-	if _, err := indexBackend.ReplaceIndex(context.Background(), &proto.ReplaceIndexRequest{ReplacementPath: filepath.Base(tmpIndexPath.Name())}); err != nil {
-		log.Fatalf("dcs-index-backend ReplaceIndex failed: %v", err)
+	conn, err := grpcutil.DialTLS(*indexBackendAddr, *tlsCertPath, *tlsKeyPath)
+	if err != nil {
+		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
 	}
+	defer conn.Close()
+	indexBackend := indexbackendpb.NewIndexBackendClient(conn)
+
+	// Replace the current index with the newly created index.
+	_, err = indexBackend.ReplaceIndex(
+		context.Background(),
+		&indexbackendpb.ReplaceIndexRequest{
+			ReplacementPath: filepath.Base(tmpIndexPath.Name()),
+		})
+	if err != nil {
+		return fmt.Errorf("indexBackend.ReplaceIndex(): %v", err)
+	}
+	return nil
 }
 
-func indexPackage(pkg string) {
+func indexPackage(pkg string) error {
 	log.Printf("Indexing %s\n", pkg)
 	unpacked := filepath.Join(tmpdir, pkg, pkg)
 	if err := os.MkdirAll(*unpackedPath, os.FileMode(0755)); err != nil {
-		log.Fatalf("Could not create directory: %v\n", err)
+		return err
 	}
 
 	// Write to a temporary file first so that merges can happen at the same
@@ -343,75 +336,77 @@ func indexPackage(pkg string) {
 	// +1 because of the / that should not be included in the index.
 	stripLen := len(filepath.Join(tmpdir, pkg)) + 1
 
-	filepath.Walk(unpacked,
-		func(path string, info os.FileInfo, err error) error {
-			if dir, filename := filepath.Split(path); filename != "" {
-				skip := ignored(info, dir, filename)
-				if *debugSkip && skip != nil {
-					log.Printf("Skipping %q: %v", path, skip)
-				}
-				if skip != nil && info.IsDir() {
-					if err := os.RemoveAll(path); err != nil {
-						log.Fatalf("Could not remove directory %q: %v\n", path, err)
-					}
-					return filepath.SkipDir
-				}
-				if skip != nil && !info.IsDir() {
-					if err := os.Remove(path); err != nil {
-						log.Fatalf("Could not remove file %q: %v\n", path, err)
-					}
-					return nil
-				}
+	err := filepath.Walk(unpacked, func(path string, info os.FileInfo, err error) error {
+		if dir, filename := filepath.Split(path); filename != "" {
+			skip := ignored(info, dir, filename)
+			if *debugSkip && skip != nil {
+				log.Printf("Skipping %q: %v", path, skip)
 			}
-
-			if info == nil || !info.Mode().IsRegular() {
-				return nil
+			if skip != nil && info.IsDir() {
+				if err := os.RemoveAll(path); err != nil {
+					log.Fatalf("Could not remove directory %q: %v\n", path, err)
+				}
+				return filepath.SkipDir
 			}
-
-			// Some filenames (e.g.
-			// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
-			// invalid UTF-8 and will break when sending them via JSON later
-			// on. Filter those out early to avoid breakage.
-			if !utf8.ValidString(path) {
-				log.Printf("Skipping due to invalid UTF-8: %s\n", path)
-				return nil
-			}
-
-			if err := index.AddFile(path, path[stripLen:]); err != nil {
-				log.Printf("Could not index %q: %v\n", path, err)
+			if skip != nil && !info.IsDir() {
 				if err := os.Remove(path); err != nil {
 					log.Fatalf("Could not remove file %q: %v\n", path, err)
 				}
-			} else {
-				// Copy this file out of /tmp to our unpacked directory.
-				outputPath := filepath.Join(*unpackedPath, path[stripLen:])
-				if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
-					log.Fatalf("Could not create directory: %v\n", err)
-				}
-				output, err := os.Create(outputPath)
-				if err != nil {
-					log.Fatalf("Could not create output file %q: %v\n", outputPath, err)
-				}
-				defer output.Close()
-				input, err := os.Open(path)
-				if err != nil {
-					log.Fatalf("Could not open input file %q: %v\n", path, err)
-				}
-				defer input.Close()
-				if _, err := io.Copy(output, input); err != nil {
-					log.Fatalf("Could not copy %q to %q: %v\n", path, outputPath, err)
-				}
+				return nil
 			}
-			return nil
-		})
+		}
 
+		if info == nil || !info.Mode().IsRegular() {
+			return nil
+		}
+
+		// Some filenames (e.g.
+		// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
+		// invalid UTF-8 and will break when sending them via JSON later
+		// on. Filter those out early to avoid breakage.
+		if !utf8.ValidString(path) {
+			log.Printf("Skipping due to invalid UTF-8: %s\n", path)
+			return nil
+		}
+
+		if err := index.AddFile(path, path[stripLen:]); err != nil {
+			log.Printf("Could not index %q: %v\n", path, err)
+			if err := os.Remove(path); err != nil {
+				log.Fatalf("Could not remove file %q: %v\n", path, err)
+			}
+		} else {
+			// Copy this file out of /tmp to our unpacked directory.
+			outputPath := filepath.Join(*unpackedPath, path[stripLen:])
+			if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
+				log.Fatalf("Could not create directory: %v\n", err)
+			}
+			output, err := os.Create(outputPath)
+			if err != nil {
+				log.Fatalf("Could not create output file %q: %v\n", outputPath, err)
+			}
+			defer output.Close()
+			input, err := os.Open(path)
+			if err != nil {
+				log.Fatalf("Could not open input file %q: %v\n", path, err)
+			}
+			defer input.Close()
+			if _, err := io.Copy(output, input); err != nil {
+				log.Fatalf("Could not copy %q to %q: %v\n", path, outputPath, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
 	index.Flush()
 
 	finalIndexPath := filepath.Join(*unpackedPath, pkg+".idx")
 	if err := os.Rename(tmpIndexPath, finalIndexPath); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	successfulPackageIndexes.Inc()
+	return nil
 }
 
 func unpack(dscPath, unpacked string) error {
@@ -420,7 +415,7 @@ func unpack(dscPath, unpacked string) error {
 	// Just display dpkg-source’s stderr in our process’s stderr.
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return err
+		return fmt.Errorf("%s: %v", cmd.Args, err)
 	}
 
 	files, err := ioutil.ReadDir(unpacked)
@@ -450,39 +445,32 @@ func unpack(dscPath, unpacked string) error {
 	return nil
 }
 
-// This goroutine reads package names from the indexQueue channel, unpacks the
-// package, deletes all unnecessary files and indexes it.
-// By default, the number of simultaneous goroutines running this function is
-// equal to your number of CPUs.
-func unpackAndIndex() {
-	for {
-		dscPath := <-indexQueue
-		pkg := filepath.Dir(dscPath)
-		log.Printf("Unpacking %s\n", pkg)
-		unpacked := filepath.Join(tmpdir, pkg, pkg)
+// unpackAndIndex unpacks a .dsc file, indexes its contents and deletes the .dsc
+// and referenced files.
+func unpackAndIndex(dscPath string) error {
+	pkg := filepath.Dir(dscPath)
+	unpacked := filepath.Join(tmpdir, pkg, pkg)
+	log.Printf("Unpacking source package %s into %s", pkg, unpacked)
 
-		// Delete previous attempts, if any.
-		if err := os.RemoveAll(unpacked); err != nil {
-			log.Printf("removing unpacked dir: %v\n", err)
-		}
-
-		if err := unpack(filepath.Join(tmpdir, dscPath), unpacked); err != nil {
-			log.Printf("Skipping package %s: %v\n", pkg, err)
-			failedDpkgSourceExtracts.Inc()
-			continue
-		}
-
-		successfulDpkgSourceExtracts.Inc()
-		indexPackage(pkg)
-		os.RemoveAll(filepath.Join(tmpdir, pkg))
+	// Delete previous attempts, if any.
+	if err := os.RemoveAll(unpacked); err != nil {
+		return err
 	}
+
+	if err := unpack(filepath.Join(tmpdir, dscPath), unpacked); err != nil {
+		failedDpkgSourceExtracts.Inc()
+		return err
+	}
+
+	successfulDpkgSourceExtracts.Inc()
+	if err := indexPackage(pkg); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(tmpdir, pkg))
 }
 
 func main() {
 	flag.Parse()
-
-	// Allow as many concurrent unpackAndIndex goroutines as we have cores.
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	if err := os.MkdirAll(*unpackedPath, 0755); err != nil {
 		log.Fatal(err)
@@ -496,32 +484,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	indexQueue = make(chan string)
-	mergeQueue = make(chan bool)
-
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go unpackAndIndex()
-	}
-
-	go func() {
-		for _ = range mergeQueue {
-			mergeToShard()
-		}
-	}()
-
-	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath)
-	if err != nil {
-		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
-	}
-	defer conn.Close()
-	indexBackend = proto.NewIndexBackendClient(conn)
-
-	http.HandleFunc("/import/", importPackage)
-	http.HandleFunc("/merge", mergeOrError)
-	http.HandleFunc("/listpkgs", listPackages)
-	http.HandleFunc("/garbagecollect", garbageCollect)
-	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.Handle("/metrics", prometheus.Handler())
 
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+		*tlsCertPath,
+		*tlsKeyPath,
+		func(s *grpc.Server) {
+			packageimporterpb.RegisterPackageImporterServer(s, &server{
+				unpacksem: make(chan struct{}, runtime.NumCPU()),
+				mergesem:  make(chan struct{}, 1),
+			})
+		}))
 }

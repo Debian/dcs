@@ -1,0 +1,16 @@
+// vim:ts=2:sw=2:et
+syntax = "proto3";
+
+package dcspb;
+
+message SearchRequest {
+}
+
+message SearchReply {
+
+}
+
+service DCS {
+  rpc Search(SearchRequest) returns (SearchReply) {}
+}
+

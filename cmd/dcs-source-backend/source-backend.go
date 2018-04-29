@@ -35,7 +35,12 @@ import (
 
 var (
 	listenAddress = flag.String("listen_address", ":28082", "listen address ([host]:port)")
-	unpackedPath  = flag.String("unpacked_path",
+
+	indexBackendAddr = flag.String("index_backend",
+		"localhost:28081",
+		"index backend host:port address")
+
+	unpackedPath = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
 		"Path to the unpacked sources")
 	rankingDataPath = flag.String("ranking_data_path",
@@ -448,9 +453,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath, grpc.WithBlock())
+	conn, err := grpcutil.DialTLS(*indexBackendAddr, *tlsCertPath, *tlsKeyPath, grpc.WithBlock())
 	if err != nil {
-		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
+		log.Fatalf("could not connect to %q: %v", *indexBackendAddr, err)
 	}
 	defer conn.Close()
 	indexBackend = indexbackendpb.NewIndexBackendClient(conn)

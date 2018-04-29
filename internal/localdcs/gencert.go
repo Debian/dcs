@@ -1,6 +1,6 @@
 // Generates self-signed TLS certificates to be used a DCS production
 // installation.
-package main
+package localdcs
 
 import (
 	"crypto/rand"
@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -35,7 +36,10 @@ func generatecert(dir string) error {
 		Subject: pkix.Name{
 			Organization: []string{"Debian Code Search"},
 		},
-		DNSNames:  []string{"localhost"},
+		DNSNames: []string{"localhost"},
+		IPAddresses: []net.IP{
+			net.ParseIP("127.0.0.1"),
+		},
 		NotBefore: notBefore,
 		NotAfter:  notAfter,
 
@@ -51,14 +55,14 @@ func generatecert(dir string) error {
 
 	certOut, err := os.Create(filepath.Join(dir, "cert.pem"))
 	if err != nil {
-		return fmt.Errorf("failed to open cert.pem for writing: %s", err)
+		return fmt.Errorf("failed to open cert.pem for writing: %v", err)
 	}
 	pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 	certOut.Close()
 
 	keyOut, err := os.OpenFile(filepath.Join(dir, "key.pem"), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to open key.pem for writing:", err)
+		return fmt.Errorf("failed to open key.pem for writing: %v", err)
 	}
 	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	keyOut.Close()

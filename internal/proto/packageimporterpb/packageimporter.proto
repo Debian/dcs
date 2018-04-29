@@ -1,0 +1,45 @@
+// vim:ts=2:sw=2:et
+syntax = "proto3";
+
+package packageimporterpb;
+
+message PackagesRequest {
+}
+
+message PackagesReply {
+  repeated string source_package = 1;
+}
+
+message ImportRequest {
+  string source_package = 1; // e.g. “i3-wm_4.13”
+  string filename = 2;       // e.g. “src/main.c”
+  bytes content = 3;
+}
+
+message ImportReply {
+}
+
+message MergeRequest {
+}
+
+message MergeReply {
+}
+
+message GarbageCollectRequest {
+  string source_package = 1;
+}
+
+message GarbageCollectReply {
+}
+
+service PackageImporter {
+  // Packages returns a list of Debian source package names which are present on
+  // this package importer instance.
+  rpc Packages(PackagesRequest) returns (PackagesReply) {}
+
+  rpc Import(ImportRequest) returns (ImportReply) {}
+
+  rpc Merge(MergeRequest) returns (MergeReply) {}
+
+  rpc GarbageCollect(GarbageCollectRequest) returns (GarbageCollectReply) {}
+}

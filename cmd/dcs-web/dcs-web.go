@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,12 +20,16 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/internal/proto/dcspb"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
@@ -37,12 +42,12 @@ import (
 )
 
 var (
-	listenAddress = flag.String("listen_address",
-		":28080",
-		"listen address ([host]:port)")
-	listenAddressTLS = flag.String("listen_address_tls",
+	listenAddressPlain = flag.String("listen_address_http",
 		"",
-		"listen address ([host]:port) for TLS")
+		"listen address ([host]:port)")
+	listenAddress = flag.String("listen_address",
+		"",
+		"listen address ([host]:port) for gRPC/TLS")
 	memprofile = flag.String("memprofile", "", "Write memory profile to this file")
 	staticPath = flag.String("static_path",
 		"./static/",
@@ -358,6 +363,12 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type server struct{}
+
+func (s *server) Search(ctx context.Context, req *dcspb.SearchRequest) (*dcspb.SearchReply, error) {
+	return nil, fmt.Errorf("not yet implemented")
+}
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
@@ -480,8 +491,16 @@ func main() {
 
 	http.Handle("/metrics", prometheus.Handler())
 
-	if *listenAddressTLS != "" {
-		go log.Fatal(http.ListenAndServeTLS(*listenAddressTLS, *tlsCertPath, *tlsKeyPath, nil))
+	if *listenAddressPlain != "" {
+		go func() {
+			log.Fatal(http.ListenAndServe(*listenAddressPlain, nil))
+		}()
 	}
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+
+	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+		*tlsCertPath,
+		*tlsKeyPath,
+		func(s *grpc.Server) {
+			dcspb.RegisterDCSServer(s, &server{})
+		}))
 }
