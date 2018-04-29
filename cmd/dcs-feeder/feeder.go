@@ -42,7 +42,7 @@ var (
 		"comma-separated list of shards")
 
 	mirrorUrl = flag.String("mirror_url",
-		"http://http.debian.net/debian",
+		"http://deb.debian.org/debian",
 		"Debian mirror url")
 
 	listenAddress = flag.String("listen_address",
