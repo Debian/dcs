@@ -87,8 +87,6 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 
 	register(s)
 
-	http.Handle("/", s)
-
 	srv := http.Server{
 		Addr:    addr,
 		Handler: grpcHandlerFunc(s, http.DefaultServeMux),
