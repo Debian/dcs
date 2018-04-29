@@ -49,6 +49,10 @@ var (
 		":21020",
 		"listen address ([host]:port)")
 
+	dist = flag.String("dist",
+		"sid",
+		"Debian distribution to feed")
+
 	shards []string
 
 	mergeStates   = make(map[string]mergeState)
@@ -314,7 +318,7 @@ func checkSources() {
 		log.Printf("shard %q has %d packages currently\n", shard, len(reply.Packages))
 	}
 
-	sourcesSuffix := "/dists/sid/main/source/Sources.gz"
+	sourcesSuffix := "/dists/" + *dist + "/main/source/Sources.gz"
 	resp, err := http.Get(*mirrorUrl + sourcesSuffix)
 	if err != nil {
 		log.Printf("Could not get Sources.gz: %v\n", err)
