@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 
+	"google.golang.org/grpc"
+
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 )
@@ -41,7 +43,7 @@ func Init(tlsCertPath, tlsKeyPath, staticPath string) {
 	addrs := strings.Split(*sourceBackends, ",")
 	SourceBackendStubs = make([]sourcebackendpb.SourceBackendClient, len(addrs))
 	for idx, addr := range addrs {
-		conn, err := grpcutil.DialTLS(addr, tlsCertPath, tlsKeyPath)
+		conn, err := grpcutil.DialTLS(addr, tlsCertPath, tlsKeyPath, grpc.WithBlock())
 		if err != nil {
 			log.Fatalf("could not connect to %q: %v", addr, err)
 		}

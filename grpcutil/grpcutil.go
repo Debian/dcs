@@ -44,7 +44,7 @@ func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Ha
 	})
 }
 
-func DialTLS(addr, certFile, keyFile string) (*grpc.ClientConn, error) {
+func DialTLS(addr, certFile, keyFile string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, err
@@ -62,9 +62,11 @@ func DialTLS(addr, certFile, keyFile string) (*grpc.ClientConn, error) {
 		Certificates: []tls.Certificate{cert}})
 
 	return grpc.Dial(addr,
-		grpc.WithTransportCredentials(auth),
-		grpc.WithStreamInterceptor(grpc_opentracing.StreamClientInterceptor()),
-		grpc.WithUnaryInterceptor(grpc_opentracing.UnaryClientInterceptor()))
+		append([]grpc.DialOption{
+			grpc.WithTransportCredentials(auth),
+			grpc.WithStreamInterceptor(grpc_opentracing.StreamClientInterceptor()),
+			grpc.WithUnaryInterceptor(grpc_opentracing.UnaryClientInterceptor()),
+		}, opts...)...)
 }
 
 func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Server)) error {

@@ -448,7 +448,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath)
+	conn, err := grpcutil.DialTLS("localhost:28081", *tlsCertPath, *tlsKeyPath, grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
 	}
