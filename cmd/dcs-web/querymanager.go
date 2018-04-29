@@ -246,21 +246,21 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 	for !done {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			log.Printf("[%s] [src:%s] EOF\n", queryid, src, backend)
+			log.Printf("[%s] [src:%s] EOF\n", queryid, src)
 			return
 		}
 		if err != nil {
-			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, src, backend, err)
+			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, src, err)
 			return
 		}
 
 		buf.Reset()
 		if err := buf.Marshal(msg); err != nil {
-			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, src, backend, err)
+			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, src, err)
 			return
 		}
 		if _, err := tempFileWriter.Write(buf.Bytes()); err != nil {
-			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, src, backend, err)
+			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, src, err)
 			return
 		}
 
@@ -289,7 +289,7 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 		// stream as well.
 		cancelfunc()
 	}
-	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, src, backend)
+	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, src)
 }
 
 // queryExistsLocked returns whether state for the query exists and whether

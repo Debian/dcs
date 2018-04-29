@@ -69,7 +69,7 @@ func generatecert() error {
 
 	keyOut, err := os.OpenFile("prod-key.pem", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to open prod-key.pem for writing:", err)
+		return fmt.Errorf("failed to open prod-key.pem for writing: %v", err)
 	}
 	pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
 	keyOut.Close()
