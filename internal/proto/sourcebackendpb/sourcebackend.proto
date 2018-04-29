@@ -3,6 +3,8 @@ syntax = "proto3";
 
 package sourcebackendpb;
 
+option go_package = "github.com/Debian/dcs/internal/proto/sourcebackendpb";
+
 message FileRequest {
   string path = 1;
 }

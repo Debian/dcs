@@ -2,7 +2,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -30,6 +29,7 @@ import (
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/index"
 	"github.com/Debian/dcs/internal/proto/dcspb"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
@@ -365,8 +365,131 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 
 type server struct{}
 
-func (s *server) Search(ctx context.Context, req *dcspb.SearchRequest) (*dcspb.SearchReply, error) {
-	return nil, fmt.Errorf("not yet implemented")
+func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer) error {
+	ctx := stream.Context()
+	query := req.GetQuery()
+	span := opentracing.SpanFromContext(ctx)
+	span.SetOperationName("gRPC: Search: " + query)
+
+	src := "gRPC" // TODO: get remote address
+	q := "q=" + url.QueryEscape(query)
+
+	log.Printf("[%s] (events) Received query %q\n", src, q)
+	if err := validateQuery("?" + q); err != nil {
+		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
+		return fmt.Errorf("invalid query: %v", err)
+	}
+
+	// Uniquely (well, good enough) identify this query for a couple of minutes
+	// (as long as we want to cache results). We could try to normalize the
+	// query before hashing it, but that seems hardly worth the complexity.
+	h := fnv.New64()
+	io.WriteString(h, q)
+	identifier := fmt.Sprintf("%x", h.Sum64())
+
+	cached, err := maybeStartQuery(ctx, identifier, src, q)
+	if err != nil {
+		return fmt.Errorf("query(%s): %v", query, err)
+	}
+
+	// Create an apache common log format entry.
+	if accessLog != nil {
+		responseCode := 200
+		if cached {
+			responseCode = 304
+		}
+		remoteIP := src
+		if idx := strings.LastIndex(remoteIP, ":"); idx > -1 {
+			remoteIP = remoteIP[:idx]
+		}
+		fmt.Fprintf(accessLog, "%s - - [%s] \"GET /events/%s HTTP/1.1\" %d -\n",
+			remoteIP, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
+	}
+
+	lastseen := -1
+	for {
+		message, sequence := getEvent(identifier, lastseen)
+		lastseen = sequence
+		// This message was obsoleted by a more recent one, e.g. a more
+		// recent progress update obsoletes all earlier progress updates.
+		if *message.obsolete {
+			continue
+		}
+		if len(message.data) == 0 {
+			break
+		}
+		ev, err := toEventProto(message.data)
+		if err != nil {
+			return err
+		}
+		if err := stream.Send(ev); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// TODO: consider refactoring so that protos are retained instead of JSON
+// bytes. maybe accompanied by a lazily-initialized JSON version?
+func toEventProto(data []byte) (*dcspb.Event, error) {
+	var messageType struct {
+		Type string
+	}
+	if err := json.Unmarshal(data, &messageType); err != nil {
+		return nil, err
+	}
+	switch messageType.Type {
+	case "progress":
+		var p struct {
+			QueryId        string
+			FilesProcessed int
+			FilesTotal     int
+			Results        int
+		}
+		if err := json.Unmarshal(data, &p); err != nil {
+			return nil, err
+		}
+		return &dcspb.Event{
+			Data: &dcspb.Event_Progress{
+				Progress: &dcspb.Progress{
+					QueryId:        p.QueryId,
+					FilesProcessed: int64(p.FilesProcessed),
+					FilesTotal:     int64(p.FilesTotal),
+					Results:        int64(p.Results),
+				},
+			},
+		}, nil
+
+	case "pagination":
+		var p struct {
+			QueryId     string
+			ResultPages int
+		}
+		if err := json.Unmarshal(data, &p); err != nil {
+			return nil, err
+		}
+		return &dcspb.Event{
+			Data: &dcspb.Event_Pagination{
+				Pagination: &dcspb.Pagination{
+					QueryId:     p.QueryId,
+					ResultPages: int64(p.ResultPages),
+				},
+			},
+		}, nil
+
+	default: // match
+		var m sourcebackendpb.Match
+		if err := json.Unmarshal(data, &m); err != nil {
+			return nil, err
+		}
+		return &dcspb.Event{
+			Data: &dcspb.Event_Match{
+				Match: &m,
+			},
+		}, nil
+	}
+	return nil, fmt.Errorf("unhandled type %q (data %q)", messageType.Type, string(data))
 }
 
 func main() {

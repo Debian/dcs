@@ -3,14 +3,52 @@ syntax = "proto3";
 
 package dcspb;
 
+import "sourcebackendpb/sourcebackend.proto";
+
 message SearchRequest {
+  string query = 1;
 }
 
-message SearchReply {
+message Error {
+  enum ErrorType {
+    CANCELLED = 0;
+    BACKEND_UNAVAILABLE = 1;
+    FAILED = 2; // TODO: is this reasonable?
+    INVALID_QUERY = 3;
+  }
+  ErrorType type = 1;
+  string message = 2;
+}
 
+message Progress {
+  string query_id = 1;
+  int64 files_processed = 2;
+  int64 files_total = 3;
+  int64 results = 4;
+}
+
+message Pagination {
+  string query_id = 1;
+  int64 result_pages = 2;
+}
+
+message Event {
+  enum Type {
+    ERROR = 0;
+    PROGRESS = 1;
+    MATCH = 2;
+    PAGINATION = 3;
+    DONE = 4;
+  }
+  oneof data {
+    Error error = 1;
+    Progress progress = 2;
+    sourcebackendpb.Match match = 3;
+    Pagination pagination = 4;
+  }
 }
 
 service DCS {
-  rpc Search(SearchRequest) returns (SearchReply) {}
+  rpc Search(SearchRequest) returns (stream Event) {}
 }
 

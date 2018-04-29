@@ -1,3 +1,3 @@
 package dcspb
 
-//go:generate protoc dcs.proto --go_out=plugins=grpc:.
+//go:generate protoc -I.. -I. dcs.proto --go_out=plugins=grpc:.
