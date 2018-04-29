@@ -1,7 +1,7 @@
 // vim:ts=2:sw=2:et
 syntax = "proto3";
 
-package proto;
+package indexbackendpb;
 
 message FilesRequest {
   // Text query (e.g. “i3Font”) which will be translated into a trigram query

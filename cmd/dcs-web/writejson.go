@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"io"
 
-	pb "github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 )
 
 // WriteMatchJSON was generated when we were still using capnproto.
 // TODO: investigate whether any further performance tuning with regards to
 // generating JSON makes sense.
-func WriteMatchJSON(match *pb.Match, w io.Writer) error {
+func WriteMatchJSON(match *sourcebackendpb.Match, w io.Writer) error {
 	b := bufio.NewWriter(w)
 	var err error
 	var buf []byte

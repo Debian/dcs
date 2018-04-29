@@ -24,7 +24,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/dpkgversion"
-	pb "github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/golang/protobuf/proto"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -94,7 +94,7 @@ func (p *ProgressUpdate) ObsoletedBy(newEvent *obsoletableEvent) bool {
 	return (*newEvent).EventType() == p.Type
 }
 
-type ByRanking []pb.Match
+type ByRanking []sourcebackendpb.Match
 
 func (s ByRanking) Len() int {
 	return len(s)
@@ -199,7 +199,7 @@ var (
 	stateMu sync.RWMutex
 )
 
-func queryBackend(ctx context.Context, queryid, src string, backend pb.SourceBackendClient, backendidx int, searchRequest *pb.SearchRequest) {
+func queryBackend(ctx context.Context, queryid, src string, backend sourcebackendpb.SourceBackendClient, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
@@ -217,7 +217,7 @@ func queryBackend(ctx context.Context, queryid, src string, backend pb.SourceBac
 			filesTotal = 0
 		}
 
-		storeProgress(queryid, backendidx, &pb.ProgressUpdate{
+		storeProgress(queryid, backendidx, &sourcebackendpb.ProgressUpdate{
 			FilesProcessed: uint64(filesTotal),
 			FilesTotal:     uint64(filesTotal),
 		})
@@ -265,9 +265,9 @@ func queryBackend(ctx context.Context, queryid, src string, backend pb.SourceBac
 		}
 
 		switch msg.Type {
-		case pb.SearchReply_MATCH:
+		case sourcebackendpb.SearchReply_MATCH:
 			storeResult(queryid, backendidx, msg.Match, len(buf.Bytes()))
-		case pb.SearchReply_PROGRESS_UPDATE:
+		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
 			storeProgress(queryid, backendidx, msg.ProgressUpdate)
 			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
 		}
@@ -400,7 +400,7 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 		log.Fatal(err)
 	}
 	rewritten := search.RewriteQuery(*fakeUrl)
-	searchRequest := &pb.SearchRequest{
+	searchRequest := &sourcebackendpb.SearchRequest{
 		Query:        rewritten.Query().Get("q"),
 		RewrittenUrl: rewritten.String(),
 	}
@@ -510,7 +510,7 @@ func sendPaginationUpdate(queryid string, s queryState) {
 	}
 }
 
-func storeResult(queryid string, backendidx int, result *pb.Match, resultLen int) {
+func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, resultLen int) {
 	// Without acquiring a write lock, just check if we need to consider this result
 	// for the top 10 at all.
 	stateMu.RLock()
@@ -673,7 +673,7 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 	if _, err := f.Write([]byte("[")); err != nil {
 		return err
 	}
-	var msg pb.SearchReply
+	var msg sourcebackendpb.SearchReply
 	buf := proto.NewBuffer(nil)
 	for idx, pointer := range pointers {
 		src := s.perBackend[pointer.backendidx].tempFile
@@ -695,8 +695,8 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 		if err := buf.Unmarshal(&msg); err != nil {
 			return err
 		}
-		if msg.Type != pb.SearchReply_MATCH {
-			return fmt.Errorf("Expected to find a pb.SearchReply_MATCH, instead got %d", msg.Type)
+		if msg.Type != sourcebackendpb.SearchReply_MATCH {
+			return fmt.Errorf("Expected to find a sourcebackendpb.SearchReply_MATCH, instead got %d", msg.Type)
 		}
 		match := msg.Match
 		// We need to fix the ranking here because we persist raw results from
@@ -804,7 +804,7 @@ func writeToDisk(queryid string) error {
 	return nil
 }
 
-func storeProgress(queryid string, backendidx int, progress *pb.ProgressUpdate) {
+func storeProgress(queryid string, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
 	stateMu.RLock()
 	s := state[queryid]
 	stateMu.RUnlock()

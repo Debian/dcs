@@ -11,7 +11,7 @@ import (
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
-	"github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/shardmapping"
 	"golang.org/x/net/context"
 )
@@ -47,7 +47,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 	}
 	pkg := filename[:idx]
 	shard := common.SourceBackendStubs[shardmapping.TaskIdxForPackage(pkg, len(common.SourceBackendStubs))]
-	resp, err := shard.File(context.Background(), &proto.FileRequest{
+	resp, err := shard.File(context.Background(), &sourcebackendpb.FileRequest{
 		Path: filename,
 	})
 	if err != nil {

@@ -19,7 +19,8 @@ import (
 	"time"
 
 	"github.com/Debian/dcs/grpcutil"
-	"github.com/Debian/dcs/proto"
+	"github.com/Debian/dcs/internal/proto/indexbackendpb"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
@@ -46,7 +47,7 @@ var (
 		"localhost:5775",
 		"host:port of a github.com/uber/jaeger agent")
 
-	indexBackend proto.IndexBackendClient
+	indexBackend indexbackendpb.IndexBackendClient
 )
 
 type SourceReply struct {
@@ -60,7 +61,7 @@ type server struct {
 }
 
 // Serves a single file for displaying it in /show
-func (s *server) File(ctx context.Context, in *proto.FileRequest) (*proto.FileReply, error) {
+func (s *server) File(ctx context.Context, in *sourcebackendpb.FileRequest) (*sourcebackendpb.FileReply, error) {
 	log.Printf("requested filename *%s*\n", in.Path)
 	// path.Join calls path.Clean so we get the shortest path without any "..".
 	absPath := path.Join(*unpackedPath, in.Path)
@@ -73,7 +74,7 @@ func (s *server) File(ctx context.Context, in *proto.FileRequest) (*proto.FileRe
 	if err != nil {
 		return nil, err
 	}
-	return &proto.FileReply{
+	return &sourcebackendpb.FileReply{
 		Contents: contents,
 	}, nil
 }
@@ -185,12 +186,12 @@ func filterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 	return files
 }
 
-func sendProgressUpdate(stream proto.SourceBackend_SearchServer, connMu *sync.Mutex, filesProcessed, filesTotal int) error {
+func sendProgressUpdate(stream sourcebackendpb.SourceBackend_SearchServer, connMu *sync.Mutex, filesProcessed, filesTotal int) error {
 	connMu.Lock()
 	defer connMu.Unlock()
-	return stream.Send(&proto.SearchReply{
-		Type: proto.SearchReply_PROGRESS_UPDATE,
-		ProgressUpdate: &proto.ProgressUpdate{
+	return stream.Send(&sourcebackendpb.SearchReply{
+		Type: sourcebackendpb.SearchReply_PROGRESS_UPDATE,
+		ProgressUpdate: &sourcebackendpb.ProgressUpdate{
 			FilesProcessed: uint64(filesProcessed),
 			FilesTotal:     uint64(filesTotal),
 		},
@@ -199,14 +200,14 @@ func sendProgressUpdate(stream proto.SourceBackend_SearchServer, connMu *sync.Mu
 
 // Reads a single JSON request from the TCP connection, performs the search and
 // sends results back over the TCP connection as they appear.
-func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_SearchServer) error {
+func (s *server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendpb.SourceBackend_SearchServer) error {
 	ctx := stream.Context()
 	connMu := new(sync.Mutex)
 	logprefix := fmt.Sprintf("[%q]", in.Query)
 	span := opentracing.SpanFromContext(ctx)
 
 	// Ask the local index backend for all the filenames.
-	fstream, err := indexBackend.Files(ctx, &proto.FilesRequest{Query: in.Query})
+	fstream, err := indexBackend.Files(ctx, &indexbackendpb.FilesRequest{Query: in.Query})
 	if err != nil {
 		return fmt.Errorf("%s Error querying index backend for query %q: %v\n", logprefix, in.Query, err)
 	}
@@ -374,9 +375,9 @@ func (s *server) Search(in *proto.SearchRequest, stream proto.SourceBackend_Sear
 
 					path := match.Path[len(*unpackedPath):]
 					connMu.Lock()
-					if err := stream.Send(&proto.SearchReply{
-						Type: proto.SearchReply_MATCH,
-						Match: &proto.Match{
+					if err := stream.Send(&sourcebackendpb.SearchReply{
+						Type: sourcebackendpb.SearchReply_MATCH,
+						Match: &sourcebackendpb.Match{
 							Path:     path,
 							Line:     uint32(match.Line),
 							Package:  path[:strings.Index(path, "/")],
@@ -452,13 +453,13 @@ func main() {
 		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
 	}
 	defer conn.Close()
-	indexBackend = proto.NewIndexBackendClient(conn)
+	indexBackend = indexbackendpb.NewIndexBackendClient(conn)
 
 	http.Handle("/metrics", prometheus.Handler())
 	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {
-			proto.RegisterSourceBackendServer(s, &server{})
+			sourcebackendpb.RegisterSourceBackendServer(s, &server{})
 		}))
 }
