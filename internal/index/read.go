@@ -1,14 +1,12 @@
 package index
 
 import (
-	"avxdecode"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
 	"math"
-	"os"
 	"path/filepath"
 	"sort"
 	"turbopfor"
@@ -27,143 +25,6 @@ func (mr *mmapReader) Read(p []byte) (n int, err error) {
 	n, err = mr.r.ReadAt(p, mr.off)
 	mr.off += int64(n)
 	return n, err
-}
-
-type SectionReader struct {
-	meta *mmap.ReaderAt
-	ctrl *mmap.ReaderAt
-	data *mmap.ReaderAt
-}
-
-func newSectionReader(dir, section string) (*SectionReader, error) {
-	var sr SectionReader
-	var err error
-	if sr.meta, err = mmap.Open(filepath.Join(dir, "posting."+section+".meta")); err != nil {
-		return nil, err
-	}
-	if sr.ctrl, err = mmap.Open(filepath.Join(dir, "posting."+section+".ctrl")); err != nil {
-		return nil, err
-	}
-	if sr.data, err = mmap.Open(filepath.Join(dir, "posting."+section+".data")); err != nil {
-		return nil, err
-	}
-	return &sr, nil
-}
-
-func (sr *SectionReader) Close() error {
-	if err := sr.meta.Close(); err != nil {
-		return err
-	}
-	if err := sr.ctrl.Close(); err != nil {
-		return err
-	}
-	if err := sr.data.Close(); err != nil {
-		return err
-	}
-	return nil
-}
-
-// TODO: remove once count0 is gone
-func (sr *SectionReader) Trigrams() ([]Trigram, error) {
-	l := sr.meta.Len() / metaEntrySize
-	result := make([]Trigram, l)
-	var entry MetaEntry
-	var buf [metaEntrySize]byte
-	for i := 0; i < l; i++ {
-		if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-			return nil, err
-		}
-		if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entry); err != nil {
-			return nil, err
-		}
-		result[i] = entry.Trigram
-	}
-	return result, nil
-}
-
-func (sr *SectionReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
-	// TODO: copy better code from benchmark.go<as>
-	entries := make([]MetaEntry, sr.meta.Len()/metaEntrySize)
-	var buf [metaEntrySize]byte
-	n := sort.Search(len(entries), func(i int) bool {
-		if entries[i].Trigram == 0 {
-			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
-		return entries[i].Trigram >= trigram
-	})
-	if n >= len(entries) || entries[n].Trigram != trigram {
-		return nil, nil, fmt.Errorf("not found") // TODO
-	}
-	result := entries[n]
-	var next MetaEntry
-	if n < len(entries)-1 {
-		i := n + 1
-		if entries[i].Trigram == 0 {
-			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
-
-		next = entries[n+1]
-	} else {
-		next.OffsetData = math.MaxInt64
-	}
-	return &result, &next, nil
-}
-
-func (sr *SectionReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
-	e, _, err := sr.metaEntry(trigram)
-	return e, err
-}
-
-// Streams returns a ctrl stream and data stream reader for the specified
-// trigram.
-func (sr *SectionReader) Streams(t Trigram) (ctrl io.Reader, data io.Reader, entries int, _ error) {
-	meta, next, err := sr.metaEntry(t)
-	if err != nil {
-		return nil, nil, 0, err
-	}
-	ctrlBytes := (int64(meta.Entries) + 3) / 4
-	dataBytes := next.OffsetData - meta.OffsetData
-	// TODO: benchmark whether an *os.File with Seek is measurably worse
-	return &io.LimitedReader{
-			R: &mmapReader{r: sr.ctrl, off: meta.OffsetCtrl},
-			N: ctrlBytes,
-		},
-		&io.LimitedReader{
-			R: &mmapReader{r: sr.data, off: meta.OffsetData},
-			N: dataBytes,
-		},
-		int(meta.Entries),
-		nil
-}
-
-func (sr *SectionReader) Deltas(t Trigram) ([]uint32, error) {
-	ctrl, data, entries, err := sr.Streams(t)
-	if err != nil {
-		return nil, err
-	}
-	var bctrl, bdata bytes.Buffer
-	// TODO: parallelize?
-	if _, err := io.Copy(&bctrl, ctrl); err != nil {
-		return nil, err
-	}
-	if _, err := io.Copy(&bdata, data); err != nil {
-		return nil, err
-	}
-	deltas := make([]uint32, bctrl.Len()*4)
-	// TODO: move avxdecode into dcs dir
-	avxdecode.DecodeAVX(deltas, bctrl.Bytes(), bdata.Bytes(), entries)
-	deltas = deltas[:entries]
-	return deltas, nil
 }
 
 type cachedLookup struct {
@@ -241,6 +102,117 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 	return dr.last.fn, nil
 }
 
+type PForReader struct {
+	meta *mmap.ReaderAt
+	data *mmap.ReaderAt
+}
+
+func newPForReader(dir, section string) (*PForReader, error) {
+	var sr PForReader
+	var err error
+	if sr.meta, err = mmap.Open(filepath.Join(dir, "posting."+section+".meta")); err != nil {
+		return nil, err
+	}
+	if sr.data, err = mmap.Open(filepath.Join(dir, "posting."+section+".turbopfor")); err != nil {
+		return nil, err
+	}
+	return &sr, nil
+}
+
+func (sr *PForReader) Close() error {
+	if err := sr.meta.Close(); err != nil {
+		return err
+	}
+	if err := sr.data.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
+	log.Printf("trigram=%d", trigram)
+	// TODO: copy better code from benchmark.go<as>
+	entries := make([]MetaEntry, sr.meta.Len()/metaEntrySize)
+	var buf [metaEntrySize]byte
+	n := sort.Search(len(entries), func(i int) bool {
+		if entries[i].Trigram == 0 {
+			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
+				log.Fatal(err) // TODO
+			}
+			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
+				log.Fatal(err) // TODO
+			}
+		}
+		return entries[i].Trigram >= trigram
+	})
+	if n >= len(entries) || entries[n].Trigram != trigram {
+		return nil, nil, fmt.Errorf("not found") // TODO
+	}
+	result := entries[n]
+	var next MetaEntry
+	if n < len(entries)-1 {
+		i := n + 1
+		if entries[i].Trigram == 0 {
+			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
+				log.Fatal(err) // TODO
+			}
+			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
+				log.Fatal(err) // TODO
+			}
+		}
+
+		next = entries[n+1]
+	} else {
+		next.OffsetData = math.MaxInt64
+	}
+	return &result, &next, nil
+}
+
+func (sr *PForReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
+	e, _, err := sr.metaEntry(trigram)
+	return e, err
+}
+
+// Streams returns a reader for the specified trigram data.
+func (sr *PForReader) Data(t Trigram) (data io.Reader, entries int, _ error) {
+	meta, next, err := sr.metaEntry(t)
+	if err != nil {
+		return nil, 0, err
+	}
+	dataBytes := next.OffsetData - meta.OffsetData
+	log.Printf("offset: %d, bytes: %d", meta.OffsetData, dataBytes)
+	// TODO: benchmark whether an *os.File with Seek is measurably worse
+	return &io.LimitedReader{
+			R: &mmapReader{r: sr.data, off: meta.OffsetData},
+			N: dataBytes,
+		},
+		int(meta.Entries),
+		nil
+}
+
+func (sr *PForReader) Deltas(t Trigram) ([]uint32, error) {
+	data, entries, err := sr.Data(t)
+	if err != nil {
+		return nil, err
+	}
+	var bdata bytes.Buffer
+	if _, err := io.Copy(&bdata, data); err != nil {
+		return nil, err
+	}
+	padded := make([]byte, bdata.Len()+32)
+	copy(padded, bdata.Bytes())
+	padded = padded[:bdata.Len()]
+
+	deltas := make([]uint32, entries, entries+128*1024)
+	log.Printf("trigram %d decoding %d entries from %d (cap %d) to %d (cap %d) ints", t, entries, len(padded), cap(padded), len(deltas), cap(deltas))
+
+	log.Printf("data: %#v", bdata.Bytes())
+	//turbopfor.P4ndec32(padded, deltas)
+	turbopfor.P4ndec256v32(padded, deltas)
+	log.Printf("deltas: %#v", deltas)
+	return deltas, nil
+}
+
 type PosrelReader struct {
 	meta *mmap.ReaderAt
 	data *mmap.ReaderAt
@@ -297,6 +269,11 @@ func (pr *PosrelReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, erro
 	return &result, &next, nil
 }
 
+func (pr *PosrelReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
+	e, _, err := pr.metaEntry(trigram)
+	return e, err
+}
+
 type mmapOffsetReader struct {
 	r   *mmap.ReaderAt
 	off int64
@@ -326,13 +303,10 @@ func (pr *PosrelReader) Close() error {
 }
 
 type Index struct {
-	DocidMap *DocidReader   // docid → filename mapping
-	Docid    *SectionReader // docids for all trigrams
-	Pos      *SectionReader // positions for all trigrams
-	Posrel   *PosrelReader  // position relationships for all trigrams
-
-	pfdocid *PForReader
-	pfpos   *PForReader
+	DocidMap *DocidReader  // docid → filename mapping
+	Docid    *PForReader   // docids for all trigrams
+	Pos      *PForReader   // positions for all trigrams
+	Posrel   *PosrelReader // position relationships for all trigrams
 }
 
 func Open(dir string) (*Index, error) {
@@ -342,21 +316,15 @@ func Open(dir string) (*Index, error) {
 		return nil, err
 	}
 
-	// if i.Docid, err = newSectionReader(dir, "docid"); err != nil {
-	// 	return nil, err
-	// }
-	// if i.Pos, err = newSectionReader(dir, "pos"); err != nil {
-	// 	return nil, err
-	// }
-
+	// posrel reduces the index size by about ≈ 1/4!
 	if i.Posrel, err = newPosrelReader(dir); err != nil {
 		return nil, err
 	}
 
-	if i.pfdocid, err = newPForReader(dir, "docid"); err != nil {
+	if i.Docid, err = newPForReader(dir, "docid"); err != nil {
 		return nil, err
 	}
-	if i.pfpos, err = newPForReader(dir, "pos"); err != nil {
+	if i.Pos, err = newPForReader(dir, "pos"); err != nil {
 		return nil, err
 	}
 
@@ -389,6 +357,7 @@ func (i *Index) Matches(t Trigram) ([]Match, error) {
 	for i := 0; i < len(pos); i++ {
 		// should be 1 if the docid changes, 0 otherwise
 		// TODO: access .data directly instead?
+		// TODO: micro-benchmark the “read uint64s, use bits.TrailingZeros64(), mask u &= u-1” trick
 		if _, err := posrel.ReadAt(pr[:], int64(i/8)); err != nil {
 			return nil, err
 		}
@@ -398,61 +367,6 @@ func (i *Index) Matches(t Trigram) ([]Match, error) {
 		docidIdx += chg
 		prevP *= uint32(1 ^ chg)
 
-		// if docids[i] != 0 && i > 0 && chg != 1 {
-		// 	log.Printf("BUG: idx %d, docid changed but chg = %d", i, chg)
-		// } else if docids[i] == 0 && chg != 0 {
-		// 	log.Printf("BUG: idx %d, docid same but chg = %d", i, chg)
-		// } else {
-		// 	log.Printf("VERIFIED: idx %d", i)
-		// }
-		log.Printf("docidIdx=%d, chg=%d, pr = %x", docidIdx, chg, pr[0])
-		prevD += docids[docidIdx] * uint32(chg)
-		prevP += pos[i]
-		matches = append(matches, Match{
-			Docid:    prevD,
-			Position: prevP,
-		})
-	}
-	return matches, nil
-}
-
-func (i *Index) PForMatches(t Trigram) ([]Match, error) {
-	docids, err := i.pfdocid.Deltas(t)
-	if err != nil {
-		return nil, err
-	}
-	pos, err := i.pfpos.Deltas(t)
-	if err != nil {
-		return nil, err
-	}
-	posrel, err := i.Posrel.Data(t)
-	if err != nil {
-		return nil, err
-	}
-	//log.Printf("%d docid, %d pos", len(docids), len(pos))
-	matches := make([]Match, 0, len(pos))
-	docidIdx := -1
-	var prevD, prevP uint32
-	var pr [1]byte
-	for i := 0; i < len(pos); i++ {
-		// should be 1 if the docid changes, 0 otherwise
-		// TODO: access .data directly instead?
-		if _, err := posrel.ReadAt(pr[:], int64(i/8)); err != nil {
-			return nil, err
-		}
-		// 205G ~/as/idx before
-		// 158G ~/as/idx after \o/
-		chg := int((pr[0] >> (uint(i) % 8)) & 1)
-		docidIdx += chg
-		prevP *= uint32(1 ^ chg)
-
-		// if docids[i] != 0 && i > 0 && chg != 1 {
-		// 	log.Printf("BUG: idx %d, docid changed but chg = %d", i, chg)
-		// } else if docids[i] == 0 && chg != 0 {
-		// 	log.Printf("BUG: idx %d, docid same but chg = %d", i, chg)
-		// } else {
-		// 	log.Printf("VERIFIED: idx %d", i)
-		// }
 		log.Printf("docidIdx=%d, chg=%d, pr = %x", docidIdx, chg, pr[0])
 		prevD += docids[docidIdx] * uint32(chg)
 		prevP += pos[i]
@@ -479,117 +393,4 @@ func (i *Index) Close() error {
 		return err
 	}
 	return nil
-}
-
-type PForReader struct {
-	meta *mmap.ReaderAt
-	data *mmap.ReaderAt
-}
-
-func newPForReader(dir, section string) (*PForReader, error) {
-	var sr PForReader
-	var err error
-	if sr.meta, err = mmap.Open(filepath.Join(dir, "posting."+section+".meta")); err != nil {
-		return nil, err
-	}
-	if sr.data, err = mmap.Open(filepath.Join(dir, "posting."+section+".turbopfor")); err != nil {
-		return nil, err
-	}
-	return &sr, nil
-}
-
-func (sr *PForReader) Close() error {
-	if err := sr.meta.Close(); err != nil {
-		return err
-	}
-	if err := sr.data.Close(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
-	// TODO: copy better code from benchmark.go<as>
-	entries := make([]MetaEntry, sr.meta.Len()/metaEntrySize)
-	var buf [metaEntrySize]byte
-	n := sort.Search(len(entries), func(i int) bool {
-		if entries[i].Trigram == 0 {
-			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
-		return entries[i].Trigram >= trigram
-	})
-	if n >= len(entries) || entries[n].Trigram != trigram {
-		return nil, nil, fmt.Errorf("not found") // TODO
-	}
-	result := entries[n]
-	var next MetaEntry
-	if n < len(entries)-1 {
-		i := n + 1
-		if entries[i].Trigram == 0 {
-			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
-
-		next = entries[n+1]
-	} else {
-		next.OffsetData = math.MaxInt64
-	}
-	return &result, &next, nil
-}
-
-func (sr *PForReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
-	e, _, err := sr.metaEntry(trigram)
-	return e, err
-}
-
-// Streams returns a ctrl stream and data stream reader for the specified
-// trigram.
-func (sr *PForReader) Streams(t Trigram) (data io.Reader, entries int, _ error) {
-	meta, next, err := sr.metaEntry(t)
-	if err != nil {
-		return nil, 0, err
-	}
-	dataBytes := next.OffsetData - meta.OffsetData
-	log.Printf("offset: %d, bytes: %d", meta.OffsetData, dataBytes)
-	// TODO: benchmark whether an *os.File with Seek is measurably worse
-	return &io.LimitedReader{
-			R: &mmapReader{r: sr.data, off: meta.OffsetData},
-			N: dataBytes,
-		},
-		int(meta.Entries),
-		nil
-}
-
-func (sr *PForReader) Deltas(t Trigram) ([]uint32, error) {
-	t = 0
-	data, entries, err := sr.Streams(t)
-	if err != nil {
-		return nil, err
-	}
-	var bdata bytes.Buffer
-	if _, err := io.Copy(&bdata, data); err != nil {
-		return nil, err
-	}
-	padded := make([]byte, bdata.Len()+32)
-	copy(padded, bdata.Bytes())
-	padded = padded[:bdata.Len()]
-
-	deltas := make([]uint32, entries, entries+128*1024)
-	log.Printf("trigram %d decoding %d entries from %d (cap %d) to %d (cap %d) ints", t, entries, len(padded), cap(padded), len(deltas), cap(deltas))
-
-	log.Printf("data: %#v", bdata.Bytes())
-	//turbopfor.P4ndec32(padded, deltas)
-	turbopfor.P4ndec256v32(padded, deltas)
-	log.Printf("deltas: %#v", deltas)
-	os.Exit(0)
-	return deltas, nil
 }

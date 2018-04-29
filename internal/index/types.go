@@ -13,4 +13,5 @@ type MetaEntry struct {
 	OffsetData int64  // streaming vbyte deltas offset within the corresponding .data file
 }
 
+// TODO(performance): check if the compiler turns binary.Size into a constant
 const metaEntrySize = 24 // (encoding/binary).Size(MetaEntry)
