@@ -290,16 +290,6 @@ func mergeToShard() error {
 	//}
 	log.Printf("merged into shard %s\n", tmpIndexPath.Name())
 
-	// If full.idx does not exist (i.e. on initial deployment), just move the
-	// new index to full.idx, the dcs-index-backend will not be running anyway.
-	fullIdxPath := filepath.Join(*unpackedPath, "full.idx")
-	if _, err := os.Stat(fullIdxPath); os.IsNotExist(err) {
-		if err := os.Rename(tmpIndexPath.Name(), fullIdxPath); err != nil {
-			return err
-		}
-		return nil
-	}
-
 	successfulMerges.Inc()
 
 	conn, err := grpcutil.DialTLS(*indexBackendAddr, *tlsCertPath, *tlsKeyPath)

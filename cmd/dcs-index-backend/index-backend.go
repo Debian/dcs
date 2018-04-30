@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -132,7 +133,6 @@ func main() {
 	if *indexPath == "" {
 		log.Fatal("You need to specify a non-empty -index_path")
 	}
-	fmt.Println("Debian Code Search index-backend")
 
 	cfg := jaegercfg.Configuration{
 		Sampler: &jaegercfg.SamplerConfig{
@@ -155,13 +155,24 @@ func main() {
 
 	http.Handle("/metrics", prometheus.Handler())
 
+	idx := *indexPath
+	if _, err := os.Stat(idx); os.IsNotExist(err) {
+		tmp, err := ioutil.TempFile("", "dcs-index-backend")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.Remove(tmp.Name())
+		idx = tmp.Name()
+		index.Create(idx).Flush()
+	}
+
 	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {
 			indexbackendpb.RegisterIndexBackendServer(s, &server{
 				id: filepath.Base(*indexPath),
-				ix: index.Open(*indexPath),
+				ix: index.Open(idx),
 			})
 		}))
 }
