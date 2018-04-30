@@ -1,10 +1,13 @@
-package main
+package filter
 
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"unicode/utf8"
 )
 
 // TODO: filter /debian/api/ (in every linux package), e.g.
@@ -41,7 +44,7 @@ var (
 	errManpageSuffix          = errors.New("file seems to be a man page as per its suffix")
 )
 
-func setupFilters() {
+func Init() {
 	for _, entry := range strings.Split(*ignoredDirnamesList, ",") {
 		ignoredDirnames[entry] = true
 	}
@@ -68,45 +71,53 @@ func hasManpageSuffix(filename string) bool {
 // Returns true for files that should not be indexed for various reasons:
 // • generated files
 // • non-source (but text) files, e.g. .doc, .svg, …
-func ignored(info os.FileInfo, dir, filename string) error {
+func Ignored(info os.FileInfo, dir, filename string) error {
+	// Some filenames (e.g.
+	// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
+	// invalid UTF-8 and will break when sending them via JSON later
+	// on. Filter those out early to avoid breakage.
+	if path := filepath.Join(dir, filename); !utf8.ValidString(path) {
+		return fmt.Errorf("path %q is not valid UTF-8", path)
+	}
+
 	if info.IsDir() {
 		if ignoredDirnames[filename] {
 			return errIgnoredDirnames
 		}
-	} else {
-		size := info.Size()
-		// index/write.go will skip the file if it’s too big, so we might as
-		// well skip it here and save the disk space.
-		if size > (1 << 30) {
-			return errTooLarge
-		}
+		return nil
+	}
+	size := info.Size()
+	// index/write.go will skip the file if it’s too big, so we might as
+	// well skip it here and save the disk space.
+	if size > (1 << 30) {
+		return errTooLarge
+	}
 
-		// TODO: peek inside the files (we’d have to read them anyways) and
-		// check for messages that indicate that the file is generated. either
-		// by autoconf or by bison for example.
-		if ignoredFilenames[filename] {
-			return errIgnoredFilenames
-		}
+	// TODO: peek inside the files (we’d have to read them anyways) and
+	// check for messages that indicate that the file is generated. either
+	// by autoconf or by bison for example.
+	if ignoredFilenames[filename] {
+		return errIgnoredFilenames
+	}
 
-		// Don’t match /debian/changelog or /debian/README, but
-		// exclude changelog and readme files generally.
-		if !strings.HasSuffix(dir, "/debian/") &&
-			strings.HasPrefix(strings.ToLower(filename), "changelog") ||
-			strings.HasPrefix(strings.ToLower(filename), "readme") {
-			return errIgnoredFilenames
+	// Don’t match /debian/changelog or /debian/README, but
+	// exclude changelog and readme files generally.
+	if !strings.HasSuffix(dir, "/debian/") &&
+		strings.HasPrefix(strings.ToLower(filename), "changelog") ||
+		strings.HasPrefix(strings.ToLower(filename), "readme") {
+		return errIgnoredFilenames
+	}
+	if hasManpageSuffix(filename) {
+		return errManpageSuffix
+	}
+	idx := strings.LastIndex(filename, ".")
+	if idx > -1 {
+		if ignoredSuffixes[filename[idx+1:]] &&
+			!strings.HasPrefix(strings.ToLower(filename), "cmakelists.txt") {
+			return errIgnoredSuffixes
 		}
-		if hasManpageSuffix(filename) {
-			return errManpageSuffix
-		}
-		idx := strings.LastIndex(filename, ".")
-		if idx > -1 {
-			if ignoredSuffixes[filename[idx+1:]] &&
-				!strings.HasPrefix(strings.ToLower(filename), "cmakelists.txt") {
-				return errIgnoredSuffixes
-			}
-			if size > 65*1024 && onlySmallFilesSuffixes[filename[idx+1:]] {
-				return errOnlySmallFilesSuffixes
-			}
+		if size > 65*1024 && onlySmallFilesSuffixes[filename[idx+1:]] {
+			return errOnlySmallFilesSuffixes
 		}
 	}
 

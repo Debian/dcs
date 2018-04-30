@@ -15,12 +15,15 @@ Syntax: dcs [global flags] <command> [flags] [args]
 Deployment (shard) commands:
 	stats - display stats about this deployment (shard)
 
-Individual index commands:
+Index query commands:
 	docids   - list the documents covered by this index
 	trigram  - display metadata of the specified trigram
 	raw      - print raw (encoded) index data for the specified trigram
 	posting  - list the (decoded) posting list for the specified trigram
 	matches  - list the filename[:pos] matches for the specified trigram
+
+Index manipulation commands:
+	create   - create an index
 `
 
 func help(topic string) {
@@ -40,6 +43,9 @@ func help(topic string) {
 	case "matches":
 		fmt.Fprintf(os.Stdout, "%s", matchesHelp)
 		matches([]string{"-help"})
+	case "create":
+		fmt.Fprintf(os.Stdout, "%s", createHelp)
+		create([]string{"-help"})
 	case "":
 		flag.Usage()
 	default:
@@ -74,6 +80,8 @@ func main() {
 		posting(args)
 	case "matches":
 		matches(args)
+	case "create":
+		create(args)
 	case "help":
 		if len(args) > 0 {
 			help(args[0])

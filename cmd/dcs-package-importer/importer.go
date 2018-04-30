@@ -16,12 +16,12 @@ import (
 	"runtime/pprof"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"google.golang.org/grpc"
 
 	"github.com/Debian/dcs/grpcutil"
-	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/internal/filter"
+	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/indexbackendpb"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	_ "github.com/Debian/dcs/varz"
@@ -322,74 +322,54 @@ func indexPackage(pkg string) error {
 	// time. If we don’t do that, merges will try to use incomplete index
 	// files, which are interpreted as corrupted.
 	tmpIndexPath := filepath.Join(*unpackedPath, pkg+".tmp")
-	index := index.Create(tmpIndexPath)
+	index, err := index.Create(tmpIndexPath)
+	if err != nil {
+		return err
+	}
 	// +1 because of the / that should not be included in the index.
 	stripLen := len(filepath.Join(tmpdir, pkg)) + 1
 
-	err := filepath.Walk(unpacked, func(path string, info os.FileInfo, err error) error {
-		if dir, filename := filepath.Split(path); filename != "" {
-			skip := ignored(info, dir, filename)
-			if *debugSkip && skip != nil {
-				log.Printf("Skipping %q: %v", path, skip)
+	if err := index.AddDir(
+		unpacked,
+		filepath.Join(tmpdir, pkg)+"/",
+		filter.Ignored,
+		func(path string, info os.FileInfo, err error) error {
+			if *debugSkip {
+				log.Printf("skipping %q: %v", path, err)
 			}
-			if skip != nil && info.IsDir() {
-				if err := os.RemoveAll(path); err != nil {
-					log.Fatalf("Could not remove directory %q: %v\n", path, err)
-				}
-				return filepath.SkipDir
+			// TODO: isn’t everything in |unpacked| deleted later on anyway?
+			if info.IsDir() {
+				return os.RemoveAll(path)
 			}
-			if skip != nil && !info.IsDir() {
-				if err := os.Remove(path); err != nil {
-					log.Fatalf("Could not remove file %q: %v\n", path, err)
-				}
-				return nil
-			}
-		}
-
-		if info == nil || !info.Mode().IsRegular() {
-			return nil
-		}
-
-		// Some filenames (e.g.
-		// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
-		// invalid UTF-8 and will break when sending them via JSON later
-		// on. Filter those out early to avoid breakage.
-		if !utf8.ValidString(path) {
-			log.Printf("Skipping due to invalid UTF-8: %s\n", path)
-			return nil
-		}
-
-		if err := index.AddFile(path, path[stripLen:]); err != nil {
-			log.Printf("Could not index %q: %v\n", path, err)
-			if err := os.Remove(path); err != nil {
-				log.Fatalf("Could not remove file %q: %v\n", path, err)
-			}
-		} else {
+			return os.Remove(path)
+		},
+		func(path string, info os.FileInfo) error {
 			// Copy this file out of /tmp to our unpacked directory.
 			outputPath := filepath.Join(*unpackedPath, path[stripLen:])
 			if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
-				log.Fatalf("Could not create directory: %v\n", err)
+				return fmt.Errorf("Could not create directory: %v\n", err)
 			}
 			output, err := os.Create(outputPath)
 			if err != nil {
-				log.Fatalf("Could not create output file %q: %v\n", outputPath, err)
+				return fmt.Errorf("Could not create output file %q: %v\n", outputPath, err)
 			}
 			defer output.Close()
 			input, err := os.Open(path)
 			if err != nil {
-				log.Fatalf("Could not open input file %q: %v\n", path, err)
+				return fmt.Errorf("Could not open input file %q: %v\n", path, err)
 			}
 			defer input.Close()
 			if _, err := io.Copy(output, input); err != nil {
-				log.Fatalf("Could not copy %q to %q: %v\n", path, outputPath, err)
+				return fmt.Errorf("Could not copy %q to %q: %v\n", path, outputPath, err)
 			}
-		}
-		return nil
-	})
-	if err != nil {
+			return nil
+		},
+	); err != nil {
 		return err
 	}
-	index.Flush()
+	if err := index.Flush(); err != nil {
+		return err
+	}
 
 	finalIndexPath := filepath.Join(*unpackedPath, pkg+".idx")
 	if err := os.Rename(tmpIndexPath, finalIndexPath); err != nil {
@@ -466,7 +446,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	setupFilters()
+	filter.Init()
 
 	var err error
 	tmpdir, err = ioutil.TempDir("", "dcs-importer")
