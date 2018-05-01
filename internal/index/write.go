@@ -92,6 +92,10 @@ func (w *Writer) AddDir(dir string, trimPrefix string, ignored IgnoreFunc, ef Er
 		sf = func(_ string, _ os.FileInfo) error { return nil }
 	}
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if info == nil {
+			return nil
+		}
+
 		if dir, filename := filepath.Split(path); filename != "" {
 			if skip := ignored(info, dir, filename); skip != nil {
 				if err := ef(path, info, skip); err != nil {
@@ -104,7 +108,7 @@ func (w *Writer) AddDir(dir string, trimPrefix string, ignored IgnoreFunc, ef Er
 			}
 		}
 
-		if info == nil || !info.Mode().IsRegular() {
+		if !info.Mode().IsRegular() {
 			return nil
 		}
 
