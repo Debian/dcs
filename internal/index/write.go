@@ -157,6 +157,17 @@ func (w *Writer) AddFile(fn, name string) error {
 	}
 	defer f.Close()
 
+	st, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	if st.Size() > maxFileLen {
+		return errors.New("too long, ignoring")
+	}
+	if st.Size() < 3 {
+		return errors.New("too short, ignoring")
+	}
+
 	var (
 		c       byte
 		tv      uint32
@@ -164,7 +175,7 @@ func (w *Writer) AddFile(fn, name string) error {
 		n       = 0
 		linelen = 0
 		buf     = w.inbuf[:0]
-		entries = make(map[Trigram][]entry)
+		entries = make([]uint64, st.Size()-2)
 	)
 	for {
 		tv = (tv << 8) & (1<<24 - 1)
@@ -196,18 +207,15 @@ func (w *Writer) AddFile(fn, name string) error {
 		}
 		if n++; n >= 3 {
 			w.set.Add(tv)
-			t := Trigram(tv)
-			entries[t] = append(entries[t], entry{docid: docid, position: uint32(n - 3)})
-		}
-		if n > maxFileLen {
-			return errors.New("too long, ignoring")
+			entries[n-3] = uint64(tv)<<32 | uint64(n-3)
 		}
 	}
 	if w.set.Len() > maxTextTrigrams {
 		return errors.New("too many trigrams, probably not text, ignoring")
 	}
-	for t, entries := range entries {
-		w.index[t] = append(w.index[t], entries...)
+	for _, e := range entries {
+		t := Trigram(e >> 32)
+		w.index[t] = append(w.index[t], entry{docid: docid, position: uint32(e)})
 	}
 	return nil
 }
