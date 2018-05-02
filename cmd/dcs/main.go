@@ -21,6 +21,7 @@ Index query commands:
 	raw      - print raw (encoded) index data for the specified trigram
 	posting  - list the (decoded) posting list for the specified trigram
 	matches  - list the filename[:pos] matches for the specified trigram
+	search   - list the filename[:pos] matches for the specified search query
 
 Index manipulation commands:
 	create   - create an index
@@ -50,6 +51,9 @@ func help(topic string) {
 	case "merge":
 		fmt.Fprintf(os.Stdout, "%s", mergeHelp)
 		merge([]string{"-help"})
+	case "search":
+		fmt.Fprintf(os.Stdout, "%s", searchHelp)
+		search([]string{"-help"})
 	case "":
 		flag.Usage()
 	default:
@@ -88,6 +92,8 @@ func main() {
 		create(args)
 	case "merge":
 		merge(args)
+	case "search":
+		search(args)
 	case "help":
 		if len(args) > 0 {
 			help(args[0])

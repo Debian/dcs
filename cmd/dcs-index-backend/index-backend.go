@@ -15,7 +15,8 @@ import (
 	"time"
 
 	"github.com/Debian/dcs/grpcutil"
-	"github.com/Debian/dcs/index"
+	oldindex "github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/indexbackendpb"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/google/codesearch/regexp"
@@ -46,7 +47,7 @@ type server struct {
 // doPostingQuery runs the actual query. This code is in a separate function so
 // that we can use defer (to be safe against panics in the index querying code)
 // and still don’t hold the mutex for longer than we need to.
-func (s *server) doPostingQuery(query *index.Query, stream indexbackendpb.IndexBackend_FilesServer) error {
+func (s *server) doPostingQuery(query *oldindex.Query, stream indexbackendpb.IndexBackend_FilesServer) error {
 	s.ixMutex.Lock()
 	defer s.ixMutex.Unlock()
 	t0 := time.Now()
@@ -54,8 +55,12 @@ func (s *server) doPostingQuery(query *index.Query, stream indexbackendpb.IndexB
 	t1 := time.Now()
 	fmt.Printf("[%s] postingquery done in %v, %d results\n", s.id, t1.Sub(t0), len(post))
 	var reply indexbackendpb.FilesReply
-	for _, fileid := range post {
-		reply.Path = s.ix.Name(fileid)
+	for _, docid := range post {
+		var err error
+		reply.Path, err = s.ix.DocidMap.Lookup(docid)
+		if err != nil {
+			return err
+		}
 		if err := stream.Send(&reply); err != nil {
 			return err
 		}
@@ -85,7 +90,7 @@ func (s *server) Files(in *indexbackendpb.FilesRequest, stream indexbackendpb.In
 	if err != nil {
 		return fmt.Errorf("regexp.Compile: %s\n", err)
 	}
-	query := index.RegexpQuery(re.Syntax)
+	query := oldindex.RegexpQuery(re.Syntax)
 	log.Printf("[%s] query: text = %s, regexp = %s\n", s.id, in.Query, query)
 	return s.doPostingQuery(query, stream)
 }
@@ -110,8 +115,12 @@ func (s *server) ReplaceIndex(ctx context.Context, in *indexbackendpb.ReplaceInd
 			// this directory, so let’s load this shard.
 			oldIndex := s.ix
 			log.Printf("Trying to load %q\n", newShard)
+			newIndex, err := index.Open(newShard)
+			if err != nil {
+				return nil, err
+			}
 			s.ixMutex.Lock()
-			s.ix = index.Open(newShard)
+			s.ix = newIndex
 			s.ixMutex.Unlock()
 			// Overwrite the old full shard with the new one. This is necessary
 			// so that the state is persistent across restarts and has the nice
@@ -157,13 +166,24 @@ func main() {
 
 	idx := *indexPath
 	if _, err := os.Stat(idx); os.IsNotExist(err) {
-		tmp, err := ioutil.TempFile("", "dcs-index-backend")
+		tmp, err := ioutil.TempDir("", "dcs-index-backend")
 		if err != nil {
 			log.Fatal(err)
 		}
-		defer os.Remove(tmp.Name())
-		idx = tmp.Name()
-		index.Create(idx).Flush()
+		defer os.Remove(tmp)
+		idx = tmp
+		ix, err := index.Create(idx)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := ix.Flush(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	ix, err := index.Open(idx)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
@@ -172,7 +192,7 @@ func main() {
 		func(s *grpc.Server) {
 			indexbackendpb.RegisterIndexBackendServer(s, &server{
 				id: filepath.Base(*indexPath),
-				ix: index.Open(idx),
+				ix: ix,
 			})
 		}))
 }
