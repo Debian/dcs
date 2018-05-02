@@ -262,7 +262,7 @@ func mergeToShard() error {
 	if len(indexFiles) < 2 {
 		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
-	tmpIndexPath, err := ioutil.TempFile(*unpackedPath, "newshard")
+	tmpIndexPath, err := ioutil.TempDir(*unpackedPath, "newshard")
 	if err != nil {
 		return err
 	}
@@ -278,7 +278,7 @@ func mergeToShard() error {
 	}
 
 	t0 := time.Now()
-	index.ConcatN(tmpIndexPath.Name(), indexFiles...)
+	index.ConcatN(tmpIndexPath, indexFiles)
 	t1 := time.Now()
 	log.Printf("merged in %v\n", t1.Sub(t0))
 	//for i := 1; i < len(indexFiles); i++ {
@@ -288,7 +288,7 @@ func mergeToShard() error {
 	//	t1 := time.Now()
 	//	log.Printf("merged in %v\n", t1.Sub(t0))
 	//}
-	log.Printf("merged into shard %s\n", tmpIndexPath.Name())
+	log.Printf("merged into shard %s\n", tmpIndexPath)
 
 	successfulMerges.Inc()
 
@@ -303,7 +303,7 @@ func mergeToShard() error {
 	_, err = indexBackend.ReplaceIndex(
 		context.Background(),
 		&indexbackendpb.ReplaceIndexRequest{
-			ReplacementPath: filepath.Base(tmpIndexPath.Name()),
+			ReplacementPath: filepath.Base(tmpIndexPath),
 		})
 	if err != nil {
 		return fmt.Errorf("indexBackend.ReplaceIndex(): %v", err)

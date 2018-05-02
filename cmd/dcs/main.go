@@ -24,6 +24,7 @@ Index query commands:
 
 Index manipulation commands:
 	create   - create an index
+	merge    - merge multiple index files into one
 `
 
 func help(topic string) {
@@ -46,6 +47,9 @@ func help(topic string) {
 	case "create":
 		fmt.Fprintf(os.Stdout, "%s", createHelp)
 		create([]string{"-help"})
+	case "merge":
+		fmt.Fprintf(os.Stdout, "%s", mergeHelp)
+		merge([]string{"-help"})
 	case "":
 		flag.Usage()
 	default:
@@ -82,6 +86,8 @@ func main() {
 		matches(args)
 	case "create":
 		create(args)
+	case "merge":
+		merge(args)
 	case "help":
 		if len(args) > 0 {
 			help(args[0])

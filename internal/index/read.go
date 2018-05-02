@@ -103,8 +103,10 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 }
 
 type PForReader struct {
-	meta *mmap.ReaderAt
-	data *mmap.ReaderAt
+	meta     *mmap.ReaderAt
+	data     *mmap.ReaderAt
+	padbuf   []byte
+	deltabuf []uint32
 }
 
 func newPForReader(dir, section string) (*PForReader, error) {
@@ -130,40 +132,26 @@ func (sr *PForReader) Close() error {
 }
 
 func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
-	log.Printf("trigram=%d", trigram)
-	// TODO: copy better code from benchmark.go<as>
-	entries := make([]MetaEntry, sr.meta.Len()/metaEntrySize)
-	var buf [metaEntrySize]byte
-	n := sort.Search(len(entries), func(i int) bool {
-		if entries[i].Trigram == 0 {
-			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
-		return entries[i].Trigram >= trigram
+	num := sr.meta.Len() / metaEntrySize
+	d := sr.meta.Data()
+	n := sort.Search(num, func(i int) bool {
+		// MetaEntry.Trigram is the first member
+		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
-	if n >= len(entries) || entries[n].Trigram != trigram {
-		return nil, nil, fmt.Errorf("not found") // TODO
+	if n >= num {
+		return nil, nil, fmt.Errorf("not found")
 	}
-	result := entries[n]
-	var next MetaEntry
-	if n < len(entries)-1 {
-		i := n + 1
-		if entries[i].Trigram == 0 {
-			if _, err := sr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
+	var result MetaEntry
+	result.Unmarshal(d[n*metaEntrySize:])
+	if result.Trigram != trigram {
+		return nil, nil, fmt.Errorf("not found")
+	}
 
-		next = entries[n+1]
+	var next MetaEntry
+	if n < num-1 {
+		next.Unmarshal(d[(n+1)*metaEntrySize:])
 	} else {
-		next.OffsetData = math.MaxInt64
+		next.OffsetData = int64(sr.data.Len())
 	}
 	return &result, &next, nil
 }
@@ -180,7 +168,7 @@ func (sr *PForReader) Data(t Trigram) (data io.Reader, entries int, _ error) {
 		return nil, 0, err
 	}
 	dataBytes := next.OffsetData - meta.OffsetData
-	log.Printf("offset: %d, bytes: %d", meta.OffsetData, dataBytes)
+	//log.Printf("offset: %d, bytes: %d", meta.OffsetData, dataBytes)
 	// TODO: benchmark whether an *os.File with Seek is measurably worse
 	return &io.LimitedReader{
 			R: &mmapReader{r: sr.data, off: meta.OffsetData},
@@ -190,27 +178,69 @@ func (sr *PForReader) Data(t Trigram) (data io.Reader, entries int, _ error) {
 		nil
 }
 
+// A DeltaReader reads up to 256 deltas at a time (i.e. one TurboPFor block),
+// which is useful for copying index data in a windowed fashion (for merging).
+type DeltaReader struct {
+	entries int
+	n       int
+	data    []byte
+	buf     []uint32
+}
+
+func NewDeltaReader() *DeltaReader {
+	return &DeltaReader{
+		buf: make([]uint32, 256),
+	}
+}
+
+// Reset positions the reader on a posting list.
+func (dr *DeltaReader) Reset(meta *MetaEntry, data []byte) {
+	dr.entries = int(meta.Entries)
+	dr.n = 0
+	dr.data = data[meta.OffsetData:]
+}
+
+// Read returns up to 256 uint32 deltas.
+//
+// When all deltas have been read, Read returns nil.
+//
+// The first Read call after Reset returns a non-nil result.
+func (dr *DeltaReader) Read() []uint32 {
+	if dr.n+256 < dr.entries {
+		dr.data = dr.data[turbopfor.P4dec256v32(dr.data, dr.buf):]
+		dr.n += 256
+		return dr.buf
+	}
+	if remaining := dr.entries - dr.n; remaining > 0 {
+		turbopfor.P4dec32(dr.data, dr.buf[:remaining])
+		dr.n += remaining
+		return dr.buf[:remaining]
+	}
+	return nil
+}
+
+func (sr *PForReader) deltas(meta *MetaEntry) ([]uint32, error) {
+	entries := int(meta.Entries)
+	d := sr.data.Data()
+
+	var deltas []uint32
+	// TODO: figure out overhead. 128*1024 is wrong. might be 0, actually
+	if n := entries + 128*1024; n < len(sr.deltabuf) {
+		deltas = sr.deltabuf[:n-(128*1024)]
+	} else {
+		sr.deltabuf = make([]uint32, n)
+		deltas = sr.deltabuf[:n-(128*1024)]
+	}
+	turbopfor.P4ndec256v32(d[meta.OffsetData:], deltas)
+	return deltas, nil
+}
+
 func (sr *PForReader) Deltas(t Trigram) ([]uint32, error) {
-	data, entries, err := sr.Data(t)
+	meta, _, err := sr.metaEntry(t)
 	if err != nil {
 		return nil, err
 	}
-	var bdata bytes.Buffer
-	if _, err := io.Copy(&bdata, data); err != nil {
-		return nil, err
-	}
-	padded := make([]byte, bdata.Len()+32)
-	copy(padded, bdata.Bytes())
-	padded = padded[:bdata.Len()]
-
-	deltas := make([]uint32, entries, entries+128*1024)
-	log.Printf("trigram %d decoding %d entries from %d (cap %d) to %d (cap %d) ints", t, entries, len(padded), cap(padded), len(deltas), cap(deltas))
-
-	log.Printf("data: %#v", bdata.Bytes())
-	//turbopfor.P4ndec32(padded, deltas)
-	turbopfor.P4ndec256v32(padded, deltas)
-	log.Printf("deltas: %#v", deltas)
-	return deltas, nil
+	return sr.deltas(meta)
 }
 
 type PosrelReader struct {
