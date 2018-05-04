@@ -35,6 +35,7 @@ type cachedLookup struct {
 type DocidReader struct {
 	f           *mmap.ReaderAt
 	indexOffset uint32
+	Count       int
 	last        cachedLookup
 	buf         [4096]byte // TODO: document this is larger than PATH_MAX
 }
@@ -54,6 +55,7 @@ func newDocidReader(dir string) (*DocidReader, error) {
 	return &DocidReader{
 		f:           f,
 		indexOffset: indexOffset,
+		Count:       int(uint32(f.Len())-indexOffset-4) / 4,
 		last: cachedLookup{
 			docid: 0xFFFFFFFF,
 		},

@@ -38,16 +38,14 @@ func (ix *Index) postingQuery(qry *index.Query, restrict []uint32) (ret []uint32
 	case index.QNone:
 		// nothing
 	case index.QAll:
-		log.Printf("TODO: QAll")
-		return nil // TODO?
-		// if restrict != nil {
-		// 	return restrict
-		// }
-		// list = make([]uint32, ix.numName)
-		// for i := range list {
-		// 	list[i] = uint32(i)
-		// }
-		// return list
+		if restrict != nil {
+			return restrict
+		}
+		list = make([]uint32, ix.DocidMap.Count)
+		for i := range list {
+			list[i] = uint32(i)
+		}
+		return list
 	case index.QAnd:
 		// "Query planner": we first sort the posting lists by their
 		// length (ascending)
