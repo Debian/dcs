@@ -58,7 +58,8 @@ func (ix *Index) postingQuery(qry *index.Query, restrict []uint32) (ret []uint32
 			meta, _, err := ix.Docid.metaEntry(Trigram(tri))
 			if err != nil {
 				log.Printf("numEntries: (probably okay) tri %d (%v): %v", tri, t, err)
-				//continue
+				withCount = append(withCount, trigramCnt{tri, 0, 0})
+				continue
 			}
 			//withCount[idx] = trigramCnt{tri, int(count), 0}
 			withCount = append(withCount, trigramCnt{tri, int(meta.Entries), 0})
