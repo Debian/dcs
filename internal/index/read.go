@@ -206,7 +206,7 @@ func (dr *DeltaReader) Reset(meta *MetaEntry, data []byte) {
 //
 // The first Read call after Reset returns a non-nil result.
 func (dr *DeltaReader) Read() []uint32 {
-	if dr.n+256 < dr.entries {
+	if dr.n+256 <= dr.entries {
 		dr.data = dr.data[turbopfor.P4dec256v32(dr.data, dr.buf):]
 		dr.n += 256
 		return dr.buf
