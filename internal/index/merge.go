@@ -228,9 +228,6 @@ func ConcatN(destdir string, srcdirs []string) error {
 		bufwDocidMeta := bufio.NewWriter(fDocidMeta)
 
 		for _, t := range trigrams {
-			if t == 2105376 { // TODO: document: "   "?
-				continue
-			}
 			//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 			//ctrl, data := dw.Offsets()
 			me := MetaEntry{

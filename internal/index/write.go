@@ -340,6 +340,9 @@ func (w *Writer) writePos(trigrams []Trigram) error {
 	}
 	defer dw.Close()
 	for _, t := range trigrams {
+		if t == 2105376 { // skip "   " in positional index
+			continue
+		}
 		entries := w.index[t]
 
 		if err := binary.Write(bufw, binary.LittleEndian, &MetaEntry{
@@ -392,6 +395,9 @@ func (w *Writer) writePosrel(trigrams []Trigram) error {
 	dcw := newCountingWriter(df)
 	pw := index2.NewPosrelWriter(&dcw)
 	for _, t := range trigrams {
+		if t == 2105376 { // skip "   " in positional index
+			continue
+		}
 		entries := w.index[t]
 
 		if err := binary.Write(bufw, binary.LittleEndian, &MetaEntry{

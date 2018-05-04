@@ -52,9 +52,6 @@ func (ix *Index) postingQuery(qry *index.Query, restrict []uint32) (ret []uint32
 		withCount := make(trigramCnts, 0, len(qry.Trigram))
 		for _, t := range qry.Trigram {
 			tri := uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2])
-			if tri == 2105376 {
-				continue // skip "   " for now
-			}
 			meta, _, err := ix.Docid.metaEntry(Trigram(tri))
 			if err != nil {
 				log.Printf("numEntries: (probably okay) tri %d (%v): %v", tri, t, err)
