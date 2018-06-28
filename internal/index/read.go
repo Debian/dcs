@@ -1,17 +1,17 @@
 package index
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
-	"math"
+	"math/bits"
 	"path/filepath"
 	"sort"
+	"sync"
 	"turbopfor"
 
 	"golang.org/x/exp/mmap"
+	"golang.org/x/sync/errgroup"
 )
 
 // mmapReader implements io.Reader for an mmap.ReaderAt.
@@ -104,11 +104,27 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 	return dr.last.fn, nil
 }
 
+type reusableBuffer struct {
+	u []uint32
+}
+
+type bufferPair struct {
+	docid *reusableBuffer
+	pos   *reusableBuffer
+}
+
+func newBufferPair() *bufferPair {
+	return &bufferPair{
+		docid: &reusableBuffer{},
+		pos:   &reusableBuffer{},
+	}
+}
+
 type PForReader struct {
-	meta     *mmap.ReaderAt
-	data     *mmap.ReaderAt
-	padbuf   []byte
-	deltabuf []uint32
+	meta *mmap.ReaderAt
+	data *mmap.ReaderAt
+
+	//deltabuf []uint32
 }
 
 func newPForReader(dir, section string) (*PForReader, error) {
@@ -158,6 +174,24 @@ func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error)
 	return &result, &next, nil
 }
 
+func (sr *PForReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
+	num := sr.meta.Len() / metaEntrySize
+	d := sr.meta.Data()
+	n := sort.Search(num, func(i int) bool {
+		// MetaEntry.Trigram is the first member
+		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
+	})
+	if n >= num {
+		return nil, fmt.Errorf("not found")
+	}
+	var result MetaEntry
+	result.Unmarshal(d[n*metaEntrySize:])
+	if result.Trigram != trigram {
+		return nil, fmt.Errorf("not found")
+	}
+	return &result, nil
+}
+
 func (sr *PForReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
 	e, _, err := sr.metaEntry(trigram)
 	return e, err
@@ -178,6 +212,36 @@ func (sr *PForReader) Data(t Trigram) (data io.Reader, entries int, _ error) {
 		},
 		int(meta.Entries),
 		nil
+}
+
+func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32, error) {
+	entries := int(meta.Entries)
+	d := sr.data.Data()
+
+	//var deltas []uint32
+	// TODO: figure out overhead. 128*1024 is wrong. might be 0, actually
+	if n := entries + 128*1024; n > cap(buffer.u) {
+		buffer.u = make([]uint32, 0, n)
+	}
+	//deltas := make([]uint32, entries, entries+128*1024)
+	turbopfor.P4ndec256v32(d[meta.OffsetData:], buffer.u[:entries])
+	return buffer.u[:entries], nil
+}
+
+func (sr *PForReader) deltasWithBuffer(t Trigram, buffer *reusableBuffer) ([]uint32, error) {
+	meta, err := sr.metaEntry1(t)
+	if err != nil {
+		return nil, err
+	}
+	return sr.deltas(meta, buffer)
+}
+
+func (sr *PForReader) Deltas(t Trigram) ([]uint32, error) {
+	meta, _, err := sr.metaEntry(t)
+	if err != nil {
+		return nil, err
+	}
+	return sr.deltas(meta, &reusableBuffer{})
 }
 
 // A DeltaReader reads up to 256 deltas at a time (i.e. one TurboPFor block),
@@ -221,30 +285,6 @@ func (dr *DeltaReader) Read() []uint32 {
 	return nil
 }
 
-func (sr *PForReader) deltas(meta *MetaEntry) ([]uint32, error) {
-	entries := int(meta.Entries)
-	d := sr.data.Data()
-
-	var deltas []uint32
-	// TODO: figure out overhead. 128*1024 is wrong. might be 0, actually
-	if n := entries + 128*1024; n < len(sr.deltabuf) {
-		deltas = sr.deltabuf[:n-(128*1024)]
-	} else {
-		sr.deltabuf = make([]uint32, n)
-		deltas = sr.deltabuf[:n-(128*1024)]
-	}
-	turbopfor.P4ndec256v32(d[meta.OffsetData:], deltas)
-	return deltas, nil
-}
-
-func (sr *PForReader) Deltas(t Trigram) ([]uint32, error) {
-	meta, _, err := sr.metaEntry(t)
-	if err != nil {
-		return nil, err
-	}
-	return sr.deltas(meta)
-}
-
 type PosrelReader struct {
 	meta *mmap.ReaderAt
 	data *mmap.ReaderAt
@@ -263,42 +303,51 @@ func newPosrelReader(dir string) (*PosrelReader, error) {
 }
 
 func (pr *PosrelReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
-	// TODO: maybe de-duplicate with SectionReader.metaEntry?
-	// TODO: copy better code from benchmark.go<as>
-	entries := make([]MetaEntry, pr.meta.Len()/metaEntrySize)
-	var buf [metaEntrySize]byte
-	n := sort.Search(len(entries), func(i int) bool {
-		if entries[i].Trigram == 0 {
-			if _, err := pr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
-		return entries[i].Trigram >= trigram
-	})
-	if n >= len(entries) || entries[n].Trigram != trigram {
-		return nil, nil, fmt.Errorf("not found") // TODO
-	}
-	result := entries[n]
-	var next MetaEntry
-	if n < len(entries)-1 {
-		i := n + 1
-		if entries[i].Trigram == 0 {
-			if _, err := pr.meta.ReadAt(buf[:], int64(i*metaEntrySize)); err != nil {
-				log.Fatal(err) // TODO
-			}
-			if err := binary.Read(bytes.NewReader(buf[:]), binary.LittleEndian, &entries[i]); err != nil {
-				log.Fatal(err) // TODO
-			}
-		}
+	// TODO: maybe de-duplicate with PForReader.metaEntry?
 
-		next = entries[n+1]
+	num := pr.meta.Len() / metaEntrySize
+	d := pr.meta.Data()
+	n := sort.Search(num, func(i int) bool {
+		// MetaEntry.Trigram is the first member
+		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
+	})
+	if n >= num {
+		return nil, nil, fmt.Errorf("not found")
+	}
+	var result MetaEntry
+	result.Unmarshal(d[n*metaEntrySize:])
+	if result.Trigram != trigram {
+		return nil, nil, fmt.Errorf("not found")
+	}
+
+	var next MetaEntry
+	if n < num-1 {
+		next.Unmarshal(d[(n+1)*metaEntrySize:])
 	} else {
-		next.OffsetData = math.MaxInt64
+		next.OffsetData = int64(pr.data.Len())
 	}
 	return &result, &next, nil
+}
+
+func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
+	// TODO: maybe de-duplicate with PForReader.metaEntry?
+
+	num := pr.meta.Len() / metaEntrySize
+	d := pr.meta.Data()
+	n := sort.Search(num, func(i int) bool {
+		// MetaEntry.Trigram is the first member
+		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
+	})
+	if n >= num {
+		return nil, fmt.Errorf("not found")
+	}
+	var result MetaEntry
+	result.Unmarshal(d[n*metaEntrySize:])
+	if result.Trigram != trigram {
+		return nil, fmt.Errorf("not found")
+	}
+
+	return &result, nil
 }
 
 func (pr *PosrelReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
@@ -316,12 +365,21 @@ func (mr *mmapOffsetReader) ReadAt(p []byte, off int64) (n int, err error) {
 	return mr.r.ReadAt(p, mr.off+off)
 }
 
+// TODO: delete once raw.go uses DataBytes()
 func (pr *PosrelReader) Data(t Trigram) (io.ReaderAt, error) {
 	meta, _, err := pr.metaEntry(t)
 	if err != nil {
 		return nil, err
 	}
 	return &mmapOffsetReader{r: pr.data, off: meta.OffsetData}, nil
+}
+
+func (pr *PosrelReader) DataBytes(t Trigram) ([]byte, error) {
+	meta, err := pr.metaEntry1(t)
+	if err != nil {
+		return nil, err
+	}
+	return pr.data.Data()[meta.OffsetData:], nil
 }
 
 func (pr *PosrelReader) Close() error {
@@ -339,10 +397,16 @@ type Index struct {
 	Docid    *PForReader   // docids for all trigrams
 	Pos      *PForReader   // positions for all trigrams
 	Posrel   *PosrelReader // position relationships for all trigrams
+
+	// buffers for both i.Matches() calls
+	firstBuffer *bufferPair
+	lastBuffer  *bufferPair
 }
 
 func Open(dir string) (*Index, error) {
 	var i Index
+	i.firstBuffer = newBufferPair()
+	i.lastBuffer = newBufferPair()
 	var err error
 	if i.DocidMap, err = newDocidReader(dir); err != nil {
 		return nil, err
@@ -368,46 +432,218 @@ type Match struct {
 	Position uint32 // byte offset of the trigram within the document
 }
 
+var mu sync.Mutex
+
 func (i *Index) Matches(t Trigram) ([]Match, error) {
-	docids, err := i.Docid.Deltas(t)
+	return i.matchesWithBuffer(t, newBufferPair())
+}
+
+func (i *Index) matchesWithBufferDirect(t Trigram, buffers *bufferPair) (docids []uint32, pos []uint32, posrel []byte, _ error) {
+	// mu.Lock()
+	// defer mu.Unlock()
+	var eg errgroup.Group
+
+	eg.Go(func() error {
+		var err error
+		docids, err = i.Docid.deltasWithBuffer(t, buffers.docid)
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		pos, err = i.Pos.deltasWithBuffer(t, buffers.pos)
+		return err
+	})
+	eg.Go(func() error {
+		var err error
+		posrel, err = i.Posrel.DataBytes(t)
+		return err
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, nil, nil, err
+	}
+	return docids, pos, posrel, nil
+}
+
+func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, error) {
+	docids, pos, posrel, err := i.matchesWithBufferDirect(t, buffers)
 	if err != nil {
 		return nil, err
 	}
-	pos, err := i.Pos.Deltas(t)
-	if err != nil {
-		return nil, err
-	}
-	posrel, err := i.Posrel.Data(t)
-	if err != nil {
-		return nil, err
-	}
-	//log.Printf("%d docid, %d pos", len(docids), len(pos))
 	matches := make([]Match, 0, len(pos))
 	docidIdx := -1
 	var prevD, prevP uint32
-	var pr [1]byte
-	for i := 0; i < len(pos); i++ {
+	for i := 0; i < len(pos); {
 		// should be 1 if the docid changes, 0 otherwise
-		// TODO: access .data directly instead?
 		// TODO: micro-benchmark the “read uint64s, use bits.TrailingZeros64(), mask u &= u-1” trick
-		if _, err := posrel.ReadAt(pr[:], int64(i/8)); err != nil {
-			return nil, err
+		pr := posrel[i/8]
+		rest := len(pos) - i
+		if rest > 8 {
+			rest = 8
 		}
-		// 205G ~/as/idx before
-		// 158G ~/as/idx after \o/
-		chg := int((pr[0] >> (uint(i) % 8)) & 1)
-		docidIdx += chg
-		prevP *= uint32(1 ^ chg)
+		for j := 0; j < rest; j++ {
+			chg := int((pr >> (uint(i) % 8)) & 1)
+			docidIdx += chg
+			prevP *= uint32(1 ^ chg)
 
-		log.Printf("docidIdx=%d, chg=%d, pr = %x", docidIdx, chg, pr[0])
-		prevD += docids[docidIdx] * uint32(chg)
-		prevP += pos[i]
-		matches = append(matches, Match{
-			Docid:    prevD,
-			Position: prevP,
-		})
+			prevD += docids[docidIdx] * uint32(chg)
+			prevP += pos[i]
+			matches = append(matches, Match{
+				Docid:    prevD,
+				Position: prevP,
+			})
+			i++
+		}
 	}
 	return matches, nil
+}
+
+func (i *Index) QueryPositional(query string) ([]Match, error) {
+	if len(query) < 4 {
+		return nil, nil // not yet implemented
+	}
+	type planEntry struct {
+		offset  int
+		t       Trigram
+		entries uint32
+	}
+	qb := []byte(query)
+	plan := make([]planEntry, len(query)-2)
+	// TODO: maybe parallelize building the plan?
+	for j := 0; j < len(query)-2; j++ {
+		t := Trigram(uint32(qb[j])<<16 |
+			uint32(qb[j+1])<<8 |
+			uint32(qb[j+2]))
+		meta, _, err := i.Pos.metaEntry(t)
+		if err != nil {
+			return nil, err
+		}
+		plan[j] = planEntry{
+			offset:  j,
+			t:       t,
+			entries: meta.Entries,
+		}
+	}
+	plan[1] = plan[len(plan)-1]
+	// TODO: figure out if query planning measurably decreases query latency in
+	// production or not. For querylog-benchpos.txt, it’s a net loss: while the
+	// posting lists for some queries are decoded much faster, the probability
+	// of false positives is much lower whenthe first and last trigram
+	// match. This results in more file/position tuples to verify, hence more
+	// mmap() syscalls, hence a longer overall runtime.
+	//
+	// sort.Slice(plan, func(i, j int) bool { return plan[i].entries < plan[j].entries })
+	first := plan[0]
+	last := plan[1]
+
+	// for _, p := range plan {
+	// 	if math.Abs(float64(p.offset)-float64(first.offset)) < 3 {
+	// 		continue
+	// 	}
+	// 	last = p
+	// 	break
+	// }
+
+	var eg errgroup.Group
+
+	var (
+		fdocids []uint32
+		fpos    []uint32
+		fposrel []byte
+
+		ldocids []uint32
+		lpos    []uint32
+		lposrel []byte
+	)
+
+	eg.Go(func() error {
+		var err error
+		fdocids, fpos, fposrel, err = i.matchesWithBufferDirect(first.t, i.firstBuffer)
+		return err
+	})
+
+	eg.Go(func() error {
+		var err error
+		ldocids, lpos, lposrel, err = i.matchesWithBufferDirect(last.t, i.lastBuffer)
+		return err
+	})
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	// filter matches based on position constraints
+	//delta := len(query) - 3
+	delta := last.offset - first.offset
+	var entries []Match
+
+	flipped := last.offset < first.offset //len(lpos) < len(fpos)
+	if flipped {
+		fdocids, ldocids = ldocids, fdocids
+		fpos, lpos = lpos, fpos
+		fposrel, lposrel = lposrel, fposrel
+		delta *= -1
+	}
+	//log.Printf("plan[0] = %+v, plan[1] = %+v, delta = %d, flipped = %v", first, last, delta, flipped)
+
+	var (
+		fdocidIdx = -1
+		fprevD    uint32
+		fprevP    uint32
+
+		ldocidIdx = -1
+		lprevD    uint32
+		lprevP    uint32
+	)
+
+	var j int // not reset to skip already-inspected parts of last
+	llpos := len(lpos)
+	jInc := func(add int) {
+		j += add
+		if j >= llpos {
+			return
+		}
+		if ((lposrel[j/8] >> (uint(j) % 8)) & 1) == 1 {
+			ldocidIdx++
+			lprevD += ldocids[ldocidIdx]
+			lprevP = 0
+		}
+
+		lprevP += lpos[j]
+	}
+	jInc(0)
+	for i := 0; i < len(fpos); i++ {
+		if ((fposrel[i/8] >> (uint(i) % 8)) & 1) == 1 {
+			fdocidIdx++
+			fprevD += fdocids[fdocidIdx]
+			fprevP = 0
+		}
+		fprevP += fpos[i]
+
+		docid := fprevD
+		pos := uint32(int(fprevP) + delta)
+		for j < len(lpos) && lprevD < docid {
+			// Skip pos entries until posrel contains a 1 (i.e. docid change):
+			jInc(1 + bits.TrailingZeros16((uint16(lposrel[(j+1)/8])|0xFF00)>>(uint((j+1))%8)))
+		}
+
+		for ; j < len(lpos) && lprevD == docid; jInc(1) {
+			// TODO: support regexp queries by using greater-than comparison instead of equals
+			if lprevP < pos {
+				continue
+			}
+			if lprevP == pos {
+				if flipped {
+					entries = append(entries, Match{Docid: fprevD, Position: lprevP})
+				} else {
+					entries = append(entries, Match{Docid: fprevD, Position: fprevP})
+				}
+			}
+			break
+		}
+	}
+	//log.Printf("len(entries) = %d", len(entries))
+	return entries, nil
 }
 
 func (i *Index) Close() error {

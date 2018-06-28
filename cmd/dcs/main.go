@@ -22,6 +22,7 @@ Index query commands:
 	posting  - list the (decoded) posting list for the specified trigram
 	matches  - list the filename[:pos] matches for the specified trigram
 	search   - list the filename[:pos] matches for the specified search query
+	replay   — replay a query log
 
 Index manipulation commands:
 	create   - create an index
@@ -54,6 +55,9 @@ func help(topic string) {
 	case "search":
 		fmt.Fprintf(os.Stdout, "%s", searchHelp)
 		search([]string{"-help"})
+	case "replay":
+		fmt.Fprintf(os.Stdout, "%s", replayHelp)
+		replay([]string{"-help"})
 	case "":
 		flag.Usage()
 	default:
@@ -94,6 +98,8 @@ func main() {
 		merge(args)
 	case "search":
 		search(args)
+	case "replay":
+		replay(args)
 	case "help":
 		if len(args) > 0 {
 			help(args[0])

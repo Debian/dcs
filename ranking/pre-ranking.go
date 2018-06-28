@@ -46,6 +46,7 @@ func ReadRankingData(path string) error {
 // and sorting each path.
 type ResultPath struct {
 	Path         string
+	Position     int
 	SourcePkgIdx [2]int
 	Ranking      float32
 }
@@ -66,7 +67,7 @@ func (rp *ResultPath) Rank(opts *RankingOpts) {
 		}
 	}
 	if rp.SourcePkgIdx[1] == 0 {
-		log.Fatalf("Invalid path in result: %s", rp.Path)
+		log.Fatalf("Invalid path in result: %q", rp.Path)
 	}
 
 	sourcePackage := rp.Path[rp.SourcePkgIdx[0]:rp.SourcePkgIdx[1]]
