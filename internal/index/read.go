@@ -1,6 +1,8 @@
 package index
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -497,6 +499,49 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 		}
 	}
 	return matches, nil
+}
+
+// FiveLines returns five \n-separated lines surrounding pos. The first two
+// lines are context above the line containing pos (which is always element
+// [2]), the last two lines are context above that line.
+func FiveLines(b []byte, pos int) [5]string {
+	//fmt.Printf("FiveLines(%q, %d)", string(b), pos)
+	var five [5]string
+	prev := pos
+	start := 2 // no before lines
+	if prev > 0 {
+		// start of line of match
+		if idx := bytes.LastIndexByte(b[:prev], '\n'); idx != -1 {
+			prev = idx + 1
+		}
+		// first context line
+		if idx := bytes.LastIndexByte(b[:prev-1], '\n'); idx != -1 {
+			prev = idx + 1
+			start--
+			// second context line (maybe start of file)
+			if idx := bytes.LastIndexByte(b[:prev-1], '\n'); idx != -1 {
+				prev = idx + 1
+			} else {
+				prev = 0
+			}
+			start--
+		} else {
+			prev = 0
+			start--
+		}
+	}
+
+	if prev == -1 {
+		return five // TODO: BUG
+	}
+	//fmt.Printf("start=%d, prev=%d, window = %q\n", start, prev, b[prev:])
+	scanner := bufio.NewScanner(bytes.NewReader(b[prev:]))
+	for ; start < 5; start++ {
+		if scanner.Scan() {
+			five[start] = scanner.Text()
+		}
+	}
+	return five
 }
 
 func (i *Index) QueryPositional(query string) ([]Match, error) {
