@@ -11,29 +11,37 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
+	"context"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"math"
 	"net/http"
-	net_url "net/url"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Debian/dcs/goroutinez"
+	"github.com/Debian/dcs/grpcutil"
+	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/shardmapping"
-	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stapelberg/godebiancontrol"
+
+	_ "net/http/pprof"
+
+	_ "github.com/Debian/dcs/varz"
 )
 
 type mergeState struct {
 	firstRequest time.Time
 	lastActivity time.Time
+}
+
+type packageImporter struct {
+	shard string
+	packageimporterpb.PackageImporterClient
 }
 
 var (
@@ -53,9 +61,13 @@ var (
 		"sid",
 		"Debian distribution to feed")
 
-	shards []string
+	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 
-	mergeStates   = make(map[string]mergeState)
+	tlsKeyPath = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
+
+	packageImporters []*packageImporter
+
+	mergeStates   = make(map[int]mergeState)
 	mergeStatesMu sync.Mutex
 
 	failedLookfor = prometheus.NewCounter(
@@ -104,37 +116,32 @@ func merge() {
 	for {
 		time.Sleep(10 * time.Second)
 		mergeStatesMu.Lock()
-		for shard, state := range mergeStates {
+		for shardIdx, state := range mergeStates {
 			if time.Since(state.lastActivity) >= 2*time.Minute ||
 				time.Since(state.firstRequest) >= 10*time.Minute {
-				log.Printf("Calling /merge on shard %s now\n", shard)
-				resp, err := http.Get(fmt.Sprintf("http://%s/merge", shard))
-				if err != nil {
-					log.Printf("/merge for shard %s failed (retry in 10s): %v\n", shard, err)
+				importer := packageImporters[shardIdx]
+				log.Printf("Calling /merge on shard %d (%s) now\n", shardIdx, importer.shard)
+				if _, err := importer.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
+					log.Printf("/merge for shard %s failed (retry in 10s): %v\n", importer.shard, err)
 					continue
 				}
-				resp.Body.Close()
-				if resp.StatusCode != 200 {
-					log.Printf("/merge for shard %s failed (retry in 10s): %+v\n", shard, resp)
-					continue
-				}
-				delete(mergeStates, shard)
+				delete(mergeStates, shardIdx)
 			}
 		}
 		mergeStatesMu.Unlock()
 	}
 }
 
-func requestMerge(shard string) {
+func requestMerge(idx int) {
 	mergeStatesMu.Lock()
 	defer mergeStatesMu.Unlock()
-	if currentState, ok := mergeStates[shard]; !ok {
-		mergeStates[shard] = mergeState{
+	if currentState, ok := mergeStates[idx]; !ok {
+		mergeStates[idx] = mergeState{
 			firstRequest: time.Now(),
 			lastActivity: time.Now(),
 		}
 	} else {
-		mergeStates[shard] = mergeState{
+		mergeStates[idx] = mergeState{
 			firstRequest: currentState.firstRequest,
 			lastActivity: time.Now(),
 		}
@@ -143,21 +150,36 @@ func requestMerge(shard string) {
 
 // feed uploads the file to the corresponding dcs-package-importer.
 func feed(pkg, filename string, reader io.Reader) error {
-	shard := shards[shardmapping.TaskIdxForPackage(pkg, len(shards))]
-	url := fmt.Sprintf("http://%s/import/%s/%s", shard, pkg, filename)
-	request, err := http.NewRequest("PUT", url, reader)
-	if err != nil {
-		return err
-	}
-	resp, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	log.Printf("HTTP response for %q: %q\n", url, resp.Status)
+	shardIdx := shardmapping.TaskIdxForPackage(pkg, len(packageImporters))
+	shard := packageImporters[shardIdx]
 
-	if resp.StatusCode == 200 && strings.HasSuffix(filename, ".dsc") {
-		requestMerge(shard)
+	stream, err := shard.Import(context.Background())
+	if err != nil {
+		return err
+	}
+	buffer := make([]byte, 1*1024*1024) // 1 MB
+	for {
+		n, err := reader.Read(buffer)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if err := stream.Send(&packageimporterpb.ImportRequest{
+			SourcePackage: pkg,
+			Filename:      filename,
+			Content:       buffer[:n],
+		}); err != nil {
+			return err
+		}
+		if err == io.EOF {
+			break
+		}
+	}
+	if _, err := stream.CloseAndRecv(); err != nil {
+		return err
+	}
+
+	if strings.HasSuffix(filename, ".dsc") {
+		requestMerge(shardIdx)
 	}
 
 	return nil
@@ -176,7 +198,9 @@ func feedfiles(pkg string, pkgfiles []string) {
 			break
 		}
 		defer resp.Body.Close()
-		feed(pkg, filepath.Base(url), resp.Body)
+		if err := feed(pkg, filepath.Base(url), resp.Body); err != nil {
+			log.Printf("feed(%q, %q): %v", pkg, filepath.Base(url), err)
+		}
 	}
 }
 
@@ -292,30 +316,17 @@ func checkSources() {
 	)
 	packages := make(map[string]map[string]pkgStatus)
 
-	for _, shard := range shards {
-		url := fmt.Sprintf("http://%s/listpkgs", shard)
-		resp, err := http.Get(url)
+	for _, importer := range packageImporters {
+		resp, err := importer.Packages(context.Background(), &packageimporterpb.PackagesRequest{})
 		if err != nil {
-			log.Printf("Could not get list of packages from %q: %v\n", url, err)
-			continue
+			log.Printf("packageImporter.Packages: %v", err)
+			return
 		}
-		defer resp.Body.Close()
-
-		type ListPackageReply struct {
-			Packages []string
+		packages[importer.shard] = make(map[string]pkgStatus)
+		for _, foundpkg := range resp.SourcePackage {
+			packages[importer.shard][foundpkg] = Present
 		}
-
-		var reply ListPackageReply
-		decoder := json.NewDecoder(resp.Body)
-		if err := decoder.Decode(&reply); err != nil {
-			log.Printf("Invalid json from %q: %v\n", url, err)
-			continue
-		}
-		packages[shard] = make(map[string]pkgStatus)
-		for _, foundpkg := range reply.Packages {
-			packages[shard][foundpkg] = Present
-		}
-		log.Printf("shard %q has %d packages currently\n", shard, len(reply.Packages))
+		log.Printf("shard %q has %d packages currently\n", importer.shard, len(resp.SourcePackage))
 	}
 
 	sourcesSuffix := "/dists/" + *dist + "/main/source/Sources.gz"
@@ -338,24 +349,41 @@ func checkSources() {
 		return
 	}
 
+	// TODO: only keep the most recent version of a source package. keeping
+	// multiple consumes too much space.
+	blacklisted := map[string]bool{
+		"firefox_47.0.1-1":         true,
+		"firefox_48.0-1":           true,
+		"firefox_52.0.2-1":         true,
+		"firefox_53.0.is.52.0.2-1": true,
+		"firefox_55.0.3-1":         true,
+		"firefox_59.0.2-1":         true,
+		"linux_4.15.4-1":           true,
+		"linux_4.15.11-1":          true,
+		"linux_4.15.17-1":          true,
+	}
+
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
 	for _, pkg := range sourcePackages {
 		if strings.HasSuffix(pkg["Package"], "-data") {
 			continue
 		}
 		p := pkg["Package"] + "_" + pkg["Version"]
-		shardIdx := shardmapping.TaskIdxForPackage(p, len(shards))
-		shard := shards[shardIdx]
-		// Skip shards that are offline (= for which we have no package list).
-		if _, online := packages[shard]; !online {
+		if blacklisted[p] {
 			continue
 		}
-		status := packages[shard][p]
+		shardIdx := shardmapping.TaskIdxForPackage(p, len(packageImporters))
+		importer := packageImporters[shardIdx]
+		// Skip shards that are offline (= for which we have no package list).
+		if _, online := packages[importer.shard]; !online {
+			continue
+		}
+		status := packages[importer.shard][p]
 		//log.Printf("package %s: shard %d (%s), status %v\n", p, shardIdx, shard, status)
 		if status == Present {
-			packages[shard][p] = Confirmed
+			packages[importer.shard][p] = Confirmed
 		} else if status == NotPresent {
-			log.Printf("Feeding package %s to shard %d (%s)\n", p, shardIdx, shard)
+			log.Printf("Feeding package %s to shard %d (%s)\n", p, shardIdx, importer.shard)
 
 			var pkgfiles []string
 			for _, line := range strings.Split(pkg["Files"], "\n") {
@@ -380,18 +408,19 @@ func checkSources() {
 	}
 
 	// Garbage-collect all packages that have not been confirmed.
-	for _, shard := range shards {
-		for p, status := range packages[shard] {
+	for _, importer := range packageImporters {
+		for p, status := range packages[importer.shard] {
 			if status != Present {
 				continue
 			}
 
-			log.Printf("garbage-collecting %q on shard %s\n", p, shard)
+			log.Printf("garbage-collecting %q on shard %s\n", p, importer.shard)
 
-			shard := shards[shardmapping.TaskIdxForPackage(p, len(shards))]
-			url := fmt.Sprintf("http://%s/garbagecollect", shard)
-			if _, err := http.PostForm(url, net_url.Values{"package": {p}}); err != nil {
-				log.Printf("Could not garbage-collect package %q on shard %s: %v\n", p, shard, err)
+			//importer := packageImporters[shardmapping.TaskIdxForPackage(p, len(packageImporters))]
+			if _, err := importer.GarbageCollect(context.Background(), &packageimporterpb.GarbageCollectRequest{
+				SourcePackage: p,
+			}); err != nil {
+				log.Printf("Could not garbage-collect package %q on shard %s: %v\n", p, importer.shard, err)
 				continue
 			}
 
@@ -403,11 +432,21 @@ func checkSources() {
 func main() {
 	flag.Parse()
 
-	shards = strings.Split(*shardsStr, ",")
-
+	shards := strings.Split(*shardsStr, ",")
+	packageImporters = make([]*packageImporter, len(shards))
 	log.Printf("Configuration: %d shards:\n", len(shards))
-	for _, shard := range shards {
+	for idx, shard := range shards {
 		log.Printf("  %q\n", shard)
+
+		conn, err := grpcutil.DialTLS(shard, *tlsCertPath, *tlsKeyPath)
+		if err != nil {
+			log.Fatalf("could not connect to %q: %v", shard, err)
+		}
+		defer conn.Close()
+		packageImporters[idx] = &packageImporter{
+			shard: shard,
+			PackageImporterClient: packageimporterpb.NewPackageImporterClient(conn),
+		}
 	}
 
 	// Calls /merge once appropriate.

@@ -39,7 +39,7 @@ service PackageImporter {
   // this package importer instance.
   rpc Packages(PackagesRequest) returns (PackagesReply) {}
 
-  rpc Import(ImportRequest) returns (ImportReply) {}
+  rpc Import(stream ImportRequest) returns (ImportReply) {}
 
   rpc Merge(MergeRequest) returns (MergeReply) {}
 

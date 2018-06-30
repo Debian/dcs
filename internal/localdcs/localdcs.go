@@ -25,7 +25,7 @@ var (
 	stop = flag.Bool("stop",
 		false,
 		"Whether to stop the currently running localdcs instead of starting a new one")
-	unpackedPath = flag.String("unpacked_path",
+	shardPath = flag.String("shard_path",
 		"/tmp/dcs-hacking",
 		"Path to the unpacked sources")
 	localdcsPath = flag.String("localdcs_path",
@@ -181,11 +181,18 @@ func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file str
 	if err != nil {
 		return err
 	}
-	_, err = packageImporter.Import(context.Background(), &packageimporterpb.ImportRequest{
+	stream, err := packageImporter.Import(context.Background())
+	if err != nil {
+		return err
+	}
+	if err := stream.Send(&packageimporterpb.ImportRequest{
 		SourcePackage: pkg,
 		Filename:      filepath.Base(file),
 		Content:       b,
-	})
+	}); err != nil {
+		return err
+	}
+	_, err = stream.CloseAndRecv()
 	return err
 }
 
@@ -277,8 +284,14 @@ func Start() (addr string, _ error) {
 		return "", fmt.Errorf("There already is a localdcs instance running. Either use -stop or specify a different -localdcs_path")
 	}
 
-	if err := os.MkdirAll(*unpackedPath, 0755); err != nil {
-		return "", fmt.Errorf("Could not create directory %q for unpacked files/index: %v", *unpackedPath, err)
+	for _, dir := range []string{
+		*shardPath,
+		filepath.Join(*shardPath, "src"),
+		filepath.Join(*shardPath, "idx"),
+	} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("Could not create directory %q for unpacked files/index: %v", dir, err)
+		}
 	}
 
 	if err := installBinaries(); err != nil {
@@ -338,7 +351,7 @@ func Start() (addr string, _ error) {
 		"-varz_avail_fs=",
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-unpacked_path="+*unpackedPath,
+		"-shard_path="+*shardPath,
 		"-listen_address="+*listenPackageImporter,
 		"-tls_require_client_auth=false")
 	if err != nil {

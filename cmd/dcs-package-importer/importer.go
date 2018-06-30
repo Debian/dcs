@@ -41,9 +41,9 @@ var (
 		"localhost:28081",
 		"source backend host:port address")
 
-	unpackedPath = flag.String("unpacked_path",
-		"/dcs-ssd/unpacked/",
-		"Path to the unpacked sources")
+	shardPath = flag.String("shard_path",
+		"/srv/dcs/shard0",
+		"Path to the shard directory (containing src, idx, full)")
 
 	cpuProfile = flag.String("cpuprofile",
 		"",
@@ -135,23 +135,46 @@ type server struct {
 //
 // All the files are stored in the same directory and after the .dsc is stored,
 // the package is unpacked with dpkg-source, then indexed.
-func (s *server) Import(ctx context.Context, req *packageimporterpb.ImportRequest) (*packageimporterpb.ImportReply, error) {
+func (s *server) Import(stream packageimporterpb.PackageImporter_ImportServer) error {
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
 	pkg := req.GetSourcePackage()
 	filename := req.GetFilename()
 	path := pkg + "/" + filename
 
-	err := os.Mkdir(filepath.Join(tmpdir, pkg), 0755)
-	if err != nil && !os.IsExist(err) {
-		return nil, err
+	if err := os.Mkdir(filepath.Join(tmpdir, pkg), 0755); err != nil && !os.IsExist(err) {
+		return err
 	}
 	file, err := os.Create(filepath.Join(tmpdir, path))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer file.Close()
-	written, err := file.Write(req.GetContent())
+	var written int
+	n, err := file.Write(req.GetContent())
 	if err != nil {
-		return nil, err
+		return err
+	}
+	written += n
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+
+		n, err := file.Write(req.GetContent())
+		if err != nil {
+			return err
+		}
+		written += n
+	}
+	if err := file.Close(); err != nil {
+		return err
 	}
 	log.Printf("Wrote %d bytes into %s\n", written, path)
 
@@ -159,12 +182,12 @@ func (s *server) Import(ctx context.Context, req *packageimporterpb.ImportReques
 		s.unpacksem <- struct{}{}        // acquire
 		defer func() { <-s.unpacksem }() // release
 		if err := unpackAndIndex(path); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	successfulPackageImports.Inc()
-	return &packageimporterpb.ImportReply{}, nil
+	return stream.SendAndClose(&packageimporterpb.ImportReply{})
 }
 
 // Tries to start a merge and errors in case one is already in progress.
@@ -181,36 +204,32 @@ func (s *server) Merge(context.Context, *packageimporterpb.MergeRequest) (*packa
 	return &packageimporterpb.MergeReply{}, nil
 }
 
-func packageNames() []string {
+func packageNames() ([]string, error) {
 	var names []string
 
-	file, err := os.Open(*unpackedPath)
+	file, err := os.Open(filepath.Join(*shardPath, "src"))
 	// If the directory does not yet exist, we just return an empty list of
 	// packages.
 	if err != nil && !os.IsNotExist(err) {
-		log.Fatal(err)
+		return nil, err
 	}
 	if err == nil {
 		defer file.Close()
 		names, err = file.Readdirnames(-1)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 	}
 
-	return names
+	return names, nil
 }
 
 func (s *server) Packages(ctx context.Context, req *packageimporterpb.PackagesRequest) (*packageimporterpb.PackagesReply, error) {
-	names := packageNames()
-	var reply packageimporterpb.PackagesReply
-	reply.SourcePackage = make([]string, 0, len(names))
-	for _, name := range names {
-		if strings.HasSuffix(name, ".idx") && name != "full.idx" {
-			reply.SourcePackage = append(reply.SourcePackage, name[:len(name)-len(".idx")])
-		}
+	names, err := packageNames()
+	if err != nil {
+		return nil, err
 	}
-	return &reply, nil
+	return &packageimporterpb.PackagesReply{SourcePackage: names}, nil
 }
 
 func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.GarbageCollectRequest) (*packageimporterpb.GarbageCollectReply, error) {
@@ -219,7 +238,10 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		return nil, fmt.Errorf("no source_package provided")
 	}
 
-	names := packageNames()
+	names, err := packageNames()
+	if err != nil {
+		return nil, err
+	}
 	found := false
 	for _, name := range names {
 		// Note that the logic is inverted in comparison to earlier in the
@@ -227,7 +249,7 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		// been unpacked and indexed (so we strip .idx), but for garbage
 		// collection, we also want to garbage collect packages that were not
 		// indexed for some reason, so we ignore .idx.
-		if name == pkg && !strings.HasSuffix(name, ".idx") {
+		if name == pkg {
 			found = true
 			break
 		}
@@ -237,11 +259,11 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		return nil, fmt.Errorf("no such package")
 	}
 
-	if err := os.RemoveAll(filepath.Join(*unpackedPath, pkg)); err != nil {
+	if err := os.RemoveAll(filepath.Join(*shardPath, "src", pkg)); err != nil {
 		return nil, err
 	}
 
-	if err := os.Remove(filepath.Join(*unpackedPath, pkg+".idx")); err != nil {
+	if err := os.Remove(filepath.Join(*shardPath, "idx", pkg)); err != nil {
 		return nil, err
 	}
 
@@ -251,12 +273,13 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 
 // Merges all packages in *unpackedPath into a big index shard.
 func mergeToShard() error {
-	names := packageNames()
-	indexFiles := make([]string, 0, len(names))
-	for _, name := range names {
-		if strings.HasSuffix(name, ".idx") && name != "full.idx" {
-			indexFiles = append(indexFiles, filepath.Join(*unpackedPath, name))
-		}
+	names, err := packageNames()
+	if err != nil {
+		return err
+	}
+	indexFiles := make([]string, len(names))
+	for idx, name := range names {
+		indexFiles[idx] = filepath.Join(*shardPath, "idx", name)
 	}
 
 	filesInIndex.Set(float64(len(indexFiles)))
@@ -264,7 +287,7 @@ func mergeToShard() error {
 	if len(indexFiles) < 2 {
 		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
-	tmpIndexPath, err := ioutil.TempDir(*unpackedPath, "newshard")
+	tmpIndexPath, err := ioutil.TempDir(*shardPath, "newfull")
 	if err != nil {
 		return err
 	}
@@ -296,7 +319,7 @@ func mergeToShard() error {
 
 	conn, err := grpcutil.DialTLS(*sourceBackendAddr, *tlsCertPath, *tlsKeyPath)
 	if err != nil {
-		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
+		log.Fatalf("could not connect to %q: %v", *sourceBackendAddr, err)
 	}
 	defer conn.Close()
 	sourceBackend := sourcebackendpb.NewSourceBackendClient(conn)
@@ -316,14 +339,14 @@ func mergeToShard() error {
 func indexPackage(pkg string) error {
 	log.Printf("Indexing %s\n", pkg)
 	unpacked := filepath.Join(tmpdir, pkg, pkg)
-	if err := os.MkdirAll(*unpackedPath, os.FileMode(0755)); err != nil {
+	if err := os.MkdirAll(filepath.Join(*shardPath, "idx"), os.FileMode(0755)); err != nil {
 		return err
 	}
 
 	// Write to a temporary file first so that merges can happen at the same
 	// time. If we don’t do that, merges will try to use incomplete index
 	// files, which are interpreted as corrupted.
-	tmpIndexPath := filepath.Join(*unpackedPath, pkg+".tmp")
+	tmpIndexPath := filepath.Join(*shardPath, "idx", pkg+".tmp")
 	index, err := index.Create(tmpIndexPath)
 	if err != nil {
 		return err
@@ -347,7 +370,7 @@ func indexPackage(pkg string) error {
 		},
 		func(path string, info os.FileInfo) error {
 			// Copy this file out of /tmp to our unpacked directory.
-			outputPath := filepath.Join(*unpackedPath, path[stripLen:])
+			outputPath := filepath.Join(*shardPath, "src", path[stripLen:])
 			if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
 				return fmt.Errorf("Could not create directory: %v\n", err)
 			}
@@ -373,7 +396,7 @@ func indexPackage(pkg string) error {
 		return err
 	}
 
-	finalIndexPath := filepath.Join(*unpackedPath, pkg+".idx")
+	finalIndexPath := filepath.Join(*shardPath, "idx", pkg)
 	if err := os.Rename(tmpIndexPath, finalIndexPath); err != nil {
 		return err
 	}
@@ -444,7 +467,7 @@ func unpackAndIndex(dscPath string) error {
 func main() {
 	flag.Parse()
 
-	if err := os.MkdirAll(*unpackedPath, 0755); err != nil {
+	if err := os.MkdirAll(*shardPath, 0755); err != nil {
 		log.Fatal(err)
 	}
 

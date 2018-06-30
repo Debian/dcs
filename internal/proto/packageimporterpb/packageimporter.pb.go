@@ -33,7 +33,7 @@ func (m *PackagesRequest) Reset()         { *m = PackagesRequest{} }
 func (m *PackagesRequest) String() string { return proto.CompactTextString(m) }
 func (*PackagesRequest) ProtoMessage()    {}
 func (*PackagesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{0}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{0}
 }
 func (m *PackagesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PackagesRequest.Unmarshal(m, b)
@@ -64,7 +64,7 @@ func (m *PackagesReply) Reset()         { *m = PackagesReply{} }
 func (m *PackagesReply) String() string { return proto.CompactTextString(m) }
 func (*PackagesReply) ProtoMessage()    {}
 func (*PackagesReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{1}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{1}
 }
 func (m *PackagesReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_PackagesReply.Unmarshal(m, b)
@@ -104,7 +104,7 @@ func (m *ImportRequest) Reset()         { *m = ImportRequest{} }
 func (m *ImportRequest) String() string { return proto.CompactTextString(m) }
 func (*ImportRequest) ProtoMessage()    {}
 func (*ImportRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{2}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{2}
 }
 func (m *ImportRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportRequest.Unmarshal(m, b)
@@ -155,7 +155,7 @@ func (m *ImportReply) Reset()         { *m = ImportReply{} }
 func (m *ImportReply) String() string { return proto.CompactTextString(m) }
 func (*ImportReply) ProtoMessage()    {}
 func (*ImportReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{3}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{3}
 }
 func (m *ImportReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_ImportReply.Unmarshal(m, b)
@@ -185,7 +185,7 @@ func (m *MergeRequest) Reset()         { *m = MergeRequest{} }
 func (m *MergeRequest) String() string { return proto.CompactTextString(m) }
 func (*MergeRequest) ProtoMessage()    {}
 func (*MergeRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{4}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{4}
 }
 func (m *MergeRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MergeRequest.Unmarshal(m, b)
@@ -215,7 +215,7 @@ func (m *MergeReply) Reset()         { *m = MergeReply{} }
 func (m *MergeReply) String() string { return proto.CompactTextString(m) }
 func (*MergeReply) ProtoMessage()    {}
 func (*MergeReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{5}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{5}
 }
 func (m *MergeReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_MergeReply.Unmarshal(m, b)
@@ -246,7 +246,7 @@ func (m *GarbageCollectRequest) Reset()         { *m = GarbageCollectRequest{} }
 func (m *GarbageCollectRequest) String() string { return proto.CompactTextString(m) }
 func (*GarbageCollectRequest) ProtoMessage()    {}
 func (*GarbageCollectRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{6}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{6}
 }
 func (m *GarbageCollectRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GarbageCollectRequest.Unmarshal(m, b)
@@ -283,7 +283,7 @@ func (m *GarbageCollectReply) Reset()         { *m = GarbageCollectReply{} }
 func (m *GarbageCollectReply) String() string { return proto.CompactTextString(m) }
 func (*GarbageCollectReply) ProtoMessage()    {}
 func (*GarbageCollectReply) Descriptor() ([]byte, []int) {
-	return fileDescriptor_packageimporter_df132b0cdc77fb4b, []int{7}
+	return fileDescriptor_packageimporter_bbd8f2ecc6eaae3a, []int{7}
 }
 func (m *GarbageCollectReply) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GarbageCollectReply.Unmarshal(m, b)
@@ -329,7 +329,7 @@ type PackageImporterClient interface {
 	// Packages returns a list of Debian source package names which are present on
 	// this package importer instance.
 	Packages(ctx context.Context, in *PackagesRequest, opts ...grpc.CallOption) (*PackagesReply, error)
-	Import(ctx context.Context, in *ImportRequest, opts ...grpc.CallOption) (*ImportReply, error)
+	Import(ctx context.Context, opts ...grpc.CallOption) (PackageImporter_ImportClient, error)
 	Merge(ctx context.Context, in *MergeRequest, opts ...grpc.CallOption) (*MergeReply, error)
 	GarbageCollect(ctx context.Context, in *GarbageCollectRequest, opts ...grpc.CallOption) (*GarbageCollectReply, error)
 }
@@ -351,13 +351,38 @@ func (c *packageImporterClient) Packages(ctx context.Context, in *PackagesReques
 	return out, nil
 }
 
-func (c *packageImporterClient) Import(ctx context.Context, in *ImportRequest, opts ...grpc.CallOption) (*ImportReply, error) {
-	out := new(ImportReply)
-	err := c.cc.Invoke(ctx, "/packageimporterpb.PackageImporter/Import", in, out, opts...)
+func (c *packageImporterClient) Import(ctx context.Context, opts ...grpc.CallOption) (PackageImporter_ImportClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_PackageImporter_serviceDesc.Streams[0], "/packageimporterpb.PackageImporter/Import", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &packageImporterImportClient{stream}
+	return x, nil
+}
+
+type PackageImporter_ImportClient interface {
+	Send(*ImportRequest) error
+	CloseAndRecv() (*ImportReply, error)
+	grpc.ClientStream
+}
+
+type packageImporterImportClient struct {
+	grpc.ClientStream
+}
+
+func (x *packageImporterImportClient) Send(m *ImportRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *packageImporterImportClient) CloseAndRecv() (*ImportReply, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(ImportReply)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *packageImporterClient) Merge(ctx context.Context, in *MergeRequest, opts ...grpc.CallOption) (*MergeReply, error) {
@@ -383,7 +408,7 @@ type PackageImporterServer interface {
 	// Packages returns a list of Debian source package names which are present on
 	// this package importer instance.
 	Packages(context.Context, *PackagesRequest) (*PackagesReply, error)
-	Import(context.Context, *ImportRequest) (*ImportReply, error)
+	Import(PackageImporter_ImportServer) error
 	Merge(context.Context, *MergeRequest) (*MergeReply, error)
 	GarbageCollect(context.Context, *GarbageCollectRequest) (*GarbageCollectReply, error)
 }
@@ -410,22 +435,30 @@ func _PackageImporter_Packages_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
-func _PackageImporter_Import_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ImportRequest)
-	if err := dec(in); err != nil {
+func _PackageImporter_Import_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(PackageImporterServer).Import(&packageImporterImportServer{stream})
+}
+
+type PackageImporter_ImportServer interface {
+	SendAndClose(*ImportReply) error
+	Recv() (*ImportRequest, error)
+	grpc.ServerStream
+}
+
+type packageImporterImportServer struct {
+	grpc.ServerStream
+}
+
+func (x *packageImporterImportServer) SendAndClose(m *ImportReply) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *packageImporterImportServer) Recv() (*ImportRequest, error) {
+	m := new(ImportRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(PackageImporterServer).Import(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/packageimporterpb.PackageImporter/Import",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PackageImporterServer).Import(ctx, req.(*ImportRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 func _PackageImporter_Merge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -473,10 +506,6 @@ var _PackageImporter_serviceDesc = grpc.ServiceDesc{
 			Handler:    _PackageImporter_Packages_Handler,
 		},
 		{
-			MethodName: "Import",
-			Handler:    _PackageImporter_Import_Handler,
-		},
-		{
 			MethodName: "Merge",
 			Handler:    _PackageImporter_Merge_Handler,
 		},
@@ -485,35 +514,41 @@ var _PackageImporter_serviceDesc = grpc.ServiceDesc{
 			Handler:    _PackageImporter_GarbageCollect_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Import",
+			Handler:       _PackageImporter_Import_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "packageimporter.proto",
 }
 
 func init() {
-	proto.RegisterFile("packageimporter.proto", fileDescriptor_packageimporter_df132b0cdc77fb4b)
+	proto.RegisterFile("packageimporter.proto", fileDescriptor_packageimporter_bbd8f2ecc6eaae3a)
 }
 
-var fileDescriptor_packageimporter_df132b0cdc77fb4b = []byte{
-	// 329 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x92, 0x41, 0x4b, 0xc3, 0x30,
-	0x14, 0xc7, 0xdd, 0x86, 0x73, 0x3e, 0xd7, 0xc9, 0x22, 0x83, 0x52, 0x50, 0x47, 0x40, 0xd9, 0xa9,
-	0x05, 0x85, 0xe1, 0xc9, 0x83, 0x0a, 0x32, 0x50, 0x90, 0x1e, 0xbd, 0x48, 0xda, 0x3d, 0x6b, 0x31,
-	0x4b, 0x62, 0x9a, 0x1d, 0xf6, 0x7d, 0xfd, 0x20, 0xb2, 0xb4, 0x9d, 0x6e, 0xad, 0x43, 0x8f, 0xef,
-	0xe5, 0xf7, 0xff, 0x27, 0xfd, 0x51, 0x18, 0x28, 0x16, 0xbf, 0xb3, 0x04, 0xd3, 0x99, 0x92, 0xda,
-	0xa0, 0xf6, 0x95, 0x96, 0x46, 0x92, 0xfe, 0xc6, 0x5a, 0x45, 0xb4, 0x0f, 0x87, 0x4f, 0xf9, 0x32,
-	0x0b, 0xf1, 0x63, 0x8e, 0x99, 0xa1, 0x63, 0x70, 0xbe, 0x57, 0x8a, 0x2f, 0xc8, 0x19, 0xf4, 0x32,
-	0x39, 0xd7, 0x31, 0xbe, 0x14, 0x79, 0xb7, 0x31, 0x6c, 0x8d, 0xf6, 0x43, 0x27, 0xdf, 0x16, 0x30,
-	0xe5, 0xe0, 0x4c, 0x6c, 0x71, 0x51, 0x54, 0x9b, 0x6b, 0x54, 0x72, 0xc4, 0x83, 0xce, 0x6b, 0xca,
-	0x51, 0xb0, 0x19, 0xba, 0x4d, 0x0b, 0xac, 0x66, 0xe2, 0xc2, 0x5e, 0x2c, 0x85, 0x41, 0x61, 0xdc,
-	0xd6, 0xb0, 0x31, 0xea, 0x86, 0xe5, 0x48, 0x1d, 0x38, 0x28, 0x6f, 0x53, 0x7c, 0x41, 0x7b, 0xd0,
-	0x7d, 0x44, 0x9d, 0x60, 0xf9, 0x11, 0x5d, 0x80, 0x62, 0x5e, 0x9e, 0x5e, 0xc3, 0xe0, 0x9e, 0xe9,
-	0x88, 0x25, 0x78, 0x2b, 0x39, 0xc7, 0xf8, 0x9f, 0x4f, 0xa4, 0x03, 0x38, 0xda, 0xcc, 0x2b, 0xbe,
-	0xb8, 0xf8, 0x6c, 0xae, 0xec, 0x4d, 0x0a, 0xa5, 0x24, 0x84, 0x4e, 0x69, 0x8f, 0x50, 0xbf, 0x22,
-	0xdc, 0xdf, 0xb0, 0xed, 0x0d, 0xb7, 0x32, 0xcb, 0xc7, 0xef, 0x90, 0x07, 0x68, 0xe7, 0xfd, 0xa4,
-	0x8e, 0x5e, 0x93, 0xee, 0x9d, 0x6c, 0x21, 0xf2, 0xb6, 0x09, 0xec, 0x5a, 0x35, 0xe4, 0xb4, 0x06,
-	0xfd, 0x29, 0xd1, 0x3b, 0xfe, 0x1d, 0xc8, 0xab, 0xa6, 0xd0, 0x5b, 0xf7, 0x42, 0x46, 0x35, 0x91,
-	0x5a, 0xf5, 0xde, 0xf9, 0x1f, 0x48, 0x7b, 0xcb, 0xcd, 0xd5, 0xf3, 0x38, 0x49, 0xcd, 0xdb, 0x3c,
-	0xf2, 0x63, 0x39, 0x0b, 0xee, 0x30, 0x4a, 0x99, 0x08, 0xa6, 0x71, 0x16, 0xa4, 0xc2, 0xa0, 0x16,
-	0x8c, 0x07, 0xf6, 0xf7, 0x0e, 0x2a, 0x7d, 0x51, 0xdb, 0x1e, 0x5c, 0x7e, 0x05, 0x00, 0x00, 0xff,
-	0xff, 0x35, 0xfb, 0xf2, 0xff, 0x10, 0x03, 0x00, 0x00,
+var fileDescriptor_packageimporter_bbd8f2ecc6eaae3a = []byte{
+	// 332 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x92, 0x41, 0x4b, 0xc3, 0x40,
+	0x10, 0x85, 0x4d, 0x8b, 0xb5, 0x8e, 0x4d, 0xa5, 0x2b, 0x85, 0x10, 0x50, 0xcb, 0x82, 0x92, 0x53,
+	0x02, 0x0a, 0xc5, 0x93, 0x07, 0x15, 0xa4, 0x07, 0x45, 0x72, 0xf4, 0x22, 0x9b, 0x74, 0x8c, 0xc1,
+	0x6d, 0x76, 0xdd, 0x6c, 0x0f, 0xfd, 0xc3, 0xfe, 0x0e, 0xe9, 0x26, 0xa9, 0xb6, 0x89, 0x45, 0x8f,
+	0xf3, 0xf6, 0xbd, 0x37, 0x93, 0x8f, 0xc0, 0x50, 0xb2, 0xf8, 0x9d, 0x25, 0x98, 0xce, 0xa4, 0x50,
+	0x1a, 0x95, 0x2f, 0x95, 0xd0, 0x82, 0x0c, 0x36, 0x64, 0x19, 0xd1, 0x01, 0x1c, 0x3e, 0x15, 0x62,
+	0x1e, 0xe2, 0xc7, 0x1c, 0x73, 0x4d, 0xc7, 0x60, 0x7f, 0x4b, 0x92, 0x2f, 0xc8, 0x19, 0xf4, 0x73,
+	0x31, 0x57, 0x31, 0xbe, 0x94, 0x79, 0xc7, 0x1a, 0xb5, 0xbd, 0xfd, 0xd0, 0x2e, 0xd4, 0xd2, 0x4c,
+	0x39, 0xd8, 0x13, 0x53, 0x5c, 0x16, 0x35, 0xe6, 0xac, 0x5a, 0x8e, 0xb8, 0xd0, 0x7d, 0x4d, 0x39,
+	0x66, 0x6c, 0x86, 0x4e, 0xcb, 0x18, 0x56, 0x33, 0x71, 0x60, 0x2f, 0x16, 0x99, 0xc6, 0x4c, 0x3b,
+	0xed, 0x91, 0xe5, 0xf5, 0xc2, 0x6a, 0xa4, 0x36, 0x1c, 0x54, 0xdb, 0x24, 0x5f, 0xd0, 0x3e, 0xf4,
+	0x1e, 0x50, 0x25, 0x58, 0x7d, 0x44, 0x0f, 0xa0, 0x9c, 0x97, 0xaf, 0xd7, 0x30, 0xbc, 0x67, 0x2a,
+	0x62, 0x09, 0xde, 0x0a, 0xce, 0x31, 0xfe, 0xe7, 0x89, 0x74, 0x08, 0x47, 0x9b, 0x79, 0xc9, 0x17,
+	0x17, 0x9f, 0xad, 0x15, 0xbd, 0x49, 0x89, 0x94, 0x84, 0xd0, 0xad, 0xe8, 0x11, 0xea, 0xd7, 0x80,
+	0xfb, 0x1b, 0xb4, 0xdd, 0xd1, 0x56, 0xcf, 0xf2, 0xf8, 0x1d, 0xf2, 0x08, 0x9d, 0xa2, 0x9f, 0x34,
+	0xb9, 0xd7, 0xa0, 0xbb, 0x27, 0x5b, 0x1c, 0xa6, 0xcd, 0xb3, 0xc8, 0x04, 0x76, 0x0d, 0x1c, 0x72,
+	0xda, 0x60, 0xfe, 0x89, 0xd1, 0x3d, 0xfe, 0xdd, 0x50, 0x9c, 0x36, 0x85, 0xfe, 0x3a, 0x19, 0xe2,
+	0x35, 0x44, 0x1a, 0xe1, 0xbb, 0xe7, 0x7f, 0x70, 0x9a, 0x2d, 0x37, 0x57, 0xcf, 0xe3, 0x24, 0xd5,
+	0x6f, 0xf3, 0xc8, 0x8f, 0xc5, 0x2c, 0xb8, 0xc3, 0x28, 0x65, 0x59, 0x30, 0x8d, 0xf3, 0x20, 0xcd,
+	0x34, 0xaa, 0x8c, 0xf1, 0xc0, 0xfc, 0xe0, 0x41, 0xad, 0x2f, 0xea, 0x98, 0x87, 0xcb, 0xaf, 0x00,
+	0x00, 0x00, 0xff, 0xff, 0x13, 0x36, 0x14, 0xc2, 0x12, 0x03, 0x00, 0x00,
 }
