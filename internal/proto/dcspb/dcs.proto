@@ -3,6 +3,8 @@ syntax = "proto3";
 
 package dcspb;
 
+option go_package = "github.com/Debian/dcs/internal/proto/dcspb";
+
 import "sourcebackendpb/sourcebackend.proto";
 
 message SearchRequest {

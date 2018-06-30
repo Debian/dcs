@@ -316,13 +316,15 @@ func Start() (addr string, _ error) {
 		log.Printf("Recent-enough rankings file %q found, not re-generating (delete to force)\n", rankingPath)
 	}
 
-	indexBackend, err := launchInBackground(
-		"dcs-index-backend",
+	sourceBackend, err := launchInBackground(
+		"dcs-source-backend",
+		"-index_path="+filepath.Join(*shardPath, "full"),
 		"-varz_avail_fs=",
-		"-index_path="+*unpackedPath+"/full.idx",
+		"-unpacked_path="+filepath.Join(*shardPath, "src"),
+		"-ranking_data_path="+rankingPath,
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-listen_address="+*listenIndexBackend,
+		"-listen_address="+*listenSourceBackend,
 		"-tls_require_client_auth=false")
 	if err != nil {
 		return "", err
@@ -331,7 +333,7 @@ func Start() (addr string, _ error) {
 	// Start package importer and import testdata/
 	packageImporter, err := launchInBackground(
 		"dcs-package-importer",
-		"-index_backend="+indexBackend,
+		"-source_backend="+sourceBackend,
 		"-debug_skip",
 		"-varz_avail_fs=",
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
@@ -347,26 +349,6 @@ func Start() (addr string, _ error) {
 	}
 
 	// TODO: check for healthiness
-
-	log.Printf("dcs-index-backend running at https://%s\n", indexBackend)
-
-	sourceBackend, err := launchInBackground(
-		"dcs-source-backend",
-		"-index_backend="+indexBackend,
-		"-varz_avail_fs=",
-		"-unpacked_path="+*unpackedPath,
-		"-ranking_data_path="+rankingPath,
-		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
-		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-listen_address="+*listenSourceBackend,
-		"-tls_require_client_auth=false")
-	if err != nil {
-		return "", err
-	}
-
-	// TODO: check for healthiness
-
-	log.Printf("dcs-source-backend running at https://%s\n", sourceBackend)
 
 	dcsWeb, err := launchInBackground(
 		"dcs-web",

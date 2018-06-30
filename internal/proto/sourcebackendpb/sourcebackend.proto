@@ -57,6 +57,13 @@ message SearchReply {
   ProgressUpdate progress_update = 3;
 }
 
+message ReplaceIndexRequest {
+  string replacement_path = 1;
+}
+
+message ReplaceIndexReply {
+}
+
 // SourceBackend searches/displays source files.
 service SourceBackend {
   // File reads the file and returns its contents.
@@ -64,4 +71,9 @@ service SourceBackend {
 
   // Search performs the given query and streams matches/progress updates.
   rpc Search(SearchRequest) returns (stream SearchReply) {}
+
+  // Replaces the loaded index with the specified replacement index. On a file
+  // system level, the specified file is mv'ed to the file specified by
+  // -index_path.
+  rpc ReplaceIndex(ReplaceIndexRequest) returns (ReplaceIndexReply) {}
 }

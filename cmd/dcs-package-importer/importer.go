@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,16 +16,19 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/filter"
 	"github.com/Debian/dcs/internal/index"
-	"github.com/Debian/dcs/internal/proto/indexbackendpb"
-	"github.com/Debian/dcs/internal/proto/packageimporterpb"
-	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+
+	"github.com/Debian/dcs/internal/proto/packageimporterpb"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
+
+	_ "net/http/pprof"
+
+	_ "github.com/Debian/dcs/varz"
 	_ "golang.org/x/net/trace"
 )
 
@@ -35,9 +37,9 @@ var (
 		":21010",
 		"listen address ([host]:port)")
 
-	indexBackendAddr = flag.String("index_backend",
+	sourceBackendAddr = flag.String("source_backend",
 		"localhost:28081",
-		"index backend host:port address")
+		"source backend host:port address")
 
 	unpackedPath = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
@@ -292,17 +294,17 @@ func mergeToShard() error {
 
 	successfulMerges.Inc()
 
-	conn, err := grpcutil.DialTLS(*indexBackendAddr, *tlsCertPath, *tlsKeyPath)
+	conn, err := grpcutil.DialTLS(*sourceBackendAddr, *tlsCertPath, *tlsKeyPath)
 	if err != nil {
 		log.Fatalf("could not connect to %q: %v", "localhost:28081", err)
 	}
 	defer conn.Close()
-	indexBackend := indexbackendpb.NewIndexBackendClient(conn)
+	sourceBackend := sourcebackendpb.NewSourceBackendClient(conn)
 
 	// Replace the current index with the newly created index.
-	_, err = indexBackend.ReplaceIndex(
+	_, err = sourceBackend.ReplaceIndex(
 		context.Background(),
-		&indexbackendpb.ReplaceIndexRequest{
+		&sourcebackendpb.ReplaceIndexRequest{
 			ReplacementPath: filepath.Base(tmpIndexPath),
 		})
 	if err != nil {

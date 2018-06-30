@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"html"
-	"io"
 	"io/ioutil"
 	"log"
 	"math/rand"
@@ -24,7 +23,6 @@ import (
 
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/index"
-	"github.com/Debian/dcs/internal/proto/indexbackendpb"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/sourcebackend"
 	"github.com/Debian/dcs/ranking"
@@ -42,10 +40,6 @@ import (
 var (
 	listenAddress = flag.String("listen_address", ":28082", "listen address ([host]:port)")
 
-	indexBackendAddr = flag.String("index_backend",
-		"localhost:28081",
-		"index backend host:port address")
-
 	indexPath    = flag.String("index_path", "", "path to the index shard to serve, e.g. /dcs-ssd/index.0.idx")
 	unpackedPath = flag.String("unpacked_path",
 		"/dcs-ssd/unpacked/",
@@ -62,8 +56,6 @@ var (
 	usePositionalIndex = flag.Bool("use_positional_index",
 		false,
 		"use the pos and posrel index sections for identifier queries")
-
-	indexBackend indexbackendpb.IndexBackendClient
 )
 
 type SourceReply struct {
@@ -74,6 +66,7 @@ type SourceReply struct {
 }
 
 type server struct {
+	mu sync.Mutex
 	ix *index.Index
 }
 
@@ -126,7 +119,50 @@ func countNL(b []byte) int {
 	return n
 }
 
+func (s *server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIndexRequest) (*sourcebackendpb.ReplaceIndexReply, error) {
+	newShard := in.ReplacementPath
+
+	file, err := os.Open(filepath.Dir(*indexPath))
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	names, err := file.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, name := range names {
+		if name == newShard {
+			newShard = filepath.Join(filepath.Dir(*indexPath), name)
+			// We verified the given argument refers to an index shard within
+			// this directory, so let’s load this shard.
+			oldIndex := s.ix
+			log.Printf("Trying to load %q\n", newShard)
+			newIndex, err := index.Open(newShard)
+			if err != nil {
+				return nil, err
+			}
+			s.mu.Lock()
+			s.ix = newIndex
+			s.mu.Unlock()
+			defer oldIndex.Close()
+			// Overwrite the old full shard with the new one. This is necessary
+			// so that the state is persistent across restarts and has the nice
+			// side-effect of cleaning up the old full shard.
+			if err := os.Rename(newShard, *indexPath); err != nil {
+				return nil, err
+			}
+			return &sourcebackendpb.ReplaceIndexReply{}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("No such shard.")
+}
+
 func (s *server) queryPositional(literal string) ([]entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	log.Printf("queryPositional(%q)", literal)
 	matches, err := s.ix.QueryPositional(literal)
 	if err != nil {
@@ -144,6 +180,21 @@ func (s *server) queryPositional(literal string) ([]entry, error) {
 		}
 	}
 
+	return possible, nil
+}
+
+func (s *server) query(query *index.Query) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	post := s.ix.PostingQuery(query)
+	possible := make([]string, len(post))
+	var err error
+	for idx, docid := range post {
+		possible[idx], err = s.ix.DocidMap.Lookup(docid)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return possible, nil
 }
 
@@ -190,22 +241,9 @@ func (s *server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			}
 		}
 	} else {
-		// Ask the local index backend for all the filenames.
-		fstream, err := indexBackend.Files(ctx, &indexbackendpb.FilesRequest{Query: in.Query})
+		possible, err := s.query(index.RegexpQuery(re.Syntax))
 		if err != nil {
-			return fmt.Errorf("%s Error querying index backend for query %q: %v\n", logprefix, in.Query, err)
-		}
-
-		var possible []string
-		for {
-			resp, err := fstream.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			possible = append(possible, resp.Path)
+			return err
 		}
 
 		span.LogFields(olog.Int("files.possible", len(possible)))
@@ -545,13 +583,6 @@ func main() {
 	if err := ranking.ReadRankingData(*rankingDataPath); err != nil {
 		log.Fatal(err)
 	}
-
-	conn, err := grpcutil.DialTLS(*indexBackendAddr, *tlsCertPath, *tlsKeyPath, grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("could not connect to %q: %v", *indexBackendAddr, err)
-	}
-	defer conn.Close()
-	indexBackend = indexbackendpb.NewIndexBackendClient(conn)
 
 	idx := *indexPath
 	if _, err := os.Stat(idx); os.IsNotExist(err) {
