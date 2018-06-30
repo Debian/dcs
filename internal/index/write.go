@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Debian/dcs/index2"
 	"github.com/google/codesearch/sparse"
 )
 
@@ -280,7 +279,7 @@ func (w *Writer) writeDocid(trigrams []Trigram) error {
 	}
 	defer f.Close()
 	bufw := bufio.NewWriter(f)
-	dw, err := index2.NewPForWriter(w.dir, "docid")
+	dw, err := newPForWriter(w.dir, "docid")
 	if err != nil {
 		return err
 	}
@@ -334,7 +333,7 @@ func (w *Writer) writePos(trigrams []Trigram) error {
 	}
 	defer f.Close()
 	bufw := bufio.NewWriter(f)
-	dw, err := index2.NewPForWriter(w.dir, "pos")
+	dw, err := newPForWriter(w.dir, "pos")
 	if err != nil {
 		return err
 	}
@@ -393,7 +392,7 @@ func (w *Writer) writePosrel(trigrams []Trigram) error {
 	}
 	defer df.Close()
 	dcw := newCountingWriter(df)
-	pw := index2.NewPosrelWriter(&dcw)
+	pw := newPosrelWriter(&dcw)
 	for _, t := range trigrams {
 		if t == 2105376 { // skip "   " in positional index
 			continue

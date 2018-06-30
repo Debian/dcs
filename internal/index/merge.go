@@ -11,8 +11,6 @@ import (
 	"sort"
 
 	"golang.org/x/exp/mmap"
-
-	"github.com/Debian/dcs/index2"
 )
 
 type fileMetaEntry struct {
@@ -122,7 +120,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 		// TODO: detect |base| overflows
 		n := (uint32(st.Size()) - indexOffset - 4) / 4
-		log.Printf("%s contains %d docids", dir, n)
+		log.Printf("%s (idx %d) contains %d docids", dir, idx, n)
 		base += n
 
 		if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -214,8 +212,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 	{
 		log.Printf("writing merged docids")
-		//dw, err := index2.NewVarintWriter(*out, "docid")
-		dw, err := index2.NewPForWriter(destdir, "docid")
+		dw, err := newPForWriter(destdir, "docid")
 		if err != nil {
 			return err
 		}
@@ -302,7 +299,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		}
 		defer fposrel.Close()
 		cw := newCountingWriter(fposrel)
-		pw := index2.NewPosrelWriter(&cw)
+		pw := newPosrelWriter(&cw)
 		for _, t := range trigrams {
 			if t == 2105376 { // TODO: document: "   "?
 				continue
@@ -346,8 +343,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 	{
 		log.Printf("writing merged pos")
-		//dw, err := index2.NewVarintWriter(*out, "pos")
-		dw, err := index2.NewPForWriter(destdir, "pos")
+		dw, err := newPForWriter(destdir, "pos")
 		if err != nil {
 			return err
 		}

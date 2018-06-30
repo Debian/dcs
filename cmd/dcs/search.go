@@ -6,8 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/Debian/dcs/index"
-	index2 "github.com/Debian/dcs/internal/index"
+	"github.com/Debian/dcs/internal/index"
 	"github.com/google/codesearch/regexp"
 )
 
@@ -40,7 +39,7 @@ func search(args []string) {
 	q := index.RegexpQuery(re.Syntax)
 	log.Printf("q = %v", q)
 
-	ix, err := index2.Open(idx)
+	ix, err := index.Open(idx)
 	if err != nil {
 		log.Fatalf("Could not open index: %v", err)
 	}
