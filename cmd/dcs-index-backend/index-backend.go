@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/Debian/dcs/grpcutil"
-	oldindex "github.com/Debian/dcs/index"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/indexbackendpb"
 	_ "github.com/Debian/dcs/varz"
@@ -47,7 +46,7 @@ type server struct {
 // doPostingQuery runs the actual query. This code is in a separate function so
 // that we can use defer (to be safe against panics in the index querying code)
 // and still don’t hold the mutex for longer than we need to.
-func (s *server) doPostingQuery(query *oldindex.Query, stream indexbackendpb.IndexBackend_FilesServer) error {
+func (s *server) doPostingQuery(query *index.Query, stream indexbackendpb.IndexBackend_FilesServer) error {
 	s.ixMutex.Lock()
 	defer s.ixMutex.Unlock()
 	t0 := time.Now()
@@ -90,7 +89,7 @@ func (s *server) Files(in *indexbackendpb.FilesRequest, stream indexbackendpb.In
 	if err != nil {
 		return fmt.Errorf("regexp.Compile: %s\n", err)
 	}
-	query := oldindex.RegexpQuery(re.Syntax)
+	query := index.RegexpQuery(re.Syntax)
 	log.Printf("[%s] query: text = %s, regexp = %s\n", s.id, in.Query, query)
 	return s.doPostingQuery(query, stream)
 }

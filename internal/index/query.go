@@ -3,11 +3,9 @@ package index
 import (
 	"log"
 	"sort"
-
-	"github.com/Debian/dcs/index"
 )
 
-func (i *Index) PostingQuery(q *index.Query) (docids []uint32) {
+func (i *Index) PostingQuery(q *Query) (docids []uint32) {
 	return i.postingQuery(q, nil)
 }
 
@@ -32,12 +30,12 @@ func (t trigramCnts) Swap(i, j int) {
 	t[i], t[j] = t[j], t[i]
 }
 
-func (ix *Index) postingQuery(qry *index.Query, restrict []uint32) (ret []uint32) {
+func (ix *Index) postingQuery(qry *Query, restrict []uint32) (ret []uint32) {
 	var list []uint32
 	switch qry.Op {
-	case index.QNone:
+	case QNone:
 		// nothing
-	case index.QAll:
+	case QAll:
 		if restrict != nil {
 			return restrict
 		}
@@ -46,7 +44,7 @@ func (ix *Index) postingQuery(qry *index.Query, restrict []uint32) (ret []uint32
 			list[i] = uint32(i)
 		}
 		return list
-	case index.QAnd:
+	case QAnd:
 		// "Query planner": we first sort the posting lists by their
 		// length (ascending)
 		withCount := make(trigramCnts, 0, len(qry.Trigram))
@@ -100,7 +98,7 @@ func (ix *Index) postingQuery(qry *index.Query, restrict []uint32) (ret []uint32
 				return nil
 			}
 		}
-	case index.QOr:
+	case QOr:
 		for _, t := range qry.Trigram {
 			tri := uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2])
 			if list == nil {

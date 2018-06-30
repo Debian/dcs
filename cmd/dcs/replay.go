@@ -295,7 +295,7 @@ type shardedNewIndex struct {
 	shards []*index.Index
 }
 
-func (si *shardedNewIndex) doPostingQuery(query *oldindex.Query) []string {
+func (si *shardedNewIndex) doPostingQuery(query *index.Query) []string {
 	log.Printf("doPostingQuery(%s)", query)
 	var (
 		wg       sync.WaitGroup
@@ -425,8 +425,7 @@ func (si *shardedNewIndex) measure(idx int, query string, pos bool) (measurement
 		m.Matches = matches
 		m.TotalNano = int64(time.Since(start))
 	} else {
-		// TODO: switch from oldindex.RegexpQuery to index.RegexpQuery once done
-		possible := si.doPostingQuery(oldindex.RegexpQuery(re.Syntax))
+		possible := si.doPostingQuery(index.RegexpQuery(re.Syntax))
 
 		// Rank all the paths.
 		files := make(ranking.ResultPaths, 0, len(possible))
