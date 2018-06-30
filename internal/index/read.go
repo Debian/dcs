@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
-	"turbopfor"
+
+	"github.com/Debian/dcs/internal/turbopfor"
 
 	"golang.org/x/exp/mmap"
 	"golang.org/x/sync/errgroup"

@@ -4,7 +4,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"turbopfor"
+
+	"github.com/Debian/dcs/internal/turbopfor"
 )
 
 type pforWriter struct {
