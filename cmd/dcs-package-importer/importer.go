@@ -287,8 +287,8 @@ func mergeToShard() error {
 	if len(indexFiles) < 2 {
 		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
-	tmpIndexPath, err := ioutil.TempDir(*shardPath, "newfull")
-	if err != nil {
+	tmpIndexPath := filepath.Join(*shardPath, fmt.Sprintf("full.%d", time.Now().Unix()))
+	if err := os.MkdirAll(tmpIndexPath, 0755); err != nil {
 		return err
 	}
 

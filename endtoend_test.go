@@ -24,7 +24,7 @@ func TestEndToEnd(t *testing.T) {
 	}
 	// TODO: refactor localdcs.Start to take options
 	flag.Set("localdcs_path", temp)
-	flag.Set("unpacked_path", filepath.Join(temp, "unpacked"))
+	flag.Set("shard_path", filepath.Join(temp, "shard"))
 	dcsAddress, err := localdcs.Start()
 	if err != nil {
 		t.Fatal(err)

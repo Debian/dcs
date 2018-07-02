@@ -28,6 +28,7 @@ import (
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
+	"github.com/google/renameio"
 	opentracing "github.com/opentracing/opentracing-go"
 	olog "github.com/opentracing/opentracing-go/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -147,10 +148,8 @@ func (s *server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 			s.ix = newIndex
 			s.mu.Unlock()
 			defer oldIndex.Close()
-			// Overwrite the old full shard with the new one. This is necessary
-			// so that the state is persistent across restarts and has the nice
-			// side-effect of cleaning up the old full shard.
-			if err := os.Rename(newShard, *indexPath); err != nil {
+
+			if err := renameio.Symlink(newShard, *indexPath); err != nil {
 				return nil, err
 			}
 			return &sourcebackendpb.ReplaceIndexReply{}, nil
