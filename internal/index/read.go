@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math/bits"
@@ -16,6 +17,8 @@ import (
 	"golang.org/x/exp/mmap"
 	"golang.org/x/sync/errgroup"
 )
+
+var errNotFound = errors.New("not found")
 
 // mmapReader implements io.Reader for an mmap.ReaderAt.
 type mmapReader struct {
@@ -160,12 +163,12 @@ func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error)
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
 	if n >= num {
-		return nil, nil, fmt.Errorf("not found")
+		return nil, nil, errNotFound
 	}
 	var result MetaEntry
 	result.Unmarshal(d[n*metaEntrySize:])
 	if result.Trigram != trigram {
-		return nil, nil, fmt.Errorf("not found")
+		return nil, nil, errNotFound
 	}
 
 	var next MetaEntry
@@ -185,12 +188,12 @@ func (sr *PForReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
 	if n >= num {
-		return nil, fmt.Errorf("not found")
+		return nil, errNotFound
 	}
 	var result MetaEntry
 	result.Unmarshal(d[n*metaEntrySize:])
 	if result.Trigram != trigram {
-		return nil, fmt.Errorf("not found")
+		return nil, errNotFound
 	}
 	return &result, nil
 }
@@ -220,6 +223,12 @@ func (sr *PForReader) Data(t Trigram) (data io.Reader, entries int, _ error) {
 func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32, error) {
 	entries := int(meta.Entries)
 	d := sr.data.Data()
+
+	// DEBUG: pure-go verification
+	// rd := NewDeltaReader()
+	// rd.Reset(meta, d)
+	// for rd.Read() != nil {
+	// }
 
 	//var deltas []uint32
 	// TODO: figure out overhead. 128*1024 is wrong. might be 0, actually
@@ -277,11 +286,13 @@ func (dr *DeltaReader) Reset(meta *MetaEntry, data []byte) {
 func (dr *DeltaReader) Read() []uint32 {
 	if dr.n+256 <= dr.entries {
 		dr.data = dr.data[turbopfor.P4dec256v32(dr.data, dr.buf):]
+		//dr.data = dr.data[goturbopfor.P4ndec256v32(dr.data, dr.buf):]
 		dr.n += 256
 		return dr.buf
 	}
 	if remaining := dr.entries - dr.n; remaining > 0 {
 		turbopfor.P4dec32(dr.data, dr.buf[:remaining])
+		//goturbopfor.P4dec32(dr.data, dr.buf[:remaining])
 		dr.n += remaining
 		return dr.buf[:remaining]
 	}
@@ -315,12 +326,12 @@ func (pr *PosrelReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, erro
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
 	if n >= num {
-		return nil, nil, fmt.Errorf("not found")
+		return nil, nil, errNotFound
 	}
 	var result MetaEntry
 	result.Unmarshal(d[n*metaEntrySize:])
 	if result.Trigram != trigram {
-		return nil, nil, fmt.Errorf("not found")
+		return nil, nil, errNotFound
 	}
 
 	var next MetaEntry
@@ -342,12 +353,12 @@ func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
 	if n >= num {
-		return nil, fmt.Errorf("not found")
+		return nil, errNotFound
 	}
 	var result MetaEntry
 	result.Unmarshal(d[n*metaEntrySize:])
 	if result.Trigram != trigram {
-		return nil, fmt.Errorf("not found")
+		return nil, errNotFound
 	}
 
 	return &result, nil

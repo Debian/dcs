@@ -3,14 +3,11 @@ package index
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
-
-	"golang.org/x/exp/mmap"
 )
 
 type fileMetaEntry struct {
@@ -30,10 +27,10 @@ type posrelMetaEntry struct {
 }
 
 type posrelMeta struct {
-	mmdata *mmap.ReaderAt
+	rd *PosrelReader
 }
 
-func readMeta(dir, typ string, idx map[Trigram][]fileMetaEntry, idxid uint32) error {
+func readMeta(dir, typ string, idx map[Trigram][]uint32, idxid uint32) error {
 	f, err := os.Open(filepath.Join(dir, "posting."+typ+".meta"))
 	if err != nil {
 		return err
@@ -47,14 +44,11 @@ func readMeta(dir, typ string, idx map[Trigram][]fileMetaEntry, idxid uint32) er
 
 	var entry MetaEntry
 	for i := 0; i < (int(st.Size()) / metaEntrySize); i++ {
+		// TODO: read only the trigram
 		if err := readMetaEntry(bufr, &entry); err != nil {
 			return err
 		}
-		idx[entry.Trigram] = append(idx[entry.Trigram], fileMetaEntry{
-			idxid:   idxid,
-			entries: entry.Entries,
-			offset:  entry.OffsetData,
-		})
+		idx[entry.Trigram] = append(idx[entry.Trigram], idxid)
 	}
 	return nil
 }
@@ -159,9 +153,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 	idxMetaPos := make([]indexMeta, len(srcdirs))
 	idxMetaPosrel := make([]posrelMeta, len(srcdirs))
 
-	idxDocid := make(map[Trigram][]fileMetaEntry)
-	idxPos := make(map[Trigram][]fileMetaEntry)
-	idxPosrel := make(map[Trigram][]posrelMetaEntry)
+	idxDocid := make(map[Trigram][]uint32)
 	for idx, dir := range srcdirs {
 		base := bases[idx]
 
@@ -185,24 +177,15 @@ func ConcatN(destdir string, srcdirs []string) error {
 			idxMetaPos[idx] = indexMeta{docidBase: base, rd: rd}
 		}
 
-		if err := readMeta(dir, "pos", idxPos, uint32(idx)); err != nil {
-			return err
-		}
-
 		{
-			mmData, err := mmap.Open(filepath.Join(dir, "posting.posrel.data"))
+			rd, err := newPosrelReader(dir)
 			if err != nil {
 				return err
 			}
 
-			idxMetaPosrel[idx] = posrelMeta{mmdata: mmData}
-		}
-		if err := readPosrelMeta(dir, idxPosrel, uint32(idx)); err != nil {
-			return err
+			idxMetaPosrel[idx] = posrelMeta{rd: rd}
 		}
 	}
-
-	log.Printf("len(idxPos) = %d, len(idxPosrel) = %d", len(idxPos), len(idxPosrel))
 
 	trigrams := make([]Trigram, 0, len(idxDocid))
 	for t := range idxDocid {
@@ -224,6 +207,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		defer fDocidMeta.Close()
 		bufwDocidMeta := bufio.NewWriter(fDocidMeta)
 
+		dr := NewDeltaReader()
 		for _, t := range trigrams {
 			//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 			//ctrl, data := dw.Offsets()
@@ -234,16 +218,17 @@ func ConcatN(destdir string, srcdirs []string) error {
 				OffsetData: dw.Offset(),
 			}
 			var last uint32
-			dr := NewDeltaReader()
-			var tempme MetaEntry // TODO: refactor to get rid of
-			for _, fme := range idxDocid[t] {
-				//log.Printf("TODO: dump %v", fme)
-				me.Entries += fme.entries
-				idx := idxMetaDocid[fme.idxid]
-
-				tempme.Entries = fme.entries
-				tempme.OffsetData = fme.offset
-				dr.Reset(&tempme, idx.rd.data.Data())
+			for _, idxid := range idxDocid[t] {
+				idx := idxMetaDocid[idxid]
+				meta, err := idx.rd.metaEntry1(t)
+				if err != nil {
+					if err == errNotFound {
+						continue
+					}
+					return err
+				}
+				me.Entries += meta.Entries
+				dr.Reset(meta, idx.rd.data.Data())
 				docids := dr.Read() // returns non-nil at least once
 				// Bump the first docid: it needs to be mapped from the old
 				// docid range [0, n) to the new docid range [base, base+n).
@@ -312,19 +297,28 @@ func ConcatN(destdir string, srcdirs []string) error {
 			if err := binary.Write(bufwmeta, binary.LittleEndian, &me); err != nil {
 				return err
 			}
-			for idx := range idxPos[t] {
-				fme := idxPos[t][idx]
-				prme := idxPosrel[t][idx]
-				idxMeta := idxMetaPosrel[fme.idxid]
-				max := (fme.entries + 7) / 8
-				buf := make([]byte, max)
-				//log.Printf("trigram %d (%x%x%x), idx %d, reading %d bytes for %d entries", t, (t>>16)&0xFF, (t>>8)&0xFF, t&0xFF, idx, max, fme.Entries)
-				if _, err := idxMeta.mmdata.ReadAt(buf, int64(prme.offset)); err != nil {
-					return fmt.Errorf("ReadAt(%d): %v", prme.offset, err)
-				}
-				if err := pw.Write(buf, int(fme.entries)); err != nil {
+			for _, idxid := range idxDocid[t] {
+				// TODO: refactor all metaEntry1 to use ,ok idiom, they only ever return errNotFound
+				fmeta, err := idxMetaPos[idxid].rd.metaEntry1(t)
+				if err != nil {
+					if err == errNotFound {
+						continue
+					}
 					return err
 				}
+
+				pmeta, err := idxMetaPosrel[idxid].rd.metaEntry1(t)
+				if err != nil {
+					if err == errNotFound {
+						continue
+					}
+					return err
+				}
+				b := idxMetaPosrel[idxid].rd.data.Data()[pmeta.OffsetData:]
+				if err := pw.Write(b, int(fmeta.Entries)); err != nil {
+					return err
+				}
+
 			}
 			if err := pw.Flush(); err != nil {
 				return err
@@ -355,6 +349,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		defer fDocidMeta.Close()
 		bufwDocidMeta := bufio.NewWriter(fDocidMeta)
 
+		dr := NewDeltaReader()
 		//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 		for _, t := range trigrams {
 			if t == 2105376 { // TODO: document: "   "?
@@ -369,16 +364,18 @@ func ConcatN(destdir string, srcdirs []string) error {
 				OffsetData: dw.Offset(),
 			}
 
-			dr := NewDeltaReader()
-			var tempme MetaEntry // TODO: refactor to get rid of
-			for _, fme := range idxPos[t] {
-				//log.Printf("TODO: dump %v", fme)
-				me.Entries += fme.entries
-				idx := idxMetaPos[fme.idxid]
+			for _, idxid := range idxDocid[t] {
+				idx := idxMetaPos[idxid]
+				meta, err := idx.rd.metaEntry1(t)
+				if err != nil {
+					if err == errNotFound {
+						continue
+					}
+					return err
+				}
+				me.Entries += meta.Entries
+				dr.Reset(meta, idx.rd.data.Data())
 
-				tempme.Entries = fme.entries
-				tempme.OffsetData = fme.offset
-				dr.Reset(&tempme, idx.rd.data.Data())
 				for docids := dr.Read(); docids != nil; docids = dr.Read() {
 					for _, d := range docids {
 						if err := dw.PutUint32(d); err != nil {
