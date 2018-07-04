@@ -20,7 +20,7 @@ func newPForWriter(dir, typ string) (*pforWriter, error) {
 	}
 	return &pforWriter{
 		f:    newCountingWriter(f),
-		ints: make([]uint32, 256, 256+32),
+		ints: make([]uint32, 0, 256+32),
 	}, nil
 }
 
