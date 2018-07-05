@@ -207,21 +207,29 @@ func (s *server) Merge(context.Context, *packageimporterpb.MergeRequest) (*packa
 func packageNames() ([]string, error) {
 	var names []string
 
-	file, err := os.Open(filepath.Join(*shardPath, "src"))
+	file, err := os.Open(filepath.Join(*shardPath, "idx"))
 	// If the directory does not yet exist, we just return an empty list of
 	// packages.
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	if err == nil {
-		defer file.Close()
-		names, err = file.Readdirnames(-1)
-		if err != nil {
-			return nil, err
+	defer file.Close()
+	names, err = file.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]string, 0, len(names))
+	for _, n := range names {
+		if strings.HasSuffix(n, ".tmp") {
+			continue
 		}
+		filtered = append(filtered, n)
 	}
 
-	return names, nil
+	return filtered, nil
 }
 
 func (s *server) Packages(ctx context.Context, req *packageimporterpb.PackagesRequest) (*packageimporterpb.PackagesReply, error) {
