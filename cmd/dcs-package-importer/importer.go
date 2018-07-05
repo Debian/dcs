@@ -343,7 +343,10 @@ func mergeToShard() error {
 	}
 
 	t0 := time.Now()
-	index.ConcatN(tmpIndexPath, indexFiles)
+	if err := index.ConcatN(tmpIndexPath, indexFiles); err != nil {
+		log.Printf("ConcatN: %v", err)
+		return err
+	}
 	t1 := time.Now()
 	log.Printf("merged in %v\n", t1.Sub(t0))
 	//for i := 1; i < len(indexFiles); i++ {
@@ -371,6 +374,7 @@ func mergeToShard() error {
 			ReplacementPath: filepath.Base(tmpIndexPath),
 		})
 	if err != nil {
+		log.Printf("ReplaceIndex: %v", err)
 		return fmt.Errorf("indexBackend.ReplaceIndex(): %v", err)
 	}
 	return nil
