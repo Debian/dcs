@@ -279,6 +279,33 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 	return &packageimporterpb.GarbageCollectReply{}, nil
 }
 
+func cleanupUnsuccessfulMerges() error {
+	fis, err := ioutil.ReadDir(*shardPath)
+	if err != nil {
+		return err
+	}
+	link, err := filepath.EvalSymlinks(filepath.Join(*shardPath, "full"))
+	if err != nil {
+		return err
+	}
+	var firstErr error
+	for _, fi := range fis {
+		if !strings.HasPrefix(fi.Name(), "full.") {
+			continue
+		}
+		abs := filepath.Join(*shardPath, fi.Name())
+		if abs == link {
+			log.Printf("keeping %q (symlink destination)", fi.Name())
+			continue
+		}
+		log.Printf("deleting unsuccessful merge attempt %q", fi.Name())
+		if err := os.RemoveAll(abs); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
 // Merges all packages in *unpackedPath into a big index shard.
 func mergeToShard() error {
 	names, err := packageNames()
@@ -295,6 +322,11 @@ func mergeToShard() error {
 	if len(indexFiles) < 2 {
 		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
+
+	if err := cleanupUnsuccessfulMerges(); err != nil {
+		log.Printf("cleanupUnsuccessfulMerges: %v", err)
+	}
+
 	tmpIndexPath := filepath.Join(*shardPath, fmt.Sprintf("full.%d", time.Now().Unix()))
 	if err := os.MkdirAll(tmpIndexPath, 0755); err != nil {
 		return err
