@@ -152,6 +152,22 @@ func (s *server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 			if err := renameio.Symlink(newShard, *indexPath); err != nil {
 				return nil, err
 			}
+			fis, err := ioutil.ReadDir(filepath.Dir(*indexPath))
+			if err != nil {
+				return nil, err
+			}
+			for _, fi := range fis {
+				if !strings.HasPrefix(fi.Name(), "full.") {
+					continue
+				}
+				if fi.Name() == name {
+					continue
+				}
+				log.Printf("Removing old index %q", fi.Name())
+				if err := os.RemoveAll(filepath.Join(filepath.Dir(*indexPath), fi.Name())); err != nil {
+					return nil, err
+				}
+			}
 			return &sourcebackendpb.ReplaceIndexReply{}, nil
 		}
 	}
