@@ -295,13 +295,17 @@ func (w *Writer) writeDocid(trigrams []Trigram) error {
 
 		// The first entry will always be stored, even if 0
 		prev := entries[0].docid
-		dw.PutUint32(prev)
+		if err := dw.PutUint32(prev); err != nil {
+			return err
+		}
 		for _, entry := range entries[1:] {
 			delta := entry.docid - prev
 			if delta == 0 {
 				continue
 			}
-			dw.PutUint32(delta)
+			if err := dw.PutUint32(delta); err != nil {
+				return err
+			}
 			prev = entry.docid
 			me.Entries++
 		}
@@ -358,7 +362,9 @@ func (w *Writer) writePos(trigrams []Trigram) error {
 				prevPos = 0
 				prevDocid = entry.docid
 			}
-			dw.PutUint32(entry.position - prevPos)
+			if err := dw.PutUint32(entry.position - prevPos); err != nil {
+				return err
+			}
 			prevPos = entry.position
 		}
 
