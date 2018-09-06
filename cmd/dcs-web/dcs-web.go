@@ -59,7 +59,7 @@ var (
 	accessLog *os.File
 
 	resultsPathRe  = regexp.MustCompile(`^/results/([^/]+)/(perpackage_` + strconv.Itoa(resultsPerPackage) + `_)?page_([0-9]+).json$`)
-	packagesPathRe = regexp.MustCompile(`^/results/([^/]+)/packages.json$`)
+	packagesPathRe = regexp.MustCompile(`^/results/([^/]+)/packages.(json|txt)$`)
 	redirectPathRe = regexp.MustCompile(`^/(?:perpackage-)?results/([^/]+)(?:/[0-9]+)?/page_([0-9]+)`)
 
 	activeQueries = prometheus.NewGauge(
@@ -296,7 +296,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	if matches == nil || len(matches) != 4 {
 		// See whether it’s /packages.json, then.
 		matches = packagesPathRe.FindStringSubmatch(r.URL.Path)
-		if matches == nil || len(matches) != 2 {
+		if matches == nil || len(matches) != 3 {
 			matches = redirectPathRe.FindStringSubmatch(r.URL.Path)
 			if len(matches) < 3 {
 				http.Error(w, "Bad request", http.StatusBadRequest)
@@ -317,12 +317,21 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		startJsonResponse(w)
+		if matches[2] == "json" {
+			startJsonResponse(w)
+		}
 
 		packages := state[queryid].allPackagesSorted
 
-		if err := json.NewEncoder(w).Encode(struct{ Packages []string }{packages}); err != nil {
-			http.Error(w, fmt.Sprintf("Could not encode packages: %v", err), http.StatusInternalServerError)
+		switch matches[2] {
+		case "json":
+			if err := json.NewEncoder(w).Encode(struct{ Packages []string }{packages}); err != nil {
+				http.Error(w, fmt.Sprintf("Could not encode packages: %v", err), http.StatusInternalServerError)
+			}
+		case "txt":
+			if _, err := w.Write([]byte(strings.Join(packages, "\n") + "\n")); err != nil {
+				http.Error(w, fmt.Sprintf("Could not write packages: %v", err), http.StatusInternalServerError)
+			}
 		}
 		return
 	}

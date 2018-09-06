@@ -9,7 +9,7 @@ var assets = {
     '/url-search-params.min.js': true,
     '/loadCSS.min.js': true,
     '/cssrelpreload.min.js': true,
-    '/instant.min.js?14': true,
+    '/instant.min.js?15': true,
     // Only cache fonts in woff2 format, all browsers which support service
     // workers also support woff2.
     '/Inconsolata.woff2': true,

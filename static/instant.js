@@ -360,7 +360,7 @@ function onQueryDone(msg) {
                 if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
                     p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
                     $('#packageshint').text('');
-                    $('#packageshint').append('To see all packages which contain results: <pre>curl -s ' + location.protocol + '//' + location.host + '/results/' + queryid + '/packages.json | jq -r \'.Packages[]\'</pre>');
+                    $('#packageshint').append('To see all packages which contain results: <pre>curl -s ' + location.protocol + '//' + location.host + '/results/' + queryid + '/packages.txt</pre>');
                 }
 
                 $('#enable-perpackage').attr('disabled', null);
@@ -547,7 +547,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?9');
+        navigator.serviceWorker.register('/service-worker.min.js?10');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
