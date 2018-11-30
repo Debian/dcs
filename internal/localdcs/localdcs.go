@@ -256,8 +256,14 @@ func importTestdata(packageImporterAddr string) error {
 		}
 	}
 
-	_, err = packageImporter.Merge(context.Background(), &packageimporterpb.MergeRequest{})
-	return err
+	// Merge twice to always exercise the overwriting code path (localdcs is
+	// used by endtoend_test.go):
+	for i := 0; i < 2; i++ {
+		if _, err := packageImporter.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Start() (addr string, _ error) {
