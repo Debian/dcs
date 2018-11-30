@@ -26,6 +26,7 @@ import (
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/shardmapping"
+	"github.com/paultag/go-debian/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stapelberg/godebiancontrol"
 
@@ -351,22 +352,31 @@ func checkSources() {
 		return
 	}
 
-	// TODO: only keep the most recent version of a source package. keeping
-	// multiple consumes too much space.
-	blacklisted := map[string]bool{
-		"firefox_47.0.1-1":         true,
-		"firefox_48.0-1":           true,
-		"firefox_52.0.2-1":         true,
-		"firefox_53.0.is.52.0.2-1": true,
-		"firefox_55.0.3-1":         true,
-		"firefox_59.0.2-1":         true,
-		"linux_4.15.4-1":           true,
-		"linux_4.15.11-1":          true,
-		"linux_4.15.17-1":          true,
+	// Only keep the most recent version for each source package:
+	mostRecent := make(map[string]godebiancontrol.Paragraph)
+	for _, pkg := range sourcePackages {
+		n := pkg["Package"]
+		if current, ok := mostRecent[n]; ok {
+			old, err := version.Parse(current["Version"])
+			if err != nil {
+				log.Printf("version %q: %v", current["Version"], err)
+				return
+			}
+			new, err := version.Parse(pkg["Version"])
+			if err != nil {
+				log.Printf("version %q: %v", pkg["Version"], err)
+				return
+			}
+			if version.Compare(new, old) > 0 {
+				mostRecent[n] = pkg
+			}
+		} else {
+			mostRecent[n] = pkg
+		}
 	}
 
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
-	for _, pkg := range sourcePackages {
+	for _, pkg := range mostRecent {
 		if strings.HasSuffix(pkg["Package"], "-data") {
 			continue
 		}
