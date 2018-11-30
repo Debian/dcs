@@ -18,6 +18,7 @@ import (
 	"math"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -375,15 +376,18 @@ func checkSources() {
 		}
 	}
 
+	sem := make(chan struct{}, runtime.NumCPU())
+	shardMu := make([]sync.Mutex, len(packageImporters))
+
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
 	for _, pkg := range mostRecent {
 		if strings.HasSuffix(pkg["Package"], "-data") {
 			continue
 		}
-		p := pkg["Package"] + "_" + pkg["Version"]
-		if blacklisted[p] {
-			continue
+		if pkg["Package"] == "kicad-packages3d" {
+			continue // TODO: should this have been called -data?
 		}
+		p := pkg["Package"] + "_" + pkg["Version"]
 		shardIdx := shardmapping.TaskIdxForPackage(p, len(packageImporters))
 		importer := packageImporters[shardIdx]
 		// Skip shards that are offline (= for which we have no package list).
@@ -395,8 +399,6 @@ func checkSources() {
 		if status == Present {
 			packages[importer.shard][p] = Confirmed
 		} else if status == NotPresent {
-			log.Printf("Feeding package %s to shard %d (%s)\n", p, shardIdx, importer.shard)
-
 			var pkgfiles []string
 			for _, line := range strings.Split(pkg["Files"], "\n") {
 				parts := strings.Split(strings.TrimSpace(line), " ")
@@ -413,10 +415,21 @@ func checkSources() {
 					pkgfiles = append([]string{url}, pkgfiles...)
 				}
 			}
-			feedfiles(p, pkgfiles)
+			sem <- struct{}{}
+			go func() {
+				defer func() { <-sem }()
+				shardMu[shardIdx].Lock()
+				defer shardMu[shardIdx].Unlock()
+				log.Printf("Feeding package %s to shard %d (%s)\n", p, shardIdx, importer.shard)
+				feedfiles(p, pkgfiles)
 
-			successfulSanityFeed.Inc()
+				successfulSanityFeed.Inc()
+			}()
 		}
+	}
+	// Wait for completion
+	for n := cap(sem); n > 0; n-- {
+		sem <- struct{}{}
 	}
 
 	// Garbage-collect all packages that have not been confirmed.
