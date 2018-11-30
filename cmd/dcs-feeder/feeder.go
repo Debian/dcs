@@ -110,7 +110,7 @@ func init() {
 }
 
 // Calls /merge on the specified shard in a period of inactivity (2 minutes
-// after being called), or after 10 minutes in case there is continuous
+// after being called), or every 10 minutes in case there is continuous
 // activity.
 func merge() {
 	for {
