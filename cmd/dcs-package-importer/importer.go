@@ -271,7 +271,7 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		return nil, err
 	}
 
-	if err := os.Remove(filepath.Join(*shardPath, "idx", pkg)); err != nil {
+	if err := os.RemoveAll(filepath.Join(*shardPath, "idx", pkg)); err != nil {
 		return nil, err
 	}
 
