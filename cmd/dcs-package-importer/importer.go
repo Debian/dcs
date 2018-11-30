@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"runtime/pprof"
 	"strings"
 	"time"
@@ -505,6 +506,34 @@ func unpackAndIndex(dscPath string) error {
 	if err := indexPackage(pkg); err != nil {
 		return err
 	}
+
+	// Explicitly freeing OS memory prevents the importer from OOMing (running
+	// Out Of Memory). For some reason, Go does not give back memory to the OS
+	// even though it recognizes 90% of the heap as garbage:
+
+	// viewcore /tmp/core.dcs-package-imp.23131.ex61.1543603411 --exe ./bin/dcs-package-importer breakdown
+	//  all                  13451362304 100.00%
+	//    text                  11816960   0.09%
+	//    readonly               5779456   0.04%
+	//    data                    516096   0.00%
+	//    bss                  271654912   2.02% (grab bag, includes OS thread stacks, ...)
+	//    heap               12750684160  94.79%
+	//      in use spans     12155994112  90.37%
+	//        alloc          12151868168  90.34%
+	//          live            25765296   0.19%
+	//          garbage      12126102872  90.15%
+	//        free               4030056   0.03%
+	//        round                95888   0.00%
+	//      manual spans         1081344   0.01% (Go stacks)
+	//        alloc               966656   0.01%
+	//        free                114688   0.00%
+	//      free spans         593608704   4.41%
+	//        retained         593608704   4.41% (kept for reuse by Go)
+	//        released                 0   0.00% (given back to the OS)
+	//    ptr bitmap           398458880   2.96%
+	//    span table            12451840   0.09%
+
+	debug.FreeOSMemory()
 	return os.RemoveAll(filepath.Join(tmpdir, pkg))
 }
 
