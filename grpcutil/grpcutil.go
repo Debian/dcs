@@ -17,6 +17,7 @@ import (
 	"golang.org/x/net/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/reflection"
 )
 
 var (
@@ -87,6 +88,7 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 		grpc.UnaryInterceptor(grpc_opentracing.UnaryServerInterceptor()))
 
 	register(s)
+	reflection.Register(s)
 
 	srv := http.Server{
 		Addr:    addr,
