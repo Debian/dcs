@@ -446,7 +446,7 @@ func main() {
 		}
 		defer conn.Close()
 		packageImporters[idx] = &packageImporter{
-			shard: shard,
+			shard:                 shard,
 			PackageImporterClient: packageimporterpb.NewPackageImporterClient(conn),
 		}
 	}
