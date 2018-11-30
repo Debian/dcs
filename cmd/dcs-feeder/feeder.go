@@ -65,6 +65,8 @@ var (
 
 	tlsKeyPath = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 
+	initial = flag.Bool("initial", false, "Whether this is the initial feeder call, in which case Merge will not be called on the dcs-package-importer jobs, speeding up the run.")
+
 	packageImporters []*packageImporter
 
 	mergeStates   = make(map[int]mergeState)
@@ -450,7 +452,9 @@ func main() {
 	}
 
 	// Calls /merge once appropriate.
-	go merge()
+	if !*initial {
+		go merge()
+	}
 
 	// Calls checkSources() every hour (sanity check, so that /lookfor is not critical).
 	go func() {
