@@ -449,6 +449,21 @@ func indexPackage(pkg string) error {
 	return nil
 }
 
+var tarSuffixes = map[string]bool{
+	".tar.gz":  true,
+	".tar.lz":  true,
+	".tar.bz2": true,
+	".tar.xz":  true,
+}
+
+func isTar(filename string) bool {
+	idx := strings.Index(filename, ".tar.")
+	if idx == -1 {
+		return false
+	}
+	return tarSuffixes[filename[idx:]]
+}
+
 func unpack(dscPath, unpacked string) error {
 	cmd := exec.Command("dpkg-source", "--no-copy", "--no-check", "-x",
 		dscPath, unpacked)
@@ -467,14 +482,17 @@ func unpack(dscPath, unpacked string) error {
 		if !file.Mode().IsRegular() {
 			continue
 		}
-		if strings.Contains(file.Name(), ".tar.") {
+		if isTar(file.Name()) {
 			// shell out to tar so that we don’t need to deal with the various
 			// compression formats
 			cmd := exec.Command("tar", "xf", file.Name())
 			cmd.Dir = unpacked
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
-				return err
+				// Don’t fail unpacking if one of our tarballs which we
+				// heuristically classified as interesting fails to unpack
+				// (maybe because it is not a tarball after all?).
+				log.Printf("(ignoring) %s: %v", cmd.Args, err)
 			}
 			// The tarball will be discarded later, but we might as well remove
 			// it now to speed things up.
