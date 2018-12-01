@@ -316,33 +316,6 @@ func newPosrelReader(dir string) (*PosrelReader, error) {
 	return &pr, nil
 }
 
-func (pr *PosrelReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
-	// TODO: maybe de-duplicate with PForReader.metaEntry?
-
-	num := pr.meta.Len() / metaEntrySize
-	d := pr.meta.Data()
-	n := sort.Search(num, func(i int) bool {
-		// MetaEntry.Trigram is the first member
-		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
-	})
-	if n >= num {
-		return nil, nil, errNotFound
-	}
-	var result MetaEntry
-	result.Unmarshal(d[n*metaEntrySize:])
-	if result.Trigram != trigram {
-		return nil, nil, errNotFound
-	}
-
-	var next MetaEntry
-	if n < num-1 {
-		next.Unmarshal(d[(n+1)*metaEntrySize:])
-	} else {
-		next.OffsetData = int64(pr.data.Len())
-	}
-	return &result, &next, nil
-}
-
 func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 	// TODO: maybe de-duplicate with PForReader.metaEntry?
 
@@ -365,27 +338,7 @@ func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 }
 
 func (pr *PosrelReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
-	e, _, err := pr.metaEntry(trigram)
-	return e, err
-}
-
-type mmapOffsetReader struct {
-	r   *mmap.ReaderAt
-	off int64
-}
-
-// Read implements io.ReaderAt.
-func (mr *mmapOffsetReader) ReadAt(p []byte, off int64) (n int, err error) {
-	return mr.r.ReadAt(p, mr.off+off)
-}
-
-// TODO: delete once raw.go uses DataBytes()
-func (pr *PosrelReader) Data(t Trigram) (io.ReaderAt, error) {
-	meta, _, err := pr.metaEntry(t)
-	if err != nil {
-		return nil, err
-	}
-	return &mmapOffsetReader{r: pr.data, off: meta.OffsetData}, nil
+	return pr.metaEntry1(trigram)
 }
 
 func (pr *PosrelReader) DataBytes(t Trigram) ([]byte, error) {

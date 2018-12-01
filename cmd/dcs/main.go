@@ -30,10 +30,11 @@ Index manipulation commands:
 `
 
 func help(topic string) {
+	var err error
 	switch topic {
 	case "raw":
 		fmt.Fprintf(os.Stdout, "%s", rawHelp)
-		raw([]string{"-help"})
+		err = raw([]string{"-help"})
 	case "trigram":
 		fmt.Fprintf(os.Stdout, "%s", trigramHelp)
 		trigram([]string{"-help"})
@@ -62,6 +63,9 @@ func help(topic string) {
 		flag.Usage()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown help topic %q", topic)
+	}
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 

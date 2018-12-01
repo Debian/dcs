@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"github.com/Debian/dcs/internal/index"
@@ -19,67 +19,61 @@ Example:
 
 `
 
-func raw(args []string) {
+func raw(args []string) error {
 	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	var idx string
-	fs.StringVar(&idx, "idx", "", "path to the index file to work with")
-	var trigram string
-	fs.StringVar(&trigram, "trigram", "", "trigram to read (%c%c%c)")
-	var section string
-	fs.StringVar(&section, "section", "", "Index section to print (one of docid, pos, posrel)")
+	var (
+		idx     = fs.String("idx", "", "path to the index file to work with")
+		trigram = fs.String("trigram", "", "trigram to read (%c%c%c)")
+		section = fs.String("section", "", "Index section to print (one of docid, pos, posrel)")
+	)
 	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+		return err
 	}
-	if idx == "" || trigram == "" || section == "" {
+	if *idx == "" || *trigram == "" || *section == "" {
 		fs.Usage()
 		os.Exit(1)
 	}
-	if section != "docid" && section != "pos" && section != "posrel" {
-		log.Fatalf("invalid -section=%s: expected one of docid, pos, posrel", section)
+	if *section != "docid" && *section != "pos" && *section != "posrel" {
+		return fmt.Errorf("invalid -section=%s: expected one of docid, pos, posrel", *section)
 	}
-	if len(trigram) < 3 {
-		log.Fatalf("invalid -trigram=%s syntax: expected 3 bytes, got %d bytes", trigram, len(trigram))
+	if len(*trigram) < 3 {
+		return fmt.Errorf("invalid -trigram=%s syntax: expected 3 bytes, got %d bytes", *trigram, len(*trigram))
 	}
-	t := []byte(trigram)
+	t := []byte(*trigram)
 	tri := index.Trigram(uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2]))
 
-	i, err := index.Open(idx)
+	i, err := index.Open(*idx)
 	if err != nil {
-		log.Fatalf("Could not open index: %v", err)
+		return fmt.Errorf("index.Open(%s): %v", *idx, err)
 	}
 	defer i.Close()
 
-	if section == "posrel" {
+	if *section == "posrel" {
 		_, entries, err := i.Pos.Data(tri)
 		if err != nil {
-			log.Fatalf("Could not locate trigram metadata: %v", err)
+			return fmt.Errorf("Could not locate trigram metadata: %v", err)
 		}
 
-		ra, err := i.Posrel.Data(tri)
+		db, err := i.Posrel.DataBytes(tri)
 		if err != nil {
-			log.Fatalf("Could not locate trigram metadata: %v", err)
+			return fmt.Errorf("Posrel.DataBytes(%v): %v", tri, err)
 		}
-		b := make([]byte, (entries+7)/8)
-		if _, err := ra.ReadAt(b, 0); err != nil {
-			log.Fatal(err)
+		if _, err := os.Stdout.Write(db[:(entries+7)/8]); err != nil {
+			return err
 		}
-		if _, err := os.Stdout.Write(b); err != nil {
-			log.Fatal(err)
-		}
-		return
+		return nil
 	}
 
 	var r io.Reader
-	if section == "docid" {
+	if *section == "docid" {
 		r, _, err = i.Docid.Data(tri)
-	} else if section == "pos" {
+	} else if *section == "pos" {
 		r, _, err = i.Pos.Data(tri)
 	}
 	if err != nil {
-		log.Fatalf("Could not locate trigram metadata: %v", err)
+		return fmt.Errorf("Could not locate trigram metadata: %v", err)
 	}
 
-	if _, err := io.Copy(os.Stdout, r); err != nil {
-		log.Fatal(err)
-	}
+	_, err = io.Copy(os.Stdout, r)
+	return err
 }
