@@ -42,13 +42,13 @@ func readMeta(dir, typ string, idx map[Trigram][]uint32, idxid uint32) error {
 	}
 	bufr := bufio.NewReader(f)
 
-	var entry MetaEntry
+	buf := make([]byte, metaEntrySize)
 	for i := 0; i < (int(st.Size()) / metaEntrySize); i++ {
-		// TODO: read only the trigram
-		if err := readMetaEntry(bufr, &entry); err != nil {
+		if _, err := io.ReadFull(bufr, buf); err != nil {
 			return err
 		}
-		idx[entry.Trigram] = append(idx[entry.Trigram], idxid)
+		t := Trigram(binary.LittleEndian.Uint32(buf))
+		idx[t] = append(idx[t], idxid)
 	}
 	return nil
 }
@@ -65,11 +65,13 @@ func readPosrelMeta(dir string, idx map[Trigram][]posrelMetaEntry, idxid uint32)
 	}
 	bufr := bufio.NewReader(f)
 
+	buf := make([]byte, metaEntrySize)
 	var entry MetaEntry
 	for i := 0; i < (int(st.Size()) / metaEntrySize); i++ {
-		if err := readMetaEntry(bufr, &entry); err != nil {
+		if _, err := io.ReadFull(bufr, buf); err != nil {
 			return err
 		}
+		entry.Unmarshal(buf)
 		idx[entry.Trigram] = append(idx[entry.Trigram], posrelMetaEntry{
 			idxid:  idxid,
 			offset: entry.OffsetData,
@@ -207,6 +209,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		defer fDocidMeta.Close()
 		bufwDocidMeta := bufio.NewWriter(fDocidMeta)
 
+		meBuf := make([]byte, metaEntrySize)
 		dr := NewDeltaReader()
 		for _, t := range trigrams {
 			//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
@@ -249,8 +252,8 @@ func ConcatN(destdir string, srcdirs []string) error {
 			if err := dw.Flush(); err != nil {
 				return err
 			}
-
-			if err := writeMetaEntry(bufwDocidMeta, &me); err != nil {
+			me.Marshal(meBuf)
+			if _, err := bufwDocidMeta.Write(meBuf); err != nil {
 				//if err := binary.Write(bufwDocidMeta, binary.LittleEndian, &me); err != nil {
 				return err
 			}
@@ -349,6 +352,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		defer fDocidMeta.Close()
 		bufwDocidMeta := bufio.NewWriter(fDocidMeta)
 
+		meBuf := make([]byte, metaEntrySize)
 		dr := NewDeltaReader()
 		//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 		for _, t := range trigrams {
@@ -389,7 +393,8 @@ func ConcatN(destdir string, srcdirs []string) error {
 				return err
 			}
 
-			if err := writeMetaEntry(bufwDocidMeta, &me); err != nil {
+			me.Marshal(meBuf)
+			if _, err := bufwDocidMeta.Write(meBuf); err != nil {
 				//if err := binary.Write(bufwDocidMeta, binary.LittleEndian, &me); err != nil {
 				return err
 			}
