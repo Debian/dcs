@@ -390,7 +390,11 @@ func (s *server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
 				f, err := os.Open(filepath.Join(*unpackedPath, bundle[0].Path))
 				if err != nil {
-					log.Fatal(err) // TODO
+					log.Printf("%s %v", logprefix, err)
+					for range bundle {
+						progress <- 1
+					}
+					continue
 				}
 				// Assumption: bundle is ordered from low to high (if not, we
 				// need to traverse bundle).
@@ -400,12 +404,13 @@ func (s *server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				}
 				n, err := f.Read(buf[:max])
 				if err != nil {
-					log.Fatal(err) // TODO
+					log.Printf("%s %v", logprefix, err)
+					for range bundle {
+						progress <- 1
+					}
+					continue
 				}
 				f.Close()
-				if n != max {
-					log.Fatalf("n = %d, max = %d\n", n, max)
-				}
 				b := buf[:n]
 
 				lastPos := -1
