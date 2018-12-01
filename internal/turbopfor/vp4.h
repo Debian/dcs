@@ -182,15 +182,6 @@ size_t p4nsdec16(unsigned char *in, size_t n, uint16_t *out);
 size_t p4nsdec32(unsigned char *in, size_t n, uint32_t *out);
 size_t p4nsdec64(unsigned char *in, size_t n, uint64_t *out);
 
-// same as p4enc, but with b and bx as parameters. Call after _p4bitsXX
-inline unsigned char *_p4enc8(      uint8_t  *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx);
-inline unsigned char *_p4enc16(     uint16_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx);
-inline unsigned char *_p4enc32(     uint32_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx); 
-inline unsigned char *_p4enc128v16( uint16_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx); // SIMD (Vertical bitpacking)
-inline unsigned char *_p4enc128v32( uint32_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx); // SIMD (Vertical bitpacking)
-inline unsigned char *_p4enc128v64( uint64_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx); // SIMD (Vertical bitpacking)
-inline unsigned char *_p4enc256v32( uint32_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx); 
-inline unsigned char *_p4enc64(     uint64_t *__restrict in, unsigned n, unsigned char *__restrict out, unsigned b, unsigned bx);
 // calculate the best bit sizes b and bx, return b. 
 unsigned _p4bits8(           uint8_t  *__restrict in, unsigned n, unsigned *pbx);
 unsigned _p4bits16(          uint16_t *__restrict in, unsigned n, unsigned *pbx);
@@ -212,14 +203,6 @@ unsigned _p4bitsx64(         uint64_t *__restrict in, unsigned n, unsigned *pbx)
 //---------------------------- TurboPFor: Decode --------------------------------------------------------
 // decompress a previously (with p4enc32) bit packed array. Return value = end of packed buffer in 
 //-- scalar. (see p4getx32 for direct access)
-// b and bx specified (not stored within the compressed stream header)
-inline unsigned char *_p4dec8(       unsigned char *__restrict in, unsigned n, uint8_t  *__restrict out, unsigned b, unsigned bx);
-inline unsigned char *_p4dec16(      unsigned char *__restrict in, unsigned n, uint16_t *__restrict out, unsigned b, unsigned bx);
-inline unsigned char *_p4dec32(      unsigned char *__restrict in, unsigned n, uint32_t *__restrict out, unsigned b, unsigned bx);
-inline unsigned char *_p4dec128v16(  unsigned char *__restrict in, unsigned n, uint16_t *__restrict out, unsigned b, unsigned bx); // SIMD (Vertical BitPacking)
-inline unsigned char *_p4dec128v32(  unsigned char *__restrict in, unsigned n, uint32_t *__restrict out, unsigned b, unsigned bx); 
-inline unsigned char *_p4dec128v64(  unsigned char *__restrict in, unsigned n, uint64_t *__restrict out, unsigned b, unsigned bx); 
-inline unsigned char *_p4dec64(      unsigned char *__restrict in, unsigned n, uint64_t *__restrict out, unsigned b, unsigned bx);
 
 unsigned char *p4dec8(        unsigned char *__restrict in, unsigned n, uint8_t  *__restrict out);
 unsigned char *p4dec16(       unsigned char *__restrict in, unsigned n, uint16_t *__restrict out);
@@ -267,13 +250,6 @@ unsigned char *p4d1dec256v32( unsigned char *__restrict in, unsigned n, uint32_t
 unsigned char *p4d1dec64(     unsigned char *__restrict in, unsigned n, uint64_t *__restrict out, uint64_t start);
 
 // ZigZag encoding
-inline unsigned char *_p4zdec8(      unsigned char *__restrict in, unsigned n, uint8_t  *__restrict out, uint8_t  start, unsigned b, unsigned bx);
-inline unsigned char *_p4zdec16(     unsigned char *__restrict in, unsigned n, uint16_t *__restrict out, uint16_t start, unsigned b, unsigned bx);
-inline unsigned char *_p4zdec32(     unsigned char *__restrict in, unsigned n, uint32_t *__restrict out, uint32_t start, unsigned b, unsigned bx);
-inline unsigned char *_p4zdec128v16( unsigned char *__restrict in, unsigned n, uint16_t *__restrict out, uint16_t start, unsigned b, unsigned bx);
-inline unsigned char *_p4zdec128v32( unsigned char *__restrict in, unsigned n, uint32_t *__restrict out, uint32_t start, unsigned b, unsigned bx);
-inline unsigned char *_p4zdec256v32( unsigned char *__restrict in, unsigned n, uint32_t *__restrict out, uint32_t start, unsigned b, unsigned bx);
-inline unsigned char *_p4zdec64(     unsigned char *__restrict in, unsigned n, uint64_t *__restrict out, uint64_t start, unsigned b, unsigned bx);
 
 unsigned char *p4zdec8(       unsigned char *__restrict in, unsigned n, uint8_t  *__restrict out, uint8_t  start);
 unsigned char *p4zdec16(      unsigned char *__restrict in, unsigned n, uint16_t *__restrict out, uint16_t start);
