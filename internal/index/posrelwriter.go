@@ -46,7 +46,7 @@ func (pw *posrelWriter) Write(b []byte, n int) error {
 		}
 	}
 	if rest := n % 8; rest > 0 {
-		return pw.WriteByte(b[len(b)-1], rest)
+		return pw.WriteByte(b[n/8], rest)
 	}
 
 	return nil

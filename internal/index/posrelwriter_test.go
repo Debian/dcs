@@ -99,6 +99,17 @@ func TestPosrelWriter(t *testing.T) {
 			// bb = 10111011
 			want: []byte{0xee, 0xaa, 0x5d},
 		},
+
+		{
+			// Verifies that posrelWriter does not make any assumptions about
+			// slice length.
+			name: "merge partial with longer slice",
+			inputs: []input{
+				{[]byte{0x03, 0x01}, 2}, // 00000011b
+				{[]byte{0xc7}, 8},       // 11000111b
+			},
+			want: []byte{0x1f, 0x03},
+		},
 	}
 
 	for _, tt := range tests {
