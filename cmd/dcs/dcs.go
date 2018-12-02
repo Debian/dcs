@@ -19,10 +19,8 @@ const globalHelp = `dcs - Debian Code Search swiss-army knife
 
 Syntax: dcs [global flags] <command> [flags] [args]
 
-Deployment (shard) commands:
-	stats - display stats about this deployment (shard)
-
 Index query commands:
+	du       — shows disk usage of the specified index files
 	docids   - list the documents covered by this index
 	trigram  - display metadata of the specified trigram
 	raw      - print raw (encoded) index data for the specified trigram
@@ -39,6 +37,9 @@ Index manipulation commands:
 func help(topic string) {
 	var err error
 	switch topic {
+	case "du":
+		fmt.Fprintf(os.Stdout, "%s", duHelp)
+		err = du([]string{"-help"})
 	case "raw":
 		fmt.Fprintf(os.Stdout, "%s", rawHelp)
 		err = raw([]string{"-help"})
@@ -143,11 +144,12 @@ func main() {
 		return
 	}
 	cmd, args := args[0], args[1:]
+	var err error
 	switch cmd {
-	case "stats":
-		stats(args)
+	case "du":
+		err = du(args)
 	case "raw":
-		raw(args)
+		err = raw(args)
 	case "trigram":
 		trigram(args)
 	case "docids":
@@ -174,5 +176,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		flag.Usage()
 		os.Exit(1)
+	}
+	if err != nil {
+		log.Fatal(err)
 	}
 }
