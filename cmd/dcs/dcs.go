@@ -5,7 +5,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
+	"runtime"
+	"runtime/pprof"
+	"runtime/trace"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const globalHelp = `dcs - Debian Code Search swiss-army knife
@@ -69,14 +76,67 @@ func help(topic string) {
 	}
 }
 
+// Global flags (not command-specific)
+var cpuprofile, memprofile, listen, traceFn string
+
+func init() {
+	// TODO: remove in favor of running as a test
+	flag.StringVar(&cpuprofile, "cpuprofile", "", "")
+	flag.StringVar(&memprofile, "memprofile", "", "write memory profile to this file")
+	flag.StringVar(&listen, "listen", "", "speak HTTP on this [host]:port if non-empty")
+	flag.StringVar(&traceFn, "trace", "", "create runtime/trace file")
+}
+
 func main() {
-	// Global flags (not command-specific)
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "%s", globalHelp)
 		//fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+
+	if listen != "" {
+		go func() {
+			if err := http.ListenAndServe(listen, nil); err != nil {
+				log.Fatal(err)
+			}
+		}()
+	}
+
+	if cpuprofile != "" {
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
+	if memprofile != "" {
+		defer func() {
+			f, err := os.Create(memprofile)
+			if err != nil {
+				log.Fatal(err)
+			}
+			runtime.GC()
+			pprof.WriteHeapProfile(f)
+			f.Close()
+		}()
+	}
+
+	if traceFn != "" {
+		f, err := os.Create(traceFn)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		if err := trace.Start(f); err != nil {
+			log.Fatal(err)
+		}
+		defer trace.Stop()
+	}
+
 	args := flag.Args()
 	if len(args) == 0 {
 		flag.Usage()
