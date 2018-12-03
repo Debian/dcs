@@ -12,26 +12,12 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/Debian/dcs/internal/mmap"
 	"github.com/Debian/dcs/internal/turbopfor"
-
-	"golang.org/x/exp/mmap"
 	"golang.org/x/sync/errgroup"
 )
 
 var errNotFound = errors.New("not found")
-
-// mmapReader implements io.Reader for an mmap.ReaderAt.
-type mmapReader struct {
-	r   *mmap.ReaderAt
-	off int64
-}
-
-// Read implements io.Reader.
-func (mr *mmapReader) Read(p []byte) (n int, err error) {
-	n, err = mr.r.ReadAt(p, mr.off)
-	mr.off += int64(n)
-	return n, err
-}
 
 type cachedLookup struct {
 	docid uint32 // 0xFFFFFFFF is invalid, because 0 is a valid docid
@@ -39,11 +25,10 @@ type cachedLookup struct {
 }
 
 type DocidReader struct {
-	f           *mmap.ReaderAt
+	f           *mmap.File
 	indexOffset uint32
 	Count       int
 	last        cachedLookup
-	buf         [4096]byte // TODO: document this is larger than PATH_MAX
 }
 
 func newDocidReader(dir string) (*DocidReader, error) {
@@ -51,17 +36,11 @@ func newDocidReader(dir string) (*DocidReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Locate index offset:
-	var b [4]byte
-	if _, err := f.ReadAt(b[:], int64(f.Len()-4)); err != nil {
-		return nil, err
-	}
-	indexOffset := binary.LittleEndian.Uint32(b[:])
-
+	indexOffset := binary.LittleEndian.Uint32(f.Data[len(f.Data)-4:])
 	return &DocidReader{
 		f:           f,
 		indexOffset: indexOffset,
-		Count:       int(uint32(f.Len())-indexOffset-4) / 4,
+		Count:       int(uint32(len(f.Data))-indexOffset-4) / 4,
 		last: cachedLookup{
 			docid: 0xFFFFFFFF,
 		},
@@ -73,10 +52,7 @@ func (dr *DocidReader) Close() error {
 }
 
 func (dr *DocidReader) All() io.Reader {
-	return &io.LimitedReader{
-		R: &mmapReader{r: dr.f, off: 0},
-		N: int64(dr.indexOffset),
-	}
+	return bytes.NewReader(dr.f.Data[:dr.indexOffset])
 }
 
 func (dr *DocidReader) Lookup(docid uint32) (string, error) {
@@ -85,28 +61,22 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 		return dr.last.fn, nil
 	}
 	offset := int64(dr.indexOffset + (docid * 4))
-	if offset >= int64(dr.f.Len()-4) {
-		return "", fmt.Errorf("docid %d outside of docid map [0, %d)", docid, (int64(dr.f.Len()-4)-int64(dr.indexOffset))/4)
+	if offset >= int64(len(dr.f.Data)-4) {
+		return "", fmt.Errorf("docid %d outside of docid map [0, %d)", docid, (int64(len(dr.f.Data)-4)-int64(dr.indexOffset))/4)
 	}
 	// Locate docid file name offset:
-	if _, err := dr.f.ReadAt(dr.buf[:8], offset); err != nil {
-		return "", err
-	}
 	offsets := struct {
 		String uint32
 		Next   uint32 // next string location or (for the last entry) index location
 	}{
-		String: binary.LittleEndian.Uint32(dr.buf[:4]),
-		Next:   binary.LittleEndian.Uint32(dr.buf[4:8]),
+		String: binary.LittleEndian.Uint32(dr.f.Data[offset:]),
+		Next:   binary.LittleEndian.Uint32(dr.f.Data[offset+4:]),
 	}
 
 	// Read docid file name:
 	l := int(offsets.Next - offsets.String - 1)
-	if _, err := dr.f.ReadAt(dr.buf[:l], int64(offsets.String)); err != nil {
-		return "", err
-	}
 	dr.last.docid = docid
-	dr.last.fn = string(dr.buf[:l])
+	dr.last.fn = string(dr.f.Data[int(offsets.String) : int(offsets.String)+l])
 	return dr.last.fn, nil
 }
 
@@ -127,8 +97,8 @@ func newBufferPair() *bufferPair {
 }
 
 type PForReader struct {
-	meta *mmap.ReaderAt
-	data *mmap.ReaderAt
+	meta *mmap.File
+	data *mmap.File
 
 	//deltabuf []uint32
 }
@@ -156,8 +126,8 @@ func (sr *PForReader) Close() error {
 }
 
 func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
-	num := sr.meta.Len() / metaEntrySize
-	d := sr.meta.Data()
+	num := len(sr.meta.Data) / metaEntrySize
+	d := sr.meta.Data
 	n := sort.Search(num, func(i int) bool {
 		// MetaEntry.Trigram is the first member
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
@@ -175,14 +145,14 @@ func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error)
 	if n < num-1 {
 		next.Unmarshal(d[(n+1)*metaEntrySize:])
 	} else {
-		next.OffsetData = int64(sr.data.Len())
+		next.OffsetData = int64(len(sr.data.Data))
 	}
 	return &result, &next, nil
 }
 
 func (sr *PForReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
-	num := sr.meta.Len() / metaEntrySize
-	d := sr.meta.Data()
+	num := len(sr.meta.Data) / metaEntrySize
+	d := sr.meta.Data
 	n := sort.Search(num, func(i int) bool {
 		// MetaEntry.Trigram is the first member
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
@@ -212,17 +182,14 @@ func (sr *PForReader) Data(t Trigram) (data io.Reader, entries int, _ error) {
 	dataBytes := next.OffsetData - meta.OffsetData
 	//log.Printf("offset: %d, bytes: %d", meta.OffsetData, dataBytes)
 	// TODO: benchmark whether an *os.File with Seek is measurably worse
-	return &io.LimitedReader{
-			R: &mmapReader{r: sr.data, off: meta.OffsetData},
-			N: dataBytes,
-		},
+	return bytes.NewReader(sr.data.Data[meta.OffsetData : meta.OffsetData+dataBytes]),
 		int(meta.Entries),
 		nil
 }
 
 func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32, error) {
 	entries := int(meta.Entries)
-	d := sr.data.Data()
+	d := sr.data.Data
 
 	// DEBUG: pure-go verification
 	// rd := NewDeltaReader()
@@ -300,8 +267,8 @@ func (dr *DeltaReader) Read() []uint32 {
 }
 
 type PosrelReader struct {
-	meta *mmap.ReaderAt
-	data *mmap.ReaderAt
+	meta *mmap.File
+	data *mmap.File
 }
 
 func newPosrelReader(dir string) (*PosrelReader, error) {
@@ -319,8 +286,8 @@ func newPosrelReader(dir string) (*PosrelReader, error) {
 func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 	// TODO: maybe de-duplicate with PForReader.metaEntry?
 
-	num := pr.meta.Len() / metaEntrySize
-	d := pr.meta.Data()
+	num := len(pr.meta.Data) / metaEntrySize
+	d := pr.meta.Data
 	n := sort.Search(num, func(i int) bool {
 		// MetaEntry.Trigram is the first member
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
@@ -346,7 +313,7 @@ func (pr *PosrelReader) DataBytes(t Trigram) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pr.data.Data()[meta.OffsetData:], nil
+	return pr.data.Data[meta.OffsetData:], nil
 }
 
 func (pr *PosrelReader) Close() error {

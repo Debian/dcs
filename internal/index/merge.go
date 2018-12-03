@@ -231,7 +231,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 					return err
 				}
 				me.Entries += meta.Entries
-				dr.Reset(meta, idx.rd.data.Data())
+				dr.Reset(meta, idx.rd.data.Data)
 				docids := dr.Read() // returns non-nil at least once
 				// Bump the first docid: it needs to be mapped from the old
 				// docid range [0, n) to the new docid range [base, base+n).
@@ -317,7 +317,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 					}
 					return err
 				}
-				b := idxMetaPosrel[idxid].rd.data.Data()[pmeta.OffsetData:]
+				b := idxMetaPosrel[idxid].rd.data.Data[pmeta.OffsetData:]
 				if err := pw.Write(b, int(fmeta.Entries)); err != nil {
 					return err
 				}
@@ -378,7 +378,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 					return err
 				}
 				me.Entries += meta.Entries
-				dr.Reset(meta, idx.rd.data.Data())
+				dr.Reset(meta, idx.rd.data.Data)
 
 				for docids := dr.Read(); docids != nil; docids = dr.Read() {
 					for _, d := range docids {
