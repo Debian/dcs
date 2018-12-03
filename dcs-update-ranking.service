@@ -1,9 +1,0 @@
-.include /lib/systemd/system/dcs-common.service
-
-[Unit]
-Description=Debian Code Search: update ranking
-
-[Service]
-Restart=no
-Type=oneshot
-ExecStart=/usr/bin/dcs-compute-ranking

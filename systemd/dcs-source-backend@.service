@@ -1,0 +1,17 @@
+.include dcs-common.service
+
+[Unit]
+Description=Debian Code Search: source backend
+
+[Service]
+ExecStart=/srv/dcs/bin/dcs-source-backend \
+  -listen_address=localhost:2808%I \
+  -index_path=/srv/dcs/shard%I/full \
+  -unpacked_path=/srv/dcs/shard%I/src \
+  -tls_cert_path=/srv/dcs/prod-cert.pem \
+  -tls_key_path=/srv/dcs/prod-key.pem \
+  -ranking_data_path=/srv/dcs/ranking.json \
+  -use_positional_index
+
+[Install]
+WantedBy=multi-user.target

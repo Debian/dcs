@@ -2,7 +2,8 @@
 # It should not be started directly, it is included from other files.
 
 [Service]
-Environment=GOMAXPROCS=4
+LimitCORE=infinity
+Environment=GOTRACEBACK=crash
 
 User=dcs
 Group=dcs

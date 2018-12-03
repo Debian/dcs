@@ -1,0 +1,9 @@
+.include dcs-common.service
+
+[Unit]
+Description=Debian Code Search: compute ranking
+
+[Service]
+Restart=no
+Type=oneshot
+ExecStart=/srv/dcs/bin/dcs-compute-ranking -output_path=/srv/dcs/ranking.json

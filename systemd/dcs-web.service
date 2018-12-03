@@ -1,0 +1,14 @@
+.include dcs-common.service
+
+[Unit]
+Description=Debian Code Search: web frontend
+
+[Service]
+WorkingDirectory=/srv/dcs
+ExecStart=/srv/dcs/bin/dcs-web \
+  -source_backends=localhost:28080,localhost:28081,localhost:28082,localhost:28083,localhost:28084,localhost:28085 \
+  -tls_cert_path=/srv/dcs/prod-cert.pem \
+  -tls_key_path=/srv/dcs/prod-key.pem
+
+[Install]
+WantedBy=multi-user.target
