@@ -13,7 +13,7 @@ import (
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/localdcs"
 	"github.com/Debian/dcs/internal/proto/dcspb"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 )
 
