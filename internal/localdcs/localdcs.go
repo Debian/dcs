@@ -389,7 +389,5 @@ func Start() (addr string, _ error) {
 	}
 
 	log.Printf("dcs-web running at https://%s\n", dcsWeb)
-	// TODO: introduce a test option, prevent this code from running, handle errors
-	exec.Command("google-chrome", "https://"+dcsWeb).Run() // ignore errors (for tests)
 	return dcsWeb, nil
 }
