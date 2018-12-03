@@ -349,6 +349,10 @@ func Start() (addr string, _ error) {
 		return "", err
 	}
 
+	// TODO: check for healthiness
+
+	log.Printf("dcs-source-backend running at https://%s\n", sourceBackend)
+
 	// Start package importer and import testdata/
 	packageImporter, err := launchInBackground(
 		"dcs-package-importer",
