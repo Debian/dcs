@@ -27,7 +27,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/grpcutil"
-	"github.com/Debian/dcs/index"
+	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/dcspb"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	dcsregexp "github.com/Debian/dcs/regexp"
