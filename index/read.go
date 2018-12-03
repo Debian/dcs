@@ -370,6 +370,7 @@ func (ix *Index) postingQuery(q *Query, restrict []uint32) (ret []uint32) {
 			if len(list) == 0 {
 				return nil
 			}
+			//continue // disable query planner for correctness analysis
 			withCount[idx].listcnt = len(list)
 			if previous > 0 {
 				minIdx := 0.70 * float32(len(withCount))
