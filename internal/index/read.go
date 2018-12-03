@@ -204,6 +204,7 @@ func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32,
 	}
 	//deltas := make([]uint32, entries, entries+128*1024)
 	turbopfor.P4ndec256v32(d[meta.OffsetData:], buffer.u[:entries])
+	//goturbopfor.P4ndec256v32(d[meta.OffsetData:], buffer.u[:entries])
 	return buffer.u[:entries], nil
 }
 
@@ -416,6 +417,7 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 			rest = 8
 		}
 		for j := 0; j < rest; j++ {
+			// TODO: exchange (uint(i) % 8) with j?
 			chg := int((pr >> (uint(i) % 8)) & 1)
 			docidIdx += chg
 			prevP *= uint32(1 ^ chg)
