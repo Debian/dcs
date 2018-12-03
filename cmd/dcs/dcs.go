@@ -66,7 +66,7 @@ func help(topic string) {
 		search([]string{"-help"})
 	case "replay":
 		fmt.Fprintf(os.Stdout, "%s", replayHelp)
-		replay([]string{"-help"})
+		err = replay([]string{"-help"})
 	case "":
 		flag.Usage()
 	default:
@@ -165,7 +165,7 @@ func main() {
 	case "search":
 		search(args)
 	case "replay":
-		replay(args)
+		err = replay(args)
 	case "help":
 		if len(args) > 0 {
 			help(args[0])

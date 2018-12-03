@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -74,7 +75,7 @@ func (si *shardedOldIndex) doPostingQuery(query *oldindex.Query) []string {
 	return possible
 }
 
-func (si *shardedOldIndex) measure(idx int, query string, _ bool) (measurement, error) {
+func (si *shardedOldIndex) measure(idx int, query string, _, skipFile, skipGrep bool) (measurement, error) {
 	m := measurement{
 		Index: idx,
 		Query: query,
@@ -114,12 +115,13 @@ func (si *shardedOldIndex) measure(idx int, query string, _ bool) (measurement, 
 	files = sourcebackend.FilterByKeywords(&rewritten, files)
 	m.FilesSearched = len(files)
 	m.PostingNano = int64(time.Since(start))
-	m.Matches = grep(rewritten.Query().Get("q"), files, rankingopts)
+	m.Matches = grep(rewritten.Query().Get("q"), files, rankingopts, skipFile, skipGrep)
 	m.TotalNano = int64(time.Since(start))
 
 	return m, nil
 }
 
+// TODO: refactor to verifyBundle(), use bcmills concurrency pattern
 func verifyMatches(query string, files ranking.ResultPaths) (filesSearched int, matches int, _ error) {
 	rqb := []byte(query)
 	// matchFile, err := os.Create("/tmp/matchfile.pos.txt")
@@ -203,7 +205,7 @@ func verifyMatches(query string, files ranking.ResultPaths) (filesSearched int, 
 	return filesSearched, matches, nil
 }
 
-func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOpts) int {
+func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOpts, skipFile, skipGrep bool) int {
 	// While not strictly necessary, this will lead to better results being
 	// discovered (and returned!) earlier, so let’s spend a few cycles on
 	// sorting the list of potential files first.
@@ -241,6 +243,7 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 	var (
 		matchCntMu sync.Mutex
 		matchCnt   int
+		buf        = make([]byte, 0, 16384)
 	)
 	numWorkers := 1000
 	if len(files) < 1000 {
@@ -274,13 +277,28 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 				}
 
 				// TODO: figure out how to safely clone a dcs/regexp
-				matches := grep.File(file.Path)
-				matchCntMu.Lock()
-				matchCnt += len(matches)
-				// for _, match := range matches {
-				// 	fmt.Fprintf(matchFile, "%s:%d\n", match.Path, match.Line)
-				// }
-				matchCntMu.Unlock()
+				if !skipFile {
+					if skipGrep {
+						if f, err := os.Open(file.Path); err == nil {
+							if st, err := f.Stat(); err == nil {
+								size := int(st.Size())
+								if cap(buf) < size {
+									size = cap(buf)
+								}
+								io.ReadFull(f, buf[:size])
+							}
+							f.Close()
+						}
+					} else {
+						matches := grep.File(file.Path)
+						matchCntMu.Lock()
+						matchCnt += len(matches)
+						// for _, match := range matches {
+						// 	fmt.Fprintf(matchFile, "%s:%d\n", match.Path, match.Line)
+						// }
+						matchCntMu.Unlock()
+					}
+				}
 				wg.Done()
 			}
 		}()
@@ -376,7 +394,7 @@ func (si *shardedNewIndex) doPostingQueryPos(query string) []entry {
 	return possible
 }
 
-func (si *shardedNewIndex) measure(idx int, query string, pos bool) (measurement, error) {
+func (si *shardedNewIndex) measure(idx int, query string, pos, skipFile, skipGrep bool) (measurement, error) {
 	m := measurement{
 		Index: idx,
 		Query: query,
@@ -417,12 +435,14 @@ func (si *shardedNewIndex) measure(idx int, query string, pos bool) (measurement
 		}
 		files = sourcebackend.FilterByKeywords(&rewritten, files)
 		m.PostingNano = int64(time.Since(start))
-		filesSearched, matches, err := verifyMatches(string(s.Rune), files)
-		if err != nil {
-			return m, err
+		if !skipFile {
+			filesSearched, matches, err := verifyMatches(string(s.Rune), files)
+			if err != nil {
+				return m, err
+			}
+			m.FilesSearched = filesSearched
+			m.Matches = matches
 		}
-		m.FilesSearched = filesSearched
-		m.Matches = matches
 		m.TotalNano = int64(time.Since(start))
 	} else {
 		possible := si.doPostingQuery(index.RegexpQuery(re.Syntax))
@@ -439,17 +459,17 @@ func (si *shardedNewIndex) measure(idx int, query string, pos bool) (measurement
 		files = sourcebackend.FilterByKeywords(&rewritten, files)
 		m.FilesSearched = len(files)
 		m.PostingNano = int64(time.Since(start))
-		m.Matches = grep(rewritten.Query().Get("q"), files, rankingopts)
+		m.Matches = grep(rewritten.Query().Get("q"), files, rankingopts, skipFile, skipGrep)
 		m.TotalNano = int64(time.Since(start))
 	}
 	return m, nil
 }
 
 type measurer interface {
-	measure(idx int, query string, pos bool) (measurement, error)
+	measure(idx int, query string, pos, skipFile, skipGrep bool) (measurement, error)
 }
 
-func logic(logPath string, old, pos bool, debug int) error {
+func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) error {
 	var measurer measurer
 	if old {
 		si := &shardedOldIndex{}
@@ -484,7 +504,7 @@ func logic(logPath string, old, pos bool, debug int) error {
 		}
 
 		log.Printf("query: %s", query)
-		m, err := measurer.measure(idx, query, pos)
+		m, err := measurer.measure(idx, query, pos, skipFile, skipGrep)
 		if err != nil {
 			log.Printf("query %q failed: %v", query, err)
 			continue
@@ -497,25 +517,23 @@ func logic(logPath string, old, pos bool, debug int) error {
 
 }
 
-func replay(args []string) {
-	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	var logPath string
-	fs.StringVar(&logPath, "log", "", "path to the query log file to replay (1 query per line)")
-	var old bool
-	fs.BoolVar(&old, "old", false, "use the old index")
-	var pos bool
-	fs.BoolVar(&pos, "pos", false, "use the pos index")
-	var debug int
-	fs.IntVar(&debug, "debug", -1, "if not -1, query index of the query to debug")
-	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+func replay(args []string) error {
+	fset := flag.NewFlagSet("replay", flag.ExitOnError)
+	var (
+		logPath  = fset.String("log", "", "path to the query log file to replay (1 query per line)")
+		old      = fset.Bool("old", false, "use the old index")
+		pos      = fset.Bool("pos", false, "use the pos index")
+		debug    = fset.Int("debug", -1, "if not -1, query index of the query to debug")
+		skipFile = fset.Bool("skip_file", false, "index only")
+		skipGrep = fset.Bool("skip_matching", false, "index + i/o")
+	)
+	if err := fset.Parse(args); err != nil {
+		return err
 	}
-	if logPath == "" {
-		fs.Usage()
+	if *logPath == "" {
+		fset.Usage()
 		os.Exit(1)
 	}
 
-	if err := logic(logPath, old, pos, debug); err != nil {
-		log.Fatal(err)
-	}
+	return logic(*logPath, *old, *pos, *debug, *skipFile, *skipGrep)
 }
