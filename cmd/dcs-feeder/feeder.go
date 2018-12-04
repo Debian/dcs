@@ -27,9 +27,9 @@ import (
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/shardmapping"
-	"github.com/paultag/go-debian/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stapelberg/godebiancontrol"
+	"pault.ag/go/debian/version"
 
 	_ "net/http/pprof"
 

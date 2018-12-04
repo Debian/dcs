@@ -34,8 +34,6 @@ github.com/opentracing-contrib/go-stdlib v0.0.0-20181101210145-c9628a4f0148 h1:2
 github.com/opentracing-contrib/go-stdlib v0.0.0-20181101210145-c9628a4f0148/go.mod h1:PLldrQSroqzH70Xl+1DQcGnefIbqsKR7UDaiux3zV+w=
 github.com/opentracing/opentracing-go v1.0.2 h1:3jA2P6O1F9UOrWVpwrIo17pu01KWvNWg4X946/Y5Zwg=
 github.com/opentracing/opentracing-go v1.0.2/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
-github.com/paultag/go-debian v0.0.0-20180722221659-90aeb542bd40 h1:FuIkOKtlXVBjKYRPXaLV6YsW1xm+y/qkPFOW72Ig5p4=
-github.com/paultag/go-debian v0.0.0-20180722221659-90aeb542bd40/go.mod h1:mFbIUw0M7R8rd/lGN/MATmICsE610rgTuEdp3WMKpL8=
 github.com/pebbe/zmq4 v1.0.0 h1:D+MSmPpqkL5PSSmnh8g51ogirUCyemThuZzLW7Nrt78=
 github.com/pebbe/zmq4 v1.0.0/go.mod h1:7N4y5R18zBiu3l0vajMUWQgZyjv464prE8RCyBcmnZM=
 github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=
@@ -84,3 +82,5 @@ google.golang.org/genproto v0.0.0-20181202183823-bd91e49a0898/go.mod h1:7Ep/1NZk
 google.golang.org/grpc v1.16.0 h1:dz5IJGuC2BB7qXR5AyHNwAUBhZscK2xVez7mznh72sY=
 google.golang.org/grpc v1.16.0/go.mod h1:0JHn/cJsOMiMfNA9+DeHDlAU7KAAB5GDlYFpa9MZMio=
 honnef.co/go/tools v0.0.0-20180728063816-88497007e858/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+pault.ag/go/debian v0.0.0-20180722221659-90aeb542bd40 h1:Lj4XijypGC6axuviWYdRScXAwFG1bmWHaE24x8pRCo4=
+pault.ag/go/debian v0.0.0-20180722221659-90aeb542bd40/go.mod h1:VDY3vXzmAJ14k1oEAIL9JBZesXLzKJUPY8h/kDYmEY0=

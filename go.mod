@@ -14,7 +14,6 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20181101210145-c9628a4f0148
 	github.com/opentracing/opentracing-go v1.0.2
-	github.com/paultag/go-debian v0.0.0-20180722221659-90aeb542bd40
 	github.com/pebbe/zmq4 v1.0.0
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -33,6 +32,7 @@ require (
 	golang.org/x/sys v0.0.0-20181128092732-4ed8d59d0b35
 	google.golang.org/genproto v0.0.0-20181202183823-bd91e49a0898 // indirect
 	google.golang.org/grpc v1.16.0
+	pault.ag/go/debian v0.0.0-20180722221659-90aeb542bd40
 )
 
 replace github.com/stapelberg/goturbopfor => /home/michael/go/src/goturbopfor
