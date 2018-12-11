@@ -249,6 +249,11 @@ func importTestdata(packageImporterAddr string) error {
 		pkg := strings.TrimSuffix(filepath.Base(dsc), ".dsc")
 		log.Printf("Importing package %q (files %v, dsc %s)\n", pkg, rest, dsc)
 		for _, file := range append(rest, dsc) {
+			for _, dir := range []string{"idx", "src"} {
+				if err := os.RemoveAll(filepath.Join(*shardPath, dir, pkg)); err != nil {
+					return err
+				}
+			}
 			if err := feed(packageImporter, pkg, file); err != nil {
 				return err
 			}
