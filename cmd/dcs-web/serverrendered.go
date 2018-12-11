@@ -196,6 +196,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		"q":           r.Form.Get("q"),
 		"q_escaped":   escapeForUrl(r.Form.Get("q")),
 		"page":        page,
+		"host":        r.Host,
 		"version":     common.Version,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -265,6 +266,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			"criticalcss": common.CriticalCss,
 			"q":           r.Form.Get("q"),
 			"q_escaped":   qEscaped,
+			"host":        r.Host,
 			"version":     common.Version,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -343,6 +345,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"q":           r.Form.Get("q"),
 		"q_escaped":   qEscaped,
 		"page":        page,
+		"host":        r.Host,
 		"version":     common.Version,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

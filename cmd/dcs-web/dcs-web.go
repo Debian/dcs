@@ -561,6 +561,7 @@ func main() {
 		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
 			"version":     common.Version,
+			"host":        r.Host,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -604,6 +605,7 @@ func main() {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
 			"version":     common.Version,
+			"host":        r.Host,
 			"q":           "%q%",
 			"q_escaped":   "%q_escaped%",
 		}); err != nil {
