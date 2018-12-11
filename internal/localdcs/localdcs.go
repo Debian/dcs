@@ -246,8 +246,7 @@ func importTestdata(packageImporterAddr string) error {
 		// rest [
 		//   testdata/pool/main/i/i3-wm/i3-wm_4.5.1-2.debian.tar.gz
 		//   testdata/pool/main/i/i3-wm/i3-wm_4.5.1.orig.tar.bz2]
-		pkg := filepath.Base(dsc)
-		pkg = pkg[:len(pkg)-len(filepath.Ext(pkg))]
+		pkg := strings.TrimSuffix(filepath.Base(dsc), ".dsc")
 		log.Printf("Importing package %q (files %v, dsc %s)\n", pkg, rest, dsc)
 		for _, file := range append(rest, dsc) {
 			if err := feed(packageImporter, pkg, file); err != nil {
