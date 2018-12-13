@@ -69,12 +69,7 @@ pre {
   <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
   </div>
   <p class="section"><a href="/">CODE SEARCH</a></p>
-  <div id="searchbox">
-<form action="/search" method="get">
-<input type="text" name="q" value="{{.q}}">
-<input type="submit" value="Search">
-</form>
-  </div>
+{{ template "searchbox.html" . }}
  </div>
 <div id="navbar">
 <p class="hidecss"><a href="#content">Skip Quicknav</a></p>

@@ -68,14 +68,18 @@ function progress(percentage, temporary, text) {
     }
 }
 
-function sendQuery(term) {
+function sendQuery(term, literal) {
     $('#normalresults').show();
     $('#progressbar').show();
     $('#options').hide();
     $('#packageshint').hide();
+    var query = term;
+    if (literal) {
+	query = '\\Q' + query + '\\E';
+    }
     if (typeof(EventSource) !== 'undefined') {
         // EventSource is supported by Chrome 9+ and Firefox 6+.
-        var eventsrc = new EventSource("/events/?q=" + term);
+        var eventsrc = new EventSource("/events/?q=" + query);
         eventsrc.onmessage = onEvent;
     } else {
         // Fall back to WebSockets, which need an additional round trip
@@ -83,7 +87,7 @@ function sendQuery(term) {
         var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
         var connection = new WebSocket(websocket_url);
         var queryMsg = JSON.stringify({
-            "Query": "q=" + encodeURIComponent(searchterm)
+            "Query": "q=" + encodeURIComponent(query)
         });
         connection.onopen = function() {
             connection.send(queryMsg);
@@ -591,13 +595,15 @@ $(window).load(function() {
         location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
         var parts = new RegExp("results/([^/]+)").exec(location.pathname);
         searchterm = decodeURIComponent(parts[1]);
-        sendQuery(parts[1]);
+        sendQuery(parts[1], false);
     }
 
     if (location.pathname === '/search') {
         var sp = new URLSearchParams(location.search.slice(1));
         searchterm = sp.get('q');
-        sendQuery(encodeURIComponent(searchterm));
+	var literal = sp.get('literal') === '1';
+	$('#searchbox option[value=' + (literal ? '1' : '0') + ']').prop('selected', true);
+        sendQuery(encodeURIComponent(searchterm), literal);
     }
 
     // This is triggered when the user navigates (e.g. via back button) between

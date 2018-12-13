@@ -189,6 +189,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		"packages":    packages,
 		"pagination":  template.HTML(pagination),
 		"q":           r.Form.Get("q"),
+		"literal":     r.Form.Get("literal") == "1",
 		"page":        page,
 		"host":        r.Host,
 		"version":     common.Version,
@@ -201,6 +202,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 // q= search term
 // page= page number
 // perpkg= per-package grouping
+// literal= literal vs. regex search
 func Search(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
@@ -209,16 +211,21 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	src := r.RemoteAddr
-	if r.Form.Get("q") == "" {
+	query := r.Form.Get("q")
+	if query == "" {
 		http.Error(w, "Empty query", http.StatusNotFound)
 		return
 	}
+	literal := r.Form.Get("literal") == "1"
+	if literal {
+		query = `\Q` + query + `\E`
+	}
 
 	span := opentracing.SpanFromContext(ctx)
-	span.SetOperationName("Serverrendered: " + r.Form.Get("q"))
+	span.SetOperationName("Serverrendered: " + query)
 
 	// We encode a URL that contains _only_ the q parameter.
-	q := url.Values{"q": []string{r.Form.Get("q")}}.Encode()
+	q := url.Values{"q": []string{query}}.Encode()
 
 	pageStr := r.Form.Get("page")
 	if pageStr == "" {
@@ -258,6 +265,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
 			"q":           r.Form.Get("q"),
+			"literal":     literal,
 			"host":        r.Host,
 			"version":     common.Version,
 		}); err != nil {
@@ -335,6 +343,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"packages":    packages,
 		"pagination":  template.HTML(pagination),
 		"q":           r.Form.Get("q"),
+		"literal":     literal,
 		"page":        page,
 		"host":        r.Host,
 		"version":     common.Version,

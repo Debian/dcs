@@ -38,6 +38,10 @@ vim:ts=4:sw=4:expandtab
 <p>Search all 130 GiB of source code within Debian:</p>
 <form id="searchform" action="/search" method="get" style="display: inline-block">
 <input type="text" name="q" autofocus="autofocus">
+<select name="literal">
+<option value="1" selected>literal</option>
+<option value="0">regex</opiton>
+</select>
 <input type="submit" value="Search">
 </form>
 <p>

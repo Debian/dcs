@@ -1,0 +1,10 @@
+<div id="searchbox">
+<form action="/search" method="get">
+<input type="text" name="q" value="{{.q}}">
+<select name="literal">
+<option value="1" {{ if .literal }}selected{{ end }}>literal</option>
+<option value="0" {{ if not .literal }}selected{{ end }}>regex</opiton>
+</select>
+<input type="submit" value="Search">
+</form>
+</div>

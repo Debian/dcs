@@ -607,6 +607,7 @@ func main() {
 			"version":     common.Version,
 			"host":        r.Host,
 			"q":           "%q%",
+			"literal":     true,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

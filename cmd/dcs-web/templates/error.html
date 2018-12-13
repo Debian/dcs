@@ -68,12 +68,7 @@ pre {
   <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
   </div> <!-- end logo -->
   <p class="section"><a href="/">Code Search</a></p>
-  <div id="searchbox">
-<form action="/search" method="get">
-<input type="text" name="q" value="{{.q}}">
-<input type="submit" value="Search">
-</form>
-  </div>
+{{ template "searchbox.html" . }}
  </div> <!-- end upperheader -->
 <!--UdmComment-->
 <div id="navbar">
