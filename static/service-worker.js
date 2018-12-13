@@ -82,25 +82,14 @@ self.addEventListener("fetch", function(event) {
             if (!response) {
                 return fetch(event.request);
             }
-            // URLSearchParams is not available on all browsers yet.
-            var searchParams = u.search.slice(1).split('&');
-            var q;
-            var qEscaped;
-            for (var i = 0, len = searchParams.length; i < len; i++) {
-                if (searchParams[i].indexOf('q=') === 0) {
-                    qEscaped = searchParams[i].substr('q='.length);
-                    q = decodeURIComponent(qEscaped.replace(/\+/g, ' '));
-                    break;
-                }
-            }
+	    var q = u.searchParams.get('q')
             if (q === undefined) {
                 return response;
             }
 
-            // HTML escape q and qEscaped so that they are safe to
-            // string-replace into the placeholder document.
+            // HTML escape q so that it is safe to string-replace into the
+            // placeholder document.
             q = escapeHtml(q);
-            qEscaped = escapeHtml(qEscaped);
 
             var init = {
                 status: response.status,
@@ -112,7 +101,6 @@ self.addEventListener("fetch", function(event) {
             });
             return response.text().then(function(body) {
                 var replaced = body.replace(/%q%/g, q);
-                replaced = replaced.replace(/%q_escaped%/g, qEscaped);
                 return new Response(replaced, init);
             });
         }));
