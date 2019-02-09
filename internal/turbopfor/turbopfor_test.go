@@ -135,8 +135,9 @@ func TestChunkedEncode(t *testing.T) {
 
 	var got []byte
 	for len(input) >= 256 {
-		tmp := turbopfor.P4enc256v32(input)
-		got = append(got, tmp...)
+		tmp := make([]byte, turbopfor.Size(input))
+		n := turbopfor.P4enc256v32(input, tmp)
+		got = append(got, tmp[:n]...)
 		input = input[256:]
 	}
 	got = append(got, turbopfor.P4enc32(input)...)

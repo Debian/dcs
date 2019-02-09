@@ -40,6 +40,9 @@ static int minlen(unsigned cnt) {
 }
 */
 import "C"
+import (
+	"sync"
+)
 
 // KNOWN WORKING
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
@@ -62,14 +65,29 @@ func P4enc32(input []uint32) []byte {
 	return buffer[:int(num)]
 }
 
-// len(input) % 32 must be 0 (pad with 0x00 if necessary).
-func P4enc256v32(input []uint32) []byte {
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 4096) // TODO: tune
+	},
+}
+
+func Size(input []uint32) int {
 	n := len(input)
-	buffer := make([]byte, ((n+127)/128)+(n+32)*4)
+	return ((n + 127) / 128) + (n+32)*4
+}
+
+// len(input) % 32 must be 0 (pad with 0x00 if necessary).
+func P4enc256v32(input []uint32, output []byte) int {
+	buffer := bufPool.Get().([]byte)
+	if sz := Size(input); cap(buffer) < sz {
+		buffer = make([]byte, sz)
+	}
 	num := C.myp4enc256v32((*C.uint32_t)(&input[0]),
 		C.unsigned(len(input)),
 		(*C.uchar)(&buffer[0]))
-	return buffer[:int(num)]
+	copy(output, buffer[:int(num)])
+	bufPool.Put(buffer)
+	return int(num)
 }
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
