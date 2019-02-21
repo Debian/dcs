@@ -154,7 +154,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	cached, err := maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
-		log.Printf("[%s] could not start query: %v\n", src, err)
+		log.Printf("[%s] could not start query: %+v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
 		return
 	}

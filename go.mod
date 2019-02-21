@@ -30,6 +30,7 @@ require (
 	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
 	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
 	golang.org/x/sys v0.0.0-20181128092732-4ed8d59d0b35
+	golang.org/x/xerrors v0.0.0-20190212162355-a5947ffaace3
 	google.golang.org/genproto v0.0.0-20181202183823-bd91e49a0898 // indirect
 	google.golang.org/grpc v1.16.0
 	pault.ag/go/debian v0.0.0-20180722221659-90aeb542bd40
