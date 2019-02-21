@@ -31,7 +31,6 @@ TODO
 
 Example:
   % dcs replay -log=/home/michael/dcs-logs/2018-03-15/one-query-per-line.txt
-
 `
 
 type measurement struct {
@@ -519,21 +518,28 @@ func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) er
 
 func replay(args []string) error {
 	fset := flag.NewFlagSet("replay", flag.ExitOnError)
-	var (
-		logPath  = fset.String("log", "", "path to the query log file to replay (1 query per line)")
-		old      = fset.Bool("old", false, "use the old index")
-		pos      = fset.Bool("pos", false, "use the pos index")
-		debug    = fset.Int("debug", -1, "if not -1, query index of the query to debug")
-		skipFile = fset.Bool("skip_file", false, "index only")
-		skipGrep = fset.Bool("skip_matching", false, "index + i/o")
-	)
+	fset.Usage = usage(fset, replayHelp)
+
+	var logPath string
+	fset.StringVar(&logPath, "log", "", "path to the query log file to replay (1 query per line)")
+	var old bool
+	fset.BoolVar(&old, "old", false, "use the old index")
+	var pos bool
+	fset.BoolVar(&pos, "pos", false, "use the pos index")
+	var debug int
+	fset.IntVar(&debug, "debug", -1, "if not -1, query index of the query to debug")
+	var skipFile bool
+	fset.BoolVar(&skipFile, "skip_file", false, "index only")
+	var skipGrep bool
+	fset.BoolVar(&skipGrep, "skip_matching", false, "index + i/o")
+
 	if err := fset.Parse(args); err != nil {
 		return err
 	}
-	if *logPath == "" {
+	if logPath == "" {
 		fset.Usage()
 		os.Exit(1)
 	}
 
-	return logic(*logPath, *old, *pos, *debug, *skipFile, *skipGrep)
+	return logic(logPath, old, pos, debug, skipFile, skipGrep)
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/Debian/dcs/internal/index"
@@ -14,38 +13,38 @@ const postingHelp = `posting - list the (decoded) posting list for the specified
 Example:
   % dcs posting -idx=/srv/dcs/full -trigram=i3F -section=docid
   % dcs posting -idx=/srv/dcs/full -trigram=i3F -section=docid -deltas
-
 `
 
-func posting(args []string) {
-	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+func posting(args []string) error {
+	fset := flag.NewFlagSet("posting", flag.ExitOnError)
+	fset.Usage = usage(fset, postingHelp)
 	var idx string
-	fs.StringVar(&idx, "idx", "", "path to the index file to work with")
+	fset.StringVar(&idx, "idx", "", "path to the index file to work with")
 	var trigram string
-	fs.StringVar(&trigram, "trigram", "", "trigram to read (%c%c%c)")
+	fset.StringVar(&trigram, "trigram", "", "trigram to read (%c%c%c)")
 	var section string
-	fs.StringVar(&section, "section", "", "Index section to print (one of docid, pos)")
+	fset.StringVar(&section, "section", "", "Index section to print (one of docid, pos)")
 	var rawDeltas bool
-	fs.BoolVar(&rawDeltas, "deltas", false, "display the raw deltas instead of decoding them")
-	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+	fset.BoolVar(&rawDeltas, "deltas", false, "display the raw deltas instead of decoding them")
+	if err := fset.Parse(args); err != nil {
+		return err
 	}
 	if idx == "" || trigram == "" || section == "" {
-		fs.Usage()
+		fset.Usage()
 		os.Exit(1)
 	}
 	if section != "docid" && section != "pos" {
-		log.Fatalf("invalid -section=%s: expected one of docid, pos", section)
+		return fmt.Errorf("invalid -section=%s: expected one of docid, pos", section)
 	}
 	if len(trigram) < 3 {
-		log.Fatalf("invalid -trigram=%s syntax: expected 3 bytes, got %d bytes", trigram, len(trigram))
+		return fmt.Errorf("invalid -trigram=%s syntax: expected 3 bytes, got %d bytes", trigram, len(trigram))
 	}
 	t := []byte(trigram)
 	tri := index.Trigram(uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2]))
 
 	i, err := index.Open(idx)
 	if err != nil {
-		log.Fatalf("Could not open index: %v", err)
+		return fmt.Errorf("Could not open index: %v", err)
 	}
 	defer i.Close()
 
@@ -56,7 +55,7 @@ func posting(args []string) {
 		deltas, err = i.Pos.Deltas(tri)
 	}
 	if err != nil {
-		log.Fatalf("Getting trigram deltas for section %s: %v", section, err)
+		return fmt.Errorf("Getting trigram deltas for section %s: %v", section, err)
 	}
 	if !rawDeltas {
 		var prev uint32
@@ -69,4 +68,5 @@ func posting(args []string) {
 	for _, delta := range deltas {
 		fmt.Println(delta)
 	}
+	return nil
 }

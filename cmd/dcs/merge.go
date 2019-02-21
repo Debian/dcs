@@ -14,23 +14,24 @@ Reads the specified index files, and combines them into one large index.
 
 Example:
   % dcs merge -idx=/tmp/full.idx /tmp/i3.idx /tmp/zsh.idx
-
 `
 
-func merge(args []string) {
-	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+func merge(args []string) error {
+	fset := flag.NewFlagSet("merge", flag.ExitOnError)
+	fset.Usage = usage(fset, mergeHelp)
 	var idx string
-	fs.StringVar(&idx, "idx", "", "path to the index file to work with")
-	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+	fset.StringVar(&idx, "idx", "", "path to the index file to work with")
+	if err := fset.Parse(args); err != nil {
+		return err
 	}
-	if idx == "" || fs.NArg() == 0 {
-		fs.Usage()
+	if idx == "" || fset.NArg() == 0 {
+		fset.Usage()
 		os.Exit(1)
 	}
 
-	log.Printf("merging %d files into %s", len(fs.Args()), idx)
-	if err := index.ConcatN(idx, fs.Args()); err != nil {
-		log.Fatal(err)
+	log.Printf("merging %d files into %s", len(fset.Args()), idx)
+	if err := index.ConcatN(idx, fset.Args()); err != nil {
+		return err
 	}
+	return nil
 }

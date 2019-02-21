@@ -17,7 +17,6 @@ Example:
   % dcs du -h /srv/dcs/shard*/full
   % dcs du -h -pos /srv/dcs/shard*/full
   % dcs du -h -pos /srv/dcs/shard*/idx/* # per-package
-
 `
 
 func humanReadableBytes(v int64) string {
@@ -50,10 +49,11 @@ func measure(dir string, pos bool) (int64, error) {
 
 func du(args []string) error {
 	fset := flag.NewFlagSet("du", flag.ExitOnError)
-	var (
-		pos = fset.Bool("pos", false, "measure positional index section, too")
-		h   = fset.Bool("h", false, "human readable output")
-	)
+	fset.Usage = usage(fset, duHelp)
+	var pos bool
+	fset.BoolVar(&pos, "pos", false, "measure positional index section, too")
+	var h bool
+	fset.BoolVar(&h, "h", false, "human readable output")
 	if err := fset.Parse(args); err != nil {
 		return err
 	}
@@ -61,12 +61,12 @@ func du(args []string) error {
 		return fmt.Errorf("Usage: du <index> [<index>…]")
 	}
 	format := func(v int64) string { return fmt.Sprintf("%d", v) }
-	if *h {
+	if h {
 		format = humanReadableBytes
 	}
 	var total int64
 	for _, dir := range fset.Args() {
-		size, err := measure(dir, *pos)
+		size, err := measure(dir, pos)
 		if err != nil {
 			return err
 		}

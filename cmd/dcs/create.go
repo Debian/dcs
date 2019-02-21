@@ -19,18 +19,18 @@ configure scripts) are ignored by DCS.
 
 Example:
   % dcs create -idx=/tmp/i3.idx ~/i3
-
 `
 
-func create(args []string) {
-	fs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+func create(args []string) error {
+	fset := flag.NewFlagSet("create", flag.ExitOnError)
+	fset.Usage = usage(fset, createHelp)
 	var idx string
-	fs.StringVar(&idx, "idx", "", "path to the index file to work with")
-	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+	fset.StringVar(&idx, "idx", "", "path to the index file to work with")
+	if err := fset.Parse(args); err != nil {
+		return err
 	}
-	if idx == "" || fs.NArg() != 1 {
-		fs.Usage()
+	if idx == "" || fset.NArg() != 1 {
+		fset.Usage()
 		os.Exit(1)
 	}
 
@@ -38,12 +38,12 @@ func create(args []string) {
 
 	w, err := index.Create(idx)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err := w.AddDir(
-		fs.Arg(0),
-		filepath.Clean(fs.Arg(0))+"/",
+		fset.Arg(0),
+		filepath.Clean(fset.Arg(0))+"/",
 		filter.Ignored,
 		func(path string, _ os.FileInfo, err error) error {
 			log.Printf("skipping %q: %v", path, err)
@@ -51,10 +51,11 @@ func create(args []string) {
 		},
 		nil,
 	); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err := w.Flush(); err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }

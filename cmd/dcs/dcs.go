@@ -19,6 +19,8 @@ const globalHelp = `dcs - Debian Code Search swiss-army knife
 
 Syntax: dcs [global flags] <command> [flags] [args]
 
+To get help on any command, use dcs <command> -help or dcs help <command>.
+
 Index query commands:
 	du       — shows disk usage of the specified index files
 	docids   - list the documents covered by this index
@@ -34,46 +36,11 @@ Index manipulation commands:
 	merge    - merge multiple index files into one
 `
 
-func help(topic string) {
-	var err error
-	switch topic {
-	case "du":
-		fmt.Fprintf(os.Stdout, "%s", duHelp)
-		err = du([]string{"-help"})
-	case "raw":
-		fmt.Fprintf(os.Stdout, "%s", rawHelp)
-		err = raw([]string{"-help"})
-	case "trigram":
-		fmt.Fprintf(os.Stdout, "%s", trigramHelp)
-		trigram([]string{"-help"})
-	case "docids":
-		fmt.Fprintf(os.Stdout, "%s", docidsHelp)
-		docids([]string{"-help"})
-	case "posting":
-		fmt.Fprintf(os.Stdout, "%s", postingHelp)
-		posting([]string{"-help"})
-	case "matches":
-		fmt.Fprintf(os.Stdout, "%s", matchesHelp)
-		matches([]string{"-help"})
-	case "create":
-		fmt.Fprintf(os.Stdout, "%s", createHelp)
-		create([]string{"-help"})
-	case "merge":
-		fmt.Fprintf(os.Stdout, "%s", mergeHelp)
-		merge([]string{"-help"})
-	case "search":
-		fmt.Fprintf(os.Stdout, "%s", searchHelp)
-		search([]string{"-help"})
-	case "replay":
-		fmt.Fprintf(os.Stdout, "%s", replayHelp)
-		err = replay([]string{"-help"})
-	case "":
-		flag.Usage()
-	default:
-		fmt.Fprintf(os.Stderr, "unknown help topic %q", topic)
-	}
-	if err != nil {
-		log.Fatal(err)
+func usage(fset *flag.FlagSet, help string) func() {
+	return func() {
+		fmt.Fprintf(fset.Output(), "%s", help)
+		fmt.Fprintf(fset.Output(), "\nFlags:\n")
+		fset.PrintDefaults()
 	}
 }
 
@@ -91,7 +58,7 @@ func init() {
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "%s", globalHelp)
-		//fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "\nGlobal flags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -144,6 +111,14 @@ func main() {
 		return
 	}
 	cmd, args := args[0], args[1:]
+	if cmd == "help" {
+		if len(args) > 0 {
+			cmd = args[0]
+		} else {
+			cmd = ""
+		}
+		args = []string{"-help"}
+	}
 	var err error
 	switch cmd {
 	case "du":
@@ -151,27 +126,21 @@ func main() {
 	case "raw":
 		err = raw(args)
 	case "trigram":
-		trigram(args)
+		err = trigram(args)
 	case "docids":
-		docids(args)
+		err = docids(args)
 	case "posting":
-		posting(args)
+		err = posting(args)
 	case "matches":
-		matches(args)
+		err = matches(args)
 	case "create":
-		create(args)
+		err = create(args)
 	case "merge":
-		merge(args)
+		err = merge(args)
 	case "search":
-		search(args)
+		err = search(args)
 	case "replay":
 		err = replay(args)
-	case "help":
-		if len(args) > 0 {
-			help(args[0])
-		} else {
-			help("")
-		}
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		flag.Usage()
