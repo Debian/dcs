@@ -370,14 +370,14 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 		tempFilesMu:    &sync.Mutex{},
 	}
 
+	// TODO: it’d be so much better if we would correctly handle ESPACE errors
+	// in the code below (and above), but for that we need to carefully test it.
+	ensureEnoughSpaceAvailable()
+
 	dir := filepath.Join(*queryResultsPath, queryid)
 	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
 		return false, xerrors.Errorf("could not create %q: %w", dir, err)
 	}
-
-	// TODO: it’d be so much better if we would correctly handle ESPACE errors
-	// in the code below (and above), but for that we need to carefully test it.
-	ensureEnoughSpaceAvailable()
 
 	for i := 0; i < len(common.SourceBackendStubs); i++ {
 		querystate.filesTotal[i] = -1
