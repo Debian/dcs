@@ -164,6 +164,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 			if err != nil {
 				return err
 			}
+			defer rd.Close()
 			idxMetaDocid[idx] = indexMeta{docidBase: base, rd: rd}
 		}
 
@@ -176,6 +177,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 			if err != nil {
 				return err
 			}
+			defer rd.Close()
 			idxMetaPos[idx] = indexMeta{docidBase: base, rd: rd}
 		}
 
@@ -184,6 +186,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 			if err != nil {
 				return err
 			}
+			defer rd.Close()
 
 			idxMetaPosrel[idx] = posrelMeta{rd: rd}
 		}
