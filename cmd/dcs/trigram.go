@@ -11,7 +11,8 @@ import (
 const trigramHelp = `trigram - display metadata of the specified trigram
 
 Example:
-  % dcs trigram -idx=/srv/dcs/full -trigram=i3F -section=docid
+  % dcs trigram -idx=/srv/dcs/shard0/full -trigram=i3F -section=docid
+  {Trigram:6894406 Entries:29 OffsetData:618935742}
 `
 
 func trigram(args []string) error {

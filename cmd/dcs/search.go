@@ -14,7 +14,11 @@ import (
 const searchHelp = `search - list the filename[:pos] matches for the specified search query
 
 Example:
-  % dcs search -idx=/srv/dcs/full -query=i3Font
+  % dcs search -idx=/srv/dcs/shard4/full -query=i3Font
+  i3-wm_4.16.1-1/i3-config-wizard/main.c
+  i3-wm_4.16.1-1/i3-input/main.c
+  i3-wm_4.16.1-1/i3-nagbar/main.c
+  […]
 `
 
 func search(args []string) error {

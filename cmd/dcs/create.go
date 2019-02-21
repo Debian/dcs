@@ -12,9 +12,7 @@ import (
 
 const createHelp = `create - create index from specified directory
 
-Creates a Debian Code Search index for the specified directory.
-
-Note that a number of files who don’t add much value (e.g. auto-generated
+Note that a number of files which don’t add much value (e.g. auto-generated
 configure scripts) are ignored by DCS.
 
 Example:

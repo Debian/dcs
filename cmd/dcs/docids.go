@@ -13,8 +13,14 @@ import (
 const docidsHelp = `docids - list the documents covered by this index
 
 Example:
-  % dcs docids -idx=/srv/dcs/full
-  % dcs docids -idx=/srv/dcs/full -doc=3273
+  % dcs docids -idx=/srv/dcs/shard0/full
+  ruby-jquery-turbolinks_2.1.0~dfsg-1/.travis.yml
+  ruby-jquery-turbolinks_2.1.0~dfsg-1/CONTRIBUTING.md
+  ruby-jquery-turbolinks_2.1.0~dfsg-1/Gemfile
+  […]
+
+  % dcs docids -idx=/srv/dcs/shard0/full -doc=388
+  mopidy-somafm_1.1.0-1/tox.ini
 `
 
 func docids(args []string) error {

@@ -15,7 +15,14 @@ Logically, this command calls the trigram command, figures out the data length
 and copies the data to stdout.
 
 Example:
-  % dcs raw -idx=/srv/dcs/full -trigram=i3F -section=docid | hd -v
+  % dcs raw -idx=/srv/dcs/shard4/full -trigram=i3F -section=docid | hd -v
+  00000000  87 0c 39 0e 18 0e ff 0e  72 59 18 48 07 ae 64 25  |..9.....rY.H..d%|
+  00000010  06 0b 20 08 03 23 00 33  c5 36 3b c7 3f 66 b0 06  |.. ..#.3.6;.?f..|
+  00000020  0b 34 0a 02 40 09 cc 80  30 0d 00 f8 81 30 70 59  |.4..@...0....0pY|
+  00000030  37 06 82 7e 80 73 28 64  1c 8b d0 f5 2e 0e 04 02  |7..~.s(d........|
+  00000040  3d a3 8d 16 08 04 04 0c  13 fc 61 c6 f3 7e 17 43  |=.........a..~.C|
+  00000050  fa 08                                             |..|
+  00000052
 `
 
 func raw(args []string) error {

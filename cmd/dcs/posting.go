@@ -11,8 +11,17 @@ import (
 const postingHelp = `posting - list the (decoded) posting list for the specified trigram
 
 Example:
-  % dcs posting -idx=/srv/dcs/full -trigram=i3F -section=docid
-  % dcs posting -idx=/srv/dcs/full -trigram=i3F -section=docid -deltas
+  % dcs posting -idx=/srv/dcs/shard0/full -trigram=i3F -section=docid
+  64747
+  64932
+  181029
+  […]
+
+  % dcs posting -idx=/srv/dcs/shard0/full -trigram=i3F -section=docid -deltas
+  64747
+  185
+  116097
+  […]
 `
 
 func posting(args []string) error {

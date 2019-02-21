@@ -11,7 +11,12 @@ import (
 const matchesHelp = `matches - list the filename[:pos] matches for the specified trigram
 
 Example:
-  % dcs matches -idx=/srv/dcs/full -trigram=i3F
+  % dcs matches -idx=/srv/dcs/shard4/full -trigram=i3F
+  […]
+  i3-wm_4.16.1-1/i3-config-wizard/main.c:2259
+  i3-wm_4.16.1-1/i3-config-wizard/main.c:2279
+  i3-wm_4.16.1-1/i3-input/main.c:1155
+  […]
 `
 
 func matches(args []string) error {

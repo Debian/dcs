@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 )
 
@@ -14,9 +13,34 @@ Think du(1), but for index files, optionally including positional sections.
 
 Example:
   % dcs du -h /srv/dcs/shard0/full
+  981.0M /srv/dcs/shard0/full
+  981.0M total
+
   % dcs du -h /srv/dcs/shard*/full
+  981.0M /srv/dcs/shard0/full
+  1.0G /srv/dcs/shard1/full
+  1.2G /srv/dcs/shard2/full
+  1.2G /srv/dcs/shard3/full
+  1.6G /srv/dcs/shard4/full
+  1.3G /srv/dcs/shard5/full
+  7.3G total
+
   % dcs du -h -pos /srv/dcs/shard*/full
+  14.8G /srv/dcs/shard0/full
+  15.7G /srv/dcs/shard1/full
+  16.3G /srv/dcs/shard2/full
+  19.9G /srv/dcs/shard3/full
+  24.1G /srv/dcs/shard4/full
+  19.3G /srv/dcs/shard5/full
+  110.0G total
+
   % dcs du -h -pos /srv/dcs/shard*/idx/* # per-package
+  […]
+  4.4M /srv/dcs/shard5/idx/zypper_1.14.11-1
+  3.9M /srv/dcs/shard5/idx/zziplib_0.13.62-3.1
+  595.0K /srv/dcs/shard5/idx/zzzeeksphinx_1.0.20-2
+  150.7K /srv/dcs/shard5/idx/zzz-to-char_0.1.3-1
+  143.0G total
 `
 
 func humanReadableBytes(v int64) string {
@@ -70,10 +94,10 @@ func du(args []string) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("%v %s", format(size), dir)
+		fmt.Printf("%v %s\n", format(size), dir)
 		total += size
 	}
-	log.Printf("%v total", format(total))
+	fmt.Printf("%v total\n", format(total))
 	return nil
 }
 
