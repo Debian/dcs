@@ -7,6 +7,8 @@ import (
 )
 
 func rewrite(t *testing.T, urlstr string) url.URL {
+	t.Helper()
+
 	baseQuery, err := url.Parse(urlstr)
 	if err != nil {
 		t.Fatal(err)
@@ -76,8 +78,7 @@ func TestRewriteQuery(t *testing.T) {
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
-	pkg := rewritten.Query().Get("package")
-	if pkg != "i3-WM" {
+	if pkg := rewritten.Query().Get("package"); pkg != "i3-WM" {
 		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
 	}
 
@@ -87,8 +88,7 @@ func TestRewriteQuery(t *testing.T) {
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
-	pkg = rewritten.Query().Get("npackage")
-	if pkg != "i3-WM" {
+	if pkg := rewritten.Query().Get("npackage"); pkg != "i3-WM" {
 		t.Fatalf("Expected npackage %q, got %q", "i3-WM", pkg)
 	}
 
@@ -98,8 +98,7 @@ func TestRewriteQuery(t *testing.T) {
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
-	pkg = rewritten.Query().Get("package")
-	if pkg != "i3-WM" {
+	if pkg := rewritten.Query().Get("package"); pkg != "i3-WM" {
 		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
 	}
 
@@ -109,8 +108,7 @@ func TestRewriteQuery(t *testing.T) {
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
-	pkg = rewritten.Query().Get("npackage")
-	if pkg != "i3-WM" {
+	if pkg := rewritten.Query().Get("npackage"); pkg != "i3-WM" {
 		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
 	}
 
@@ -131,8 +129,7 @@ func TestRewriteQuery(t *testing.T) {
 	if querystr != "searchterm" {
 		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
 	}
-	pkg = rewritten.Query().Get("package")
-	if pkg != "i3-WM" {
+	if pkg := rewritten.Query().Get("package"); pkg != "i3-WM" {
 		t.Fatalf("Expected package %q, got %q", "i3-WM", pkg)
 	}
 	filetype = rewritten.Query().Get("filetype")
