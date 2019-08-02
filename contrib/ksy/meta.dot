@@ -1,0 +1,31 @@
+digraph {
+	rankdir=LR;
+	node [shape=plaintext];
+	subgraph cluster__meta {
+		label="Meta";
+		graph[style=dotted];
+
+		meta__seq [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+			<TR><TD BGCOLOR="#E0FFE0">pos</TD><TD BGCOLOR="#E0FFE0">size</TD><TD BGCOLOR="#E0FFE0">type</TD><TD BGCOLOR="#E0FFE0">id</TD></TR>
+			<TR><TD PORT="entries_pos">0</TD><TD PORT="entries_size">16</TD><TD>Metaentry</TD><TD PORT="entries_type">entries</TD></TR>
+			<TR><TD COLSPAN="4" PORT="entries__repeat">repeat to end of stream</TD></TR>
+		</TABLE>>];
+		subgraph cluster__metaentry {
+			label="Meta::Metaentry";
+			graph[style=dotted];
+
+			metaentry__seq [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+				<TR><TD BGCOLOR="#E0FFE0">pos</TD><TD BGCOLOR="#E0FFE0">size</TD><TD BGCOLOR="#E0FFE0">type</TD><TD BGCOLOR="#E0FFE0">id</TD></TR>
+				<TR><TD PORT="trigram_raw_pos">0</TD><TD PORT="trigram_raw_size">4</TD><TD>str(ASCII)</TD><TD PORT="trigram_raw_type">trigram_raw</TD></TR>
+				<TR><TD PORT="num_entries_pos">4</TD><TD PORT="num_entries_size">4</TD><TD>u4le</TD><TD PORT="num_entries_type">num_entries</TD></TR>
+				<TR><TD PORT="offset_data_pos">8</TD><TD PORT="offset_data_size">8</TD><TD>u8le</TD><TD PORT="offset_data_type">offset_data</TD></TR>
+			</TABLE>>];
+			metaentry__inst__trigram [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+				<TR><TD BGCOLOR="#E0FFE0">id</TD><TD BGCOLOR="#E0FFE0">value</TD></TR>
+				<TR><TD>trigram</TD><TD>trigram_raw.reverse</TD></TR>
+			</TABLE>>];
+		}
+	}
+	meta__seq:entries_type -> metaentry__seq [style=bold];
+	metaentry__seq:trigram_raw_type -> metaentry__inst__trigram [color="#404040"];
+}

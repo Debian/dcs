@@ -1,0 +1,53 @@
+digraph {
+	newrank=true;
+	rankdir=LR;
+	node [shape=plaintext];
+	subgraph cluster__docidmap {
+		label="Docidmap";
+		graph[style=dotted];
+
+		docidmap__inst__index_offset_offset [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+			<TR><TD BGCOLOR="#E0FFE0">id</TD><TD BGCOLOR="#E0FFE0">value</TD></TR>
+			<TR><TD>index_offset_offset</TD><TD>(_io.size - 4)</TD></TR>
+		</TABLE>>];
+
+		docidmap__inst__index_offset [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+			<TR><TD BGCOLOR="#E0FFE0">pos</TD><TD BGCOLOR="#E0FFE0">size</TD><TD BGCOLOR="#E0FFE0">type</TD><TD BGCOLOR="#E0FFE0">id</TD></TR>
+			<TR><TD PORT="index_offset_pos">index_offset_offset</TD><TD PORT="index_offset_size">4</TD><TD>u4le</TD><TD PORT="index_offset_type">index_offset</TD></TR>
+		</TABLE>>];
+
+		docidmap__inst__index [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+			<TR><TD BGCOLOR="#E0FFE0">pos</TD><TD BGCOLOR="#E0FFE0">size</TD><TD BGCOLOR="#E0FFE0">type</TD><TD BGCOLOR="#E0FFE0">id</TD></TR>
+			<TR><TD PORT="index_pos">index_offset</TD><TD PORT="index_size">4</TD><TD>Entry</TD><TD PORT="index_type">index</TD></TR>
+			<TR><TD COLSPAN="4" PORT="index__repeat">repeat ((index_offset_offset - index_offset) / 4) times</TD></TR>
+		</TABLE>>];
+
+		subgraph cluster__entry {
+			label="Docidmap::Entry";
+			graph[style=dotted];
+
+			entry__seq [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+				<TR><TD BGCOLOR="#E0FFE0">pos</TD><TD BGCOLOR="#E0FFE0">size</TD><TD BGCOLOR="#E0FFE0">type</TD><TD BGCOLOR="#E0FFE0">id</TD></TR>
+				<TR><TD PORT="filename_offset_pos">0</TD><TD PORT="filename_offset_size">4</TD><TD>u4le</TD><TD PORT="filename_offset_type">filename_offset</TD></TR>
+			</TABLE>>];
+			entry__inst__fn [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
+				<TR><TD BGCOLOR="#E0FFE0">pos</TD><TD BGCOLOR="#E0FFE0">size</TD><TD BGCOLOR="#E0FFE0">type</TD><TD BGCOLOR="#E0FFE0">id</TD></TR>
+				<TR><TD PORT="fn_pos">filename_offset</TD><TD PORT="fn_size">...</TD><TD>str(term='\n', UTF8)</TD><TD PORT="fn_type">fn</TD></TR>
+			</TABLE>>];
+		}
+	}
+	docidmap__inst__index_offset_offset:index_offset_offset_type -> docidmap__inst__index_offset:index_offset_pos [color="#404040"];
+	docidmap__inst__index_offset:index_offset_type -> docidmap__inst__index:index_pos [color="#404040"];
+	docidmap__inst__index:index_type -> entry__seq [style=bold];
+	#docidmap__inst__index:index_type -> entry__seq [style=bold, constraint=false];
+	docidmap__inst__index_offset_offset:index_offset_offset_type -> docidmap__inst__index:index__repeat [color="#404040"];
+	docidmap__inst__index_offset:index_offset_type -> docidmap__inst__index:index__repeat [color="#404040"];
+	entry__seq:filename_offset_type -> entry__inst__fn:fn_pos [color="#404040"];
+
+#docidmap__inst__index_offset_offset -> entry__seq [visible=false];
+
+	{ rank=same; docidmap__inst__index; entry__seq; entry__inst__fn; }
+
+#	{ rank=same; docidmap__inst__index_offset_offset; docidmap__inst__index_offset; docidmap__inst__index; }
+#	{ rank=same; entry__seq; entry__inst__fn; }
+}
