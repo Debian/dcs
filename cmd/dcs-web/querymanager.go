@@ -577,7 +577,7 @@ func fsBytes(path string) (available uint64, total uint64) {
 	log.Printf("Available bytes on %q: %d\n", path, stat.Bavail*uint64(stat.Bsize))
 	available = stat.Bavail * uint64(stat.Bsize)
 	total = stat.Blocks * uint64(stat.Bsize)
-	return
+	return available, total
 }
 
 // Makes sure 20% of the filesystem backing -query_results_path are available,
