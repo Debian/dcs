@@ -27,7 +27,8 @@ import (
 
 const replayHelp = `replay - replay a query log
 
-TODO
+Runs queries (one per line) from a logfile one by one against either the old or
+the new index implementation.
 
 Example:
   % dcs replay -log=/home/michael/dcs-logs/2018-03-15/one-query-per-line.txt
