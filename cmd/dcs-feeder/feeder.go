@@ -69,6 +69,8 @@ var (
 
 	initial = flag.Bool("initial", false, "Whether this is the initial feeder call, in which case Merge will not be called on the dcs-package-importer jobs, speeding up the run.")
 
+	dryRun = flag.Bool("dry_run", false, "Only print changes")
+
 	packageImporters []*packageImporter
 
 	mergeStates   = make(map[int]mergeState)
@@ -125,6 +127,9 @@ func merge() {
 				time.Since(state.firstRequest) >= 10*time.Minute {
 				importer := packageImporters[shardIdx]
 				log.Printf("Calling /merge on shard %d (%s) now\n", shardIdx, importer.shard)
+				if *dryRun {
+					continue
+				}
 				if _, err := importer.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
 					log.Printf("/merge for shard %s failed (retry in 10s): %v\n", importer.shard, err)
 					continue
@@ -421,6 +426,10 @@ func checkSources() {
 				shardMu[shardIdx].Lock()
 				defer shardMu[shardIdx].Unlock()
 				log.Printf("Feeding package %s to shard %d (%s)\n", p, shardIdx, importer.shard)
+				if *dryRun {
+					return
+				}
+
 				feedfiles(p, pkgfiles)
 
 				successfulSanityFeed.Inc()
@@ -440,6 +449,9 @@ func checkSources() {
 			}
 
 			log.Printf("garbage-collecting %q on shard %s\n", p, importer.shard)
+			if *dryRun {
+				continue
+			}
 
 			//importer := packageImporters[shardmapping.TaskIdxForPackage(p, len(packageImporters))]
 			if _, err := importer.GarbageCollect(context.Background(), &packageimporterpb.GarbageCollectRequest{
