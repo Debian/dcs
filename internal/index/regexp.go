@@ -5,13 +5,11 @@
 package index
 
 import (
-	"fmt"
 	"regexp/syntax"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/kr/pretty"
 )
 
 // A Query is a matching machine, like a regular expression,
@@ -35,29 +33,6 @@ const (
 	QAnd                 // All in Sub and Trigram must match
 	QOr                  // At least one in Sub or Trigram must match
 )
-
-func (q QueryOp) Format(f fmt.State, c rune) {
-	f.Write([]byte(q.String()))
-}
-
-func (q QueryOp) GoString() string {
-	return q.String()
-}
-
-func (q QueryOp) String() string {
-	switch q {
-	case QAll:
-		return "QAll"
-	case QNone:
-		return "QNone"
-	case QAnd:
-		return "QAnd"
-	case QOr:
-		return "QOr"
-	default:
-		return "<BUG: unknown QueryOp>"
-	}
-}
 
 var allQuery = &Query{Op: QAll}
 var noneQuery = &Query{Op: QNone}
@@ -306,80 +281,51 @@ func (q *Query) andTrigrams(t stringSet) *Query {
 }
 
 func (q *Query) String() string {
-	return q.string(0)
-}
-
-func (q *Query) string(indent int) string {
 	if q == nil {
-		return "nil query"
+		return "?"
 	}
 	if q.Op == QNone {
-		return "<NONE>"
+		return "-"
 	}
 	if q.Op == QAll {
-		return "<QALL>"
+		return "+"
 	}
 
-	// if len(q.Sub) == 0 && len(q.Trigram) == 1 {
-	// 	return strconv.Quote(q.Trigram[0])
-	// }
+	if len(q.Sub) == 0 && len(q.Trigram) == 1 {
+		return strconv.Quote(q.Trigram[0])
+	}
 
 	var (
-		prefix = strings.Repeat("\t", indent)
-		s      string // start
-		//sjoin  string // subexpression join
-		//end string
-		//tjoin string // trigram join
+		s     string
+		sjoin string
+		end   string
+		tjoin string
 	)
 	if q.Op == QAnd {
-		//sjoin = "\n" + prefix
-		//tjoin = prefix + " AND"
+		sjoin = " "
+		tjoin = " "
 	} else {
-		//s = prefix + "("
-		//sjoin = ")\n("
-		//end = prefix + ")\n"
-		//tjoin = prefix + " OR"
+		s = "("
+		sjoin = ")|("
+		end = ")"
+		tjoin = "|"
 	}
-	opname := "BUG"
-	switch q.Op {
-	case QAnd:
-		opname = "AND"
-	case QOr:
-		opname = "OR"
-	}
-	if len(q.Sub) > 0 {
-		s += fmt.Sprintf("%s{"+opname+" ", prefix)
-		indent = indent + 1
-		prefix = strings.Repeat("\t", indent)
-	}
-	s += fmt.Sprintf("%s(%s %q)", prefix, opname, q.Trigram)
-	if len(q.Sub) > 0 {
-		s += "\n"
-	}
-	// for i, t := range q.Trigram {
-	// 	suffix := " " + opname + " "
-	// 	if i == len(q.Trigram)-1 {
-	// 		suffix = ""
-	// 	}
-	// 	s += fmt.Sprintf("%s%q%s", prefix, t, suffix)
-	// }
-	if len(q.Sub) > 0 {
-		for _, sub := range q.Sub {
-			s += fmt.Sprintf("%s(%s)", prefix, sub.string(indent+1))
+	for i, t := range q.Trigram {
+		if i > 0 {
+			s += tjoin
 		}
-		// if len(q.Trigram) > 0 {
-		// 	s += sjoin
-		// }
-		// s += prefix + q.Sub[0].string(indent+1)
-		// for i := 1; i < len(q.Sub); i++ {
-		// 	s += sjoin + prefix + q.Sub[i].String()
-		// }
+		s += strconv.Quote(t)
 	}
 	if len(q.Sub) > 0 {
-		s += fmt.Sprintf("%s}", prefix)
+		if len(q.Trigram) > 0 {
+			s += sjoin
+		}
+		s += q.Sub[0].String()
+		for i := 1; i < len(q.Sub); i++ {
+			s += sjoin + q.Sub[i].String()
+		}
 	}
-
-	//s += end
+	s += end
 	return s
 }
 
@@ -389,20 +335,6 @@ func RegexpQuery(re *syntax.Regexp) *Query {
 	info.simplify(true)
 	info.addExact()
 	return info.match
-}
-
-func RegexpExact(re *syntax.Regexp) []string {
-	info := analyze(re)
-	info.simplify(true)
-	info.addExact()
-	return []string(info.exact)
-}
-
-func RegexpString(re *syntax.Regexp) string {
-	info := analyze(re)
-	info.simplify(true)
-	info.addExact()
-	return info.String()
 }
 
 // A regexpInfo summarizes the results of analyzing a regexp.
@@ -486,8 +418,8 @@ func emptyString() regexpInfo {
 
 // analyze returns the regexpInfo for the regexp re.
 func analyze(re *syntax.Regexp) (ret regexpInfo) {
-	println("analyze", re.String())
-	defer func() { println("->*", ret.String(), "*") }()
+	//println("analyze", re.String())
+	//defer func() { println("->", ret.String()) }()
 	var info regexpInfo
 	switch re.Op {
 	case syntax.OpNoMatch:
@@ -789,7 +721,7 @@ func (info regexpInfo) String() string {
 		s += "prefix:" + strings.Join(info.prefix, ",")
 		s += " suffix:" + strings.Join(info.suffix, ",")
 	}
-	s += " match: " + pretty.Sprint(info.match)
+	s += " match: " + info.match.String()
 	return s
 }
 
