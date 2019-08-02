@@ -5,11 +5,13 @@ require (
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gogo/protobuf v1.1.1 // indirect
-	github.com/golang/protobuf v1.2.0
+	github.com/golang/lint v0.0.0-20180702182130-06c8688daad7 // indirect
+	github.com/golang/protobuf v1.3.2
 	github.com/google/codesearch v0.0.0-20150617151851-a45d81b686e8
 	github.com/google/go-cmp v0.2.0
 	github.com/google/renameio v0.0.0-20181127164028-8bac8552c408
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
+	github.com/kisielk/gotool v1.0.0 // indirect
 	github.com/kr/pretty v0.1.0
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20181101210145-c9628a4f0148
@@ -27,12 +29,14 @@ require (
 	github.com/uber/jaeger-client-go v2.15.0+incompatible
 	github.com/uber/jaeger-lib v1.5.0 // indirect
 	go.uber.org/atomic v1.3.2 // indirect
-	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
-	golang.org/x/sys v0.0.0-20181128092732-4ed8d59d0b35
+	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
+	golang.org/x/sys v0.0.0-20190801041406-cbf593c0f2f3
+	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/xerrors v0.0.0-20190212162355-a5947ffaace3
-	google.golang.org/genproto v0.0.0-20181202183823-bd91e49a0898 // indirect
-	google.golang.org/grpc v1.16.0
+	google.golang.org/appengine v1.4.0 // indirect
+	google.golang.org/genproto v0.0.0-20190801165951-fa694d86fc64 // indirect
+	google.golang.org/grpc v1.22.1
 	pault.ag/go/debian v0.0.0-20180722221659-90aeb542bd40
 )
 
