@@ -583,6 +583,9 @@ func fsBytes(path string) (available uint64, total uint64) {
 // Makes sure 20% of the filesystem backing -query_results_path are available,
 // cleans up old query results otherwise.
 func ensureEnoughSpaceAvailable() {
+	if err := os.MkdirAll(*queryResultsPath, 0755); err != nil {
+		log.Println(err)
+	}
 	available, total := fsBytes(*queryResultsPath)
 	headroom := uint64(*headroomPercentage * float64(total))
 	log.Printf("%d bytes available, %d bytes headroom required (20%%)\n", available, headroom)

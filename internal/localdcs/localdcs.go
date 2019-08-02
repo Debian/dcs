@@ -388,6 +388,7 @@ func Start() (addr string, _ error) {
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
 		"-listen_address="+*listenWeb,
 		"-listen_address_http=localhost:0",
+		"-query_results_path="+filepath.Join(*localdcsPath, "qr"),
 		"-tls_require_client_auth=false")
 	if err != nil {
 		return "", err
