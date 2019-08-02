@@ -248,13 +248,13 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	if err := validateQuery("?" + q); err != nil {
 		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
-		http.Error(w, "Invalid query", http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Invalid query: %v", err), http.StatusBadRequest)
 		return
 	}
 
 	if _, err := maybeStartQuery(ctx, queryid, src, q); err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
-		http.Error(w, "Could not start query", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
 		return
 	}
 	if !queryCompleted(queryid) {

@@ -233,7 +233,16 @@ func InstantServer(ws *websocket.Conn) {
 
 		if err := validateQuery("?" + q.Query); err != nil {
 			log.Printf("[%s] Query %q failed validation: %v\n", src, q.Query, err)
-			ws.Write([]byte(`{"Type":"error", "ErrorType":"invalidquery"}`))
+			b, _ := json.Marshal(struct {
+				Type         string
+				ErrorType    string
+				ErrorMessage string
+			}{
+				Type:         "error",
+				ErrorType:    "invalidquery",
+				ErrorMessage: err.Error(),
+			})
+			ws.Write(b)
 			continue
 		}
 
