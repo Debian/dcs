@@ -95,26 +95,6 @@ func (p *ProgressUpdate) ObsoletedBy(newEvent *obsoletableEvent) bool {
 	return (*newEvent).EventType() == p.Type
 }
 
-type ByRanking []sourcebackendpb.Match
-
-func (s ByRanking) Len() int {
-	return len(s)
-}
-
-func (s ByRanking) Less(i, j int) bool {
-	if s[i].Ranking == s[j].Ranking {
-		// On a tie, we use the path to make the order of results stable over
-		// multiple queries (which can have different results depending on
-		// which index backend reacts quicker).
-		return s[i].Path > s[j].Path
-	}
-	return s[i].Ranking > s[j].Ranking
-}
-
-func (s ByRanking) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 type resultPointer struct {
 	backendidx int
 	ranking    float32
@@ -432,20 +412,6 @@ type queryStats struct {
 	FilesProcessed []int
 }
 
-type byStarted []queryStats
-
-func (s byStarted) Len() int {
-	return len(s)
-}
-
-func (s byStarted) Less(i, j int) bool {
-	return s[i].Started.After(s[j].Started)
-}
-
-func (s byStarted) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
@@ -483,7 +449,9 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	stateMu.RUnlock()
 
-	sort.Sort(byStarted(stats))
+	sort.Slice(stats, func(i, j int) bool {
+		return stats[i].Started.After(stats[j].Started)
+	})
 
 	if err := common.Templates.ExecuteTemplate(w, "queryz.html", map[string]interface{}{
 		"queries": stats,
@@ -601,20 +569,6 @@ func finishQuery(queryid string) {
 	queryDurations.Observe(float64(time.Since(started) / time.Millisecond))
 }
 
-type ByModTime []os.FileInfo
-
-func (s ByModTime) Len() int {
-	return len(s)
-}
-
-func (s ByModTime) Less(i, j int) bool {
-	return s[i].ModTime().Before(s[j].ModTime())
-}
-
-func (s ByModTime) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
 func fsBytes(path string) (available uint64, total uint64) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(path, &stat); err != nil {
@@ -646,7 +600,9 @@ func ensureEnoughSpaceAvailable() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	sort.Sort(ByModTime(infos))
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].ModTime().Before(infos[j].ModTime())
+	})
 	for _, info := range infos {
 		if !info.IsDir() {
 			continue
