@@ -37,3 +37,5 @@ require (
 )
 
 replace github.com/stapelberg/goturbopfor => /home/michael/go/src/goturbopfor
+
+go 1.13
