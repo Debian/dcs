@@ -1,23 +1,28 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"log"
+	"io"
 	"os"
-	"regexp/syntax"
 
 	"github.com/Debian/dcs/internal/index"
-	"github.com/google/codesearch/regexp"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
+	"github.com/Debian/dcs/internal/rpctest"
+	"github.com/Debian/dcs/internal/sourcebackend"
+	"google.golang.org/grpc"
 )
 
 const searchHelp = `search - list the filename[:pos] matches for the specified search query
 
 Example:
-  % dcs search -idx=/srv/dcs/shard4/full -query=i3Font
-  i3-wm_4.16.1-1/i3-config-wizard/main.c
-  i3-wm_4.16.1-1/i3-input/main.c
-  i3-wm_4.16.1-1/i3-nagbar/main.c
+  % dcs search -idx=/srv/dcs/shard4/full -unpacked_path=/srv/dcs/shard4/src -query=i3Font
+  /srv/dcs/shard4/src/i3-wm_4.16.1-1/i3-config-wizard/main.c:95
+  /srv/dcs/shard4/src/i3-wm_4.16.1-1/i3-config-wizard/main.c:96
+  /srv/dcs/shard4/src/i3-wm_4.16.1-1/i3-nagbar/main.c:64
+  /srv/dcs/shard4/src/i3-wm_4.16.1-1/i3-nagbar/main.c:471
+  /srv/dcs/shard4/src/i3-wm_4.16.1-1/i3bar/src/xcb.c:68
   […]
 `
 
@@ -26,6 +31,8 @@ func search(args []string) error {
 	fset.Usage = usage(fset, searchHelp)
 	var idx string
 	fset.StringVar(&idx, "idx", "", "path to the index file to work with")
+	var unpacked string
+	fset.StringVar(&unpacked, "unpacked_path", "", "path to the source files to work with")
 	var query string
 	fset.StringVar(&query, "query", "", "search query")
 	var pos bool
@@ -38,45 +45,42 @@ func search(args []string) error {
 		os.Exit(1)
 	}
 
-	log.Printf("search for %q", query)
-	re, err := regexp.Compile(query)
-	if err != nil {
-		return fmt.Errorf("regexp.Compile(%q): %v", query, err)
-	}
-	s := re.Syntax.Simplify()
-	queryPos := pos && s.Op == syntax.OpLiteral
-
 	ix, err := index.Open(idx)
 	if err != nil {
 		return fmt.Errorf("Could not open index: %v", err)
 	}
-	defer ix.Close()
 
-	if queryPos {
-		matches, err := ix.QueryPositional(string(s.Rune))
+	srv := &sourcebackend.Server{
+		Index:              ix,
+		UnpackedPath:       unpacked,
+		IndexPath:          idx,
+		UsePositionalIndex: pos,
+	}
+
+	conn, cleanup := rpctest.Loopback(func(s *grpc.Server) {
+		sourcebackendpb.RegisterSourceBackendServer(s, srv)
+	})
+	defer cleanup()
+	cl := sourcebackendpb.NewSourceBackendClient(conn)
+	stream, err := cl.Search(context.Background(), &sourcebackendpb.SearchRequest{
+		Query:        query,
+		RewrittenUrl: "",
+	})
+	if err != nil {
+		return err
+	}
+	for {
+		msg, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
 		if err != nil {
-			return err
+			return fmt.Errorf("decoding result stream: %v", err)
 		}
-		for _, match := range matches {
-			fn, err := ix.DocidMap.Lookup(match.Docid)
-			if err != nil {
-				return fmt.Errorf("DocidMap.Lookup(%v): %v", match.Docid, err)
-			}
-			fmt.Printf("%s\n", fn)
-			// TODO: actually verify the search term occurs at match.Position
+		if msg.Type != sourcebackendpb.SearchReply_MATCH {
+			continue
 		}
-	} else {
-		q := index.RegexpQuery(re.Syntax)
-		log.Printf("q = %v", q)
-		docids := ix.PostingQuery(q)
-		for _, docid := range docids {
-			fn, err := ix.DocidMap.Lookup(docid)
-			if err != nil {
-				return err
-			}
-			fmt.Printf("%s\n", fn)
-			// TODO: actually grep the file to find a match
-		}
+		fmt.Printf("%s:%d\n", unpacked+msg.Match.Path, msg.Match.Line)
 	}
 	return nil
 }
