@@ -338,24 +338,28 @@ func checkSources() {
 		log.Printf("shard %q has %d packages currently\n", importer.shard, len(resp.SourcePackage))
 	}
 
-	sourcesSuffix := "/dists/" + *dist + "/main/source/Sources.gz"
-	resp, err := http.Get(*mirrorUrl + sourcesSuffix)
-	if err != nil {
-		log.Printf("Could not get Sources.gz: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-	reader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		log.Printf("Could not initialize gzip reader: %v\n", err)
-		return
-	}
-	defer reader.Close()
+	var sourcePackages []godebiancontrol.Paragraph
+	for _, section := range []string{"main", "contrib"} {
+		sourcesSuffix := "/dists/" + *dist + "/" + section + "/source/Sources.gz"
+		resp, err := http.Get(*mirrorUrl + sourcesSuffix)
+		if err != nil {
+			log.Printf("Could not get Sources.gz: %v\n", err)
+			return
+		}
+		defer resp.Body.Close()
+		reader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			log.Printf("Could not initialize gzip reader: %v\n", err)
+			return
+		}
+		defer reader.Close()
 
-	sourcePackages, err := godebiancontrol.Parse(reader)
-	if err != nil {
-		log.Printf("Could not parse Sources.gz: %v\n", err)
-		return
+		tmp, err := godebiancontrol.Parse(reader)
+		if err != nil {
+			log.Printf("Could not parse Sources.gz: %v\n", err)
+			return
+		}
+		sourcePackages = append(sourcePackages, tmp...)
 	}
 
 	// Only keep the most recent version for each source package:
