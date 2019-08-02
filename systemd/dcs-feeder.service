@@ -5,7 +5,7 @@ Description=Debian Code Search: package feeder
 
 [Service]
 ExecStart=/srv/dcs/bin/dcs-feeder \
-  -shards=localhost:21010,localhost:21011,localhost:21012,localhost:21013,localhost:21014,localhost:21015 \
+  -shards=172.17.0.1:21010,172.17.0.1:21011,172.17.0.1:21012,172.17.0.1:21013,172.17.0.1:21014,172.17.0.1:21015 \
   -tls_cert_path=/srv/dcs/prod-cert.pem \
   -tls_key_path=/srv/dcs/prod-key.pem
 

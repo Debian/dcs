@@ -7,12 +7,18 @@ Description=Debian Code Search: package importer
 # Increase the maximum number of file descriptors since we need to open a
 # couple thousand index files when merging them together into a big shard.
 LimitNOFILE=8192
+
 ExecStart=/srv/dcs/bin/dcs-package-importer \
-  -listen_address=localhost:2101%I \
+  -listen_address=172.17.0.1:2101%I \
   -shard_path=/srv/dcs/shard%I \
   -tls_cert_path=/srv/dcs/prod-cert.pem \
   -tls_key_path=/srv/dcs/prod-key.pem \
-  -source_backend=localhost:2808%I
+  -source_backend=172.17.0.1:2808%I
+
+# Defer to any other work, updating the index is background work compared to
+# queries.
+Nice=19
+IOSchedulingClass=idle
 
 [Install]
 WantedBy=multi-user.target

@@ -6,7 +6,7 @@ Description=Debian Code Search: web frontend
 [Service]
 WorkingDirectory=/srv/dcs
 ExecStart=/srv/dcs/bin/dcs-web \
-  -source_backends=localhost:28080,localhost:28081,localhost:28082,localhost:28083,localhost:28084,localhost:28085 \
+  -source_backends=172.17.0.1:28080,172.17.0.1:28081,172.17.0.1:28082,172.17.0.1:28083,172.17.0.1:28084,172.17.0.1:28085 \
   -tls_cert_path=/srv/dcs/prod-cert.pem \
   -tls_key_path=/srv/dcs/prod-key.pem \
   -headroom_percentage=0.05

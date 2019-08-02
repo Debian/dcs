@@ -5,7 +5,7 @@ Description=Debian Code Search: source backend
 
 [Service]
 ExecStart=/srv/dcs/bin/dcs-source-backend \
-  -listen_address=localhost:2808%I \
+  -listen_address=172.17.0.1:2808%I \
   -index_path=/srv/dcs/shard%I/full \
   -unpacked_path=/srv/dcs/shard%I/src \
   -tls_cert_path=/srv/dcs/prod-cert.pem \
