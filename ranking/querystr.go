@@ -2,7 +2,6 @@
 package ranking
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -23,7 +22,7 @@ func NewQueryStr(query string) QueryStr {
 	strippedQuery := strings.Replace(query, "(?i)", "", 1)
 	// XXX: This only works for very simple (one-word) queries.
 	quotedQuery := regexp.QuoteMeta(strippedQuery)
-	fmt.Printf("quoted query: %s\n", quotedQuery)
+	//fmt.Printf("quoted query: %s\n", quotedQuery)
 	result.boundaryRegexp = regexp.MustCompile(`(?i)\b` + quotedQuery + `\b`)
 	result.anywhereRegexp = regexp.MustCompile(`(?i)` + quotedQuery)
 	return result
