@@ -1,0 +1,80 @@
+linuxconsoletools
+path:.*appdata.xml.* generic
+rtnl_route_delete
+parent path:debian/*-java.poms
+real-time surveillance of people and their activities
+override_dh_autoreconf path:debian/rules
+smf_track_add
+Cintex
+DGifSlurp
+g_variant_new_maybe package:lazarus
+package:mdadm first_sect_lba
+lock_guard
+\(thing-at-point 
+gtk_clipboard_store package:iceweasel
+path:.*debian/copyright Files-Excluded: 
+0x1full
+"account name"
+libtiff5-dev
+x_setpostn package:gromacs
+rules
+package:lintian autoreject
+->ssl_ctx_ctrl
+WEBP_MetaHandler::WEBP_MetaHandler
+Merge in Ubuntu changes, making installation on suboptimal
+asn1rt package:ejabberd
+systemd HOME=
+DEBIAN_FRONTEND package:dpkg
+MIT/Ex
+package:log4j
+\@footnotemark package:texlive-base
+LIMITS_H_TEST
+funcname_followi package:w3m
+filetype:perl / \.\.\. / -path:changes_has_content.t
+package:nss -Werror
+Tag_CPU_arch package:binutils-avr
+package:gnome-terminal keyboard
+/tmp filetype:python
+package:qtwebkit-opensource-src ConservativeRoots
+GtkListBoxForeachFunc  filetype:c
+firmware
+path:debian/watch gpg
+dirfd\(
+struct crypt_data package:lighttpd
+lnuma
+dhcp_route_metric
+libcppunit-dev file:debian/control
+license package:gcc-defaults
+scheduling production
+ptsname package:tar
+PyBaseObject_Type package:python3.6
+file:Vagrantfile vagrant
+"Grace of God of the United Kingdom of Debian"
+\\\.coverage
+package:geneweb _DATE
+aspell-autobuildhash package:ispell-gl
+sa_restorer package:mongodb
+US  copyright
+ucf path:debian/postinst pkg:gitweb
+bpf_program package:linux
+metapackages
+test-pytest package:py-moneyed
+"/etc/debian_version" path:debian/
+BIO_printf python
+graph_main
+altivec ppc64el
+kpatch filetype:c
+\tdh_suidregister path:/debian/rules
+'E: No packages found'
+thread_friendly_really_read
+call_set_flags package:gnome-disk-utility
+av_aes_size
+Notable,
+MEMORY_SANITIZE package:linux-grsec
+path:debian/rules nova
+main-menu
+martian source
+boem package:lucene++
+Error occurred in Python convenience
+value-changed filetype:c 
+validator\.nu
