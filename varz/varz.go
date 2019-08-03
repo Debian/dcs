@@ -109,8 +109,9 @@ func (ct diskStatsMetric) Collect(ch chan<- prometheus.Metric) {
 			&reads, &mergedreads, &readsectors, &readms,
 			&writes, &mergedwrites, &writtensectors, &writems,
 			&inflight, &ioticks, &timeinqueue)
-		// Matches sda, xvda, …
-		if !strings.HasSuffix(device, "da") {
+		// Matches sda, xvda, nvme0n1, …
+		if !strings.HasSuffix(device, "da") &&
+			!strings.HasSuffix(device, "n1") {
 			continue
 		}
 		ch <- prometheus.MustNewConstMetric(ct.reads, prometheus.CounterValue, float64(reads), device)
