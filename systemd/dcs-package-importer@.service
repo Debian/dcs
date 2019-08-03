@@ -13,7 +13,8 @@ ExecStart=/srv/dcs/bin/dcs-package-importer \
   -shard_path=/srv/dcs/shard%I \
   -tls_cert_path=/srv/dcs/prod-cert.pem \
   -tls_key_path=/srv/dcs/prod-key.pem \
-  -source_backend=172.17.0.1:2808%I
+  -source_backend=172.17.0.1:2808%I \
+  -varz_avail_fs=/
 
 # Defer to any other work, updating the index is background work compared to
 # queries.

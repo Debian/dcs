@@ -11,7 +11,8 @@ ExecStart=/srv/dcs/bin/dcs-source-backend \
   -tls_cert_path=/srv/dcs/prod-cert.pem \
   -tls_key_path=/srv/dcs/prod-key.pem \
   -ranking_data_path=/srv/dcs/ranking.json \
-  -use_positional_index
+  -use_positional_index \
+  -varz_avail_fs=/
 
 [Install]
 WantedBy=multi-user.target
