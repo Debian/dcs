@@ -4,6 +4,10 @@
 Description=Debian Code Search: source backend
 
 [Service]
+# Increase the maximum number of file descriptors since we need to open a
+# couple thousand index files when merging them together into a big shard.
+LimitNOFILE=8192
+
 ExecStart=/srv/dcs/bin/dcs-source-backend \
   -listen_address=172.17.0.1:2808%I \
   -index_path=/srv/dcs/shard%I/full \
