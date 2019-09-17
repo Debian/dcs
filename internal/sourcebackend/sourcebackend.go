@@ -505,7 +505,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						fn.Ranking += 0.0008 * querystr.Match(&sourcePkgName)
 					}
 
-					if fn.Position+len(rqb) >= len(b) || !bytes.Equal(b[fn.Position:fn.Position+len(rqb)], rqb) {
+					if fn.Position+len(rqb) > len(b) || !bytes.Equal(b[fn.Position:fn.Position+len(rqb)], rqb) {
 						continue
 					}
 					if lastPos > -1 && !bytes.ContainsRune(b[lastPos:fn.Position], '\n') {
