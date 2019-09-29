@@ -5,6 +5,12 @@ dist: trusty
 
 language: go
 
+addons:
+  apt:
+    packages:
+      - slimit
+      - zopfli
+
 go:
   - 1.13
 
