@@ -14,10 +14,10 @@ addons:
     - libzmq3-dev
 
 install:
-  - go get -t -v $(go list ./... | grep -v /vendor/)
+  - go install ./cmd/...
 
 script:
-  - go test $(go list ./... | grep -v /vendor/)
+  - go test ./...
   # Check whether files are syntactically correct.
   - "gofmt -l $(find . -path ./vendor -prune -o -name '*.go' -print | tr '\\n' ' ') >/dev/null"
   # Check whether files were not gofmt'ed.
