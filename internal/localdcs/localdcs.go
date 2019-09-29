@@ -70,7 +70,6 @@ func help(binary string) error {
 func verifyBinariesAreExecutable() error {
 	binaries := []string{
 		"dcs-package-importer",
-		"dcs-index-backend",
 		"dcs-source-backend",
 		"dcs-web",
 		"dcs-compute-ranking",
