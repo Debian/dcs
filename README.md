@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/Debian/dcs.svg?branch=master)](https://travis-ci.org/Debian/dcs)
+
 Please read http://codesearch.debian.net/research/bsc-thesis.pdf first!
 
 cmd/
