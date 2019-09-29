@@ -10,6 +10,7 @@ addons:
     packages:
       - slimit
       - zopfli
+      - yui-compressor
 
 go:
   - 1.13
