@@ -473,9 +473,10 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 					}
 					continue
 				}
+				const extraBytes = 1024 // for context lines
 				// Assumption: bundle is ordered from low to high (if not, we
 				// need to traverse bundle).
-				max := bundle[len(bundle)-1].Position + len(rqb)
+				max := bundle[len(bundle)-1].Position + len(rqb) + extraBytes
 				if max > cap(buf) {
 					buf = make([]byte, 0, max)
 				}
