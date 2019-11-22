@@ -216,16 +216,16 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Empty query", http.StatusNotFound)
 		return
 	}
-	literal := r.Form.Get("literal") == "1"
-	if literal {
-		query = `\Q` + query + `\E`
+	literal := r.Form.Get("literal")
+	if literal == "" {
+		literal = "0"
 	}
 
 	span := opentracing.SpanFromContext(ctx)
 	span.SetOperationName("Serverrendered: " + query)
 
 	// We encode a URL that contains _only_ the q parameter.
-	q := url.Values{"q": []string{query}}.Encode()
+	q := url.Values{"q": []string{query}}.Encode() + "&literal=" + literal
 
 	pageStr := r.Form.Get("page")
 	if pageStr == "" {

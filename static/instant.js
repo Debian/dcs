@@ -74,12 +74,9 @@ function sendQuery(term, literal) {
     $('#options').hide();
     $('#packageshint').hide();
     var query = term;
-    if (literal) {
-	query = '\\Q' + query + '\\E';
-    }
     if (typeof(EventSource) !== 'undefined') {
         // EventSource is supported by Chrome 9+ and Firefox 6+.
-        var eventsrc = new EventSource("/events/?q=" + query);
+        var eventsrc = new EventSource("/events/?q=" + query + "&literal=" + (literal ? "1" : "0"));
         eventsrc.onmessage = onEvent;
     } else {
         // Fall back to WebSockets, which need an additional round trip
@@ -87,7 +84,7 @@ function sendQuery(term, literal) {
         var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
         var connection = new WebSocket(websocket_url);
         var queryMsg = JSON.stringify({
-            "Query": "q=" + encodeURIComponent(query)
+            "Query": "q=" + encodeURIComponent(query) + "&literal=" +  (literal ? "1" : "0"),
         });
         connection.onopen = function() {
             connection.send(queryMsg);
@@ -551,7 +548,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?10');
+        navigator.serviceWorker.register('/service-worker.min.js?11');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.

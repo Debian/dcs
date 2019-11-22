@@ -124,7 +124,11 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 		!strings.HasPrefix(r.RemoteAddr, "127.0.0.1:")) {
 		src = r.RemoteAddr
 	}
-	q := "q=" + url.QueryEscape(query)
+	literal := r.FormValue("literal")
+	if literal == "" {
+		literal = "0"
+	}
+	q := "q=" + url.QueryEscape(query) + "&literal=" + literal
 
 	log.Printf("[%s] (events) Received query %q\n", src, q)
 	if err := validateQuery("?" + q); err != nil {
@@ -381,7 +385,11 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 	span.SetOperationName("gRPC: Search: " + query)
 
 	src := "gRPC" // TODO: get remote address
-	q := "q=" + url.QueryEscape(query)
+	literal := "0"
+	if req.GetLiteral() {
+		literal = "1"
+	}
+	q := "q=" + url.QueryEscape(query) + "&literal=" + literal
 
 	log.Printf("[%s] (events) Received query %q\n", src, q)
 	if err := validateQuery("?" + q); err != nil {
