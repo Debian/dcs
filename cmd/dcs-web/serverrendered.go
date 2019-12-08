@@ -265,7 +265,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
 			"q":           r.Form.Get("q"),
-			"literal":     literal,
+			"literal":     literal == "1",
 			"host":        r.Host,
 			"version":     common.Version,
 		}); err != nil {
