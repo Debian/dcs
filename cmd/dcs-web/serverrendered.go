@@ -343,7 +343,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"packages":    packages,
 		"pagination":  template.HTML(pagination),
 		"q":           r.Form.Get("q"),
-		"literal":     literal,
+		"literal":     literal == "1",
 		"page":        page,
 		"host":        r.Host,
 		"version":     common.Version,
