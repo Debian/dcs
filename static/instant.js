@@ -319,7 +319,13 @@ function getDefault(searchparams, name, def) {
 function onQueryDone(msg) {
     if (msg.Results === 0) {
         progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
-        error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Please read the FAQ to make sure your syntax is correct.');
+        var sp = new URLSearchParams(location.search.slice(1));
+	var literal = sp.get('literal') === '1';
+	if (literal) {
+            error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you mean to search in regex mode instead?');
+	} else {
+            error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Please read the FAQ to make sure your syntax is correct.');
+	}
         return;
     }
 
@@ -548,7 +554,7 @@ function changeGrouping() {
 
 $(window).load(function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?11');
+        navigator.serviceWorker.register('/service-worker.min.js?12');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
