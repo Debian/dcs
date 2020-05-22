@@ -4,7 +4,6 @@ var version = 'v2/';
 var assets = {
     '/non-critical.min.css': true,
     '/Pics/openlogo-50.svg': true,
-    '/Pics/rackspace.svg': true,
     '/jquery.min.js': true,
     '/url-search-params.min.js': true,
     '/loadCSS.min.js': true,
