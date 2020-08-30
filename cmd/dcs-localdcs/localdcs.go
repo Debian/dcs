@@ -11,7 +11,7 @@ import (
 
 func main() {
 	flag.Parse()
-	dcsWeb, err := localdcs.Start()
+	dcsWeb, err := localdcs.Start(flag.Args()...)
 	if err != nil {
 		log.Fatal(err)
 	}

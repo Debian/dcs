@@ -269,7 +269,7 @@ func importTestdata(packageImporterAddr string) error {
 	return nil
 }
 
-func Start() (addr string, _ error) {
+func Start(args ...string) (addr string, _ error) {
 	if len(*localdcsPath) >= 2 && (*localdcsPath)[:2] == "~/" {
 		usr, err := user.Current()
 		if err != nil {
@@ -378,17 +378,19 @@ func Start() (addr string, _ error) {
 
 	dcsWeb, err := launchInBackground(
 		"dcs-web",
-		"-varz_avail_fs=",
-		"-headroom_percentage=0",
-		"-template_pattern=cmd/dcs-web/templates/*",
-		"-static_path=static/",
-		"-source_backends="+sourceBackend,
-		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
-		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-listen_address="+*listenWeb,
-		"-listen_address_http=localhost:0",
-		"-query_results_path="+filepath.Join(*localdcsPath, "qr"),
-		"-tls_require_client_auth=false")
+		append([]string{
+			"-varz_avail_fs=",
+			"-headroom_percentage=0",
+			"-template_pattern=cmd/dcs-web/templates/*",
+			"-static_path=static/",
+			"-source_backends=" + sourceBackend,
+			"-tls_cert_path=" + filepath.Join(*localdcsPath, "cert.pem"),
+			"-tls_key_path=" + filepath.Join(*localdcsPath, "key.pem"),
+			"-listen_address=" + *listenWeb,
+			"-listen_address_http=localhost:0",
+			"-query_results_path=" + filepath.Join(*localdcsPath, "qr"),
+			"-tls_require_client_auth=false",
+		}, args...)...)
 	if err != nil {
 		return "", err
 	}
