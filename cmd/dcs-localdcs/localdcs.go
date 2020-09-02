@@ -11,14 +11,14 @@ import (
 
 func main() {
 	flag.Parse()
-	dcsWeb, err := localdcs.Start(flag.Args()...)
+	instance, err := localdcs.Start(flag.Args()...)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if dcsWeb == "" {
+	if instance.Addr == "" {
 		return // stopped
 	}
-	browser := exec.Command("google-chrome", "https://"+dcsWeb)
+	browser := exec.Command("google-chrome", "https://"+instance.Addr)
 	browser.Stderr = os.Stderr
 	if err := browser.Run(); err != nil {
 		log.Printf("%v: %v", browser.Args, err)

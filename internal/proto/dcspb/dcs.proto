@@ -10,6 +10,9 @@ import "sourcebackendpb/sourcebackend.proto";
 message SearchRequest {
   string query = 1;
   bool literal = 2;
+
+  // See https://codesearch.debian.net/apikeys/
+  string apikey = 3;
 }
 
 message Error {

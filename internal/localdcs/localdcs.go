@@ -2,10 +2,13 @@ package localdcs
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/user"
@@ -269,28 +272,34 @@ func importTestdata(packageImporterAddr string) error {
 	return nil
 }
 
-func Start(args ...string) (addr string, _ error) {
+type Instance struct {
+	localdcsPath string
+	Addr         string
+	HTTPClient   *http.Client
+}
+
+func Start(args ...string) (*Instance, error) {
 	if len(*localdcsPath) >= 2 && (*localdcsPath)[:2] == "~/" {
 		usr, err := user.Current()
 		if err != nil {
-			return "", fmt.Errorf("Cannot expand -localdcs_path: %v", err)
+			return nil, fmt.Errorf("Cannot expand -localdcs_path: %v", err)
 		}
 		*localdcsPath = strings.Replace(*localdcsPath, "~/", usr.HomeDir+"/", 1)
 	}
 
 	if err := os.MkdirAll(*localdcsPath, 0700); err != nil {
-		return "", fmt.Errorf("Could not create directory %q for dcs-localdcs state: %v", *localdcsPath, err)
+		return nil, fmt.Errorf("Could not create directory %q for dcs-localdcs state: %v", *localdcsPath, err)
 	}
 
 	if *stop {
 		if err := kill(); err != nil {
-			return "", fmt.Errorf("Could not stop localdcs: %v", err)
+			return nil, fmt.Errorf("Could not stop localdcs: %v", err)
 		}
-		return "", nil
+		return nil, nil
 	}
 
 	if _, err := os.Stat(filepath.Join(*localdcsPath, "pids")); !os.IsNotExist(err) {
-		return "", fmt.Errorf("There already is a localdcs instance running. Either use -stop or specify a different -localdcs_path")
+		return nil, fmt.Errorf("There already is a localdcs instance running. Either use -stop or specify a different -localdcs_path")
 	}
 
 	for _, dir := range []string{
@@ -299,26 +308,26 @@ func Start(args ...string) (addr string, _ error) {
 		filepath.Join(*shardPath, "idx"),
 	} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return "", fmt.Errorf("Could not create directory %q for unpacked files/index: %v", dir, err)
+			return nil, fmt.Errorf("Could not create directory %q for unpacked files/index: %v", dir, err)
 		}
 	}
 
 	if err := installBinaries(); err != nil {
-		return "", fmt.Errorf("Compiling and installing binaries failed: %v", err)
+		return nil, fmt.Errorf("Compiling and installing binaries failed: %v", err)
 	}
 
 	if err := verifyBinariesAreExecutable(); err != nil {
-		return "", fmt.Errorf("Could not find all required binaries: %v", err)
+		return nil, fmt.Errorf("Could not find all required binaries: %v", err)
 	}
 
 	if err := compileStaticAssets(); err != nil {
-		return "", fmt.Errorf("Compiling static assets failed: %v", err)
+		return nil, fmt.Errorf("Compiling static assets failed: %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(*localdcsPath, "key.pem")); os.IsNotExist(err) {
 		log.Printf("Generating TLS certificate\n")
 		if err := generatecert(*localdcsPath); err != nil {
-			return "", fmt.Errorf("Could not generate TLS certificate: %v", err)
+			return nil, fmt.Errorf("Could not generate TLS certificate: %v", err)
 		}
 	}
 
@@ -332,7 +341,7 @@ func Start(args ...string) (addr string, _ error) {
 			"TMPDIR="+*localdcsPath)
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return "", fmt.Errorf("Could not compute ranking data: %v", err)
+			return nil, fmt.Errorf("Could not compute ranking data: %v", err)
 		}
 	} else {
 		log.Printf("Recent-enough rankings file %q found, not re-generating (delete to force)\n", rankingPath)
@@ -349,7 +358,7 @@ func Start(args ...string) (addr string, _ error) {
 		"-listen_address="+*listenSourceBackend,
 		"-tls_require_client_auth=false")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// TODO: check for healthiness
@@ -368,10 +377,10 @@ func Start(args ...string) (addr string, _ error) {
 		"-listen_address="+*listenPackageImporter,
 		"-tls_require_client_auth=false")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if err := importTestdata(packageImporter); err != nil {
-		return "", fmt.Errorf("Could not import testdata/: %v", err)
+		return nil, fmt.Errorf("Could not import testdata/: %v", err)
 	}
 
 	// TODO: check for healthiness
@@ -392,9 +401,45 @@ func Start(args ...string) (addr string, _ error) {
 			"-tls_require_client_auth=false",
 		}, args...)...)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	log.Printf("dcs-web running at https://%s\n", dcsWeb)
-	return dcsWeb, nil
+
+	instance := &Instance{
+		localdcsPath: *localdcsPath,
+		Addr:         dcsWeb,
+	}
+	instance.HTTPClient, err = instance.httpClient()
+	if err != nil {
+		return nil, err
+	}
+	return instance, nil
+}
+
+func (i *Instance) httpClient() (*http.Client, error) {
+	certFile := filepath.Join(i.localdcsPath, "cert.pem")
+	keyFile := filepath.Join(i.localdcsPath, "key.pem")
+
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load CA cert
+	caCert, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return nil, err
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// Setup HTTPS client
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		RootCAs:      caCertPool,
+	}
+	tlsConfig.BuildNameToCertificate()
+	transport := &http.Transport{TLSClientConfig: tlsConfig}
+	return &http.Client{Transport: transport}, nil
 }

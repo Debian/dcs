@@ -1,0 +1,308 @@
+<!--
+vim:ts=4:sw=4:expandtab
+--><!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Debian Code Search: API keys</title>
+
+<link rel="stylesheet" type="text/css" href="/apidocs/swagger-ui.css" >
+
+<style type="text/css">
+{{ .criticalcss }}
+
+pre, code {
+    /* We need to make sure that the line numbers and the code itself have
+    no padding/margin so the positions match. The !important is to
+    overwrite the style set by highlight.js’s stylesheet. */
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+a code {
+    color: #00E;
+    font-size: 110%;
+}
+
+#results {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+#results li {
+    margin-bottom: 1em;
+}
+
+#results small {
+    opacity: 0.4;
+}
+
+#pagination {
+    margin-top: 2em;
+    margin-bottom: 2em;
+    margin-left: auto;
+    margin-right: auto;
+    width: 300px;
+}
+
+pre {
+    white-space: pre-wrap;       /* css-3 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -pre-wrap;      /* Opera 4-6 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}
+
+.lnr {
+    color: #999;
+    text-align: right;
+    padding-right: 1em;
+    padding-top: 0;
+    float: left;
+    width: {{.lnrwidth}}em;
+}
+
+ul.comfy li, ol.comfy li {
+    margin-bottom: .5em;
+    margin-top: .5em;
+}
+
+#container {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+#toc {
+    min-width: 200px;
+    padding-top: 1em;
+}
+</style>
+<link rel="preload" href="/non-critical.min.css" as="style" onload="this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="/non-critical.min.css"></noscript>
+<link rel="search"
+  type="application/opensearchdescription+xml"
+  href="/opensearch.xml"
+  title="Debian Code Search">
+</head>
+<body>
+
+<div id="header">
+   <div id="upperheader">
+   <div id="logo">
+  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
+  </div>
+  <p class="section"><a href="/">CODE SEARCH</a></p>
+{{ template "searchbox.html" . }}
+ </div>
+<div id="navbar">
+<p class="hidecss"><a href="#content">Skip Quicknav</a></p>
+<ul>
+   <li><a href="./">Search</a></li>
+   <li><a href="./about">About Code Search</a></li>
+   <li><a href="./faq">FAQ</a></li>
+</ul>
+</div>
+	<p id="breadcrumbs">&nbsp; API keys</p>
+</div>
+
+<div id="container">
+<div id="content" style="max-width: 600px">
+
+  <h1>Debian Code Search API keys</h1>
+
+  <h2><a name="why-keys">Why require API keys at all?</a></h2>
+
+  <p>
+    Our API keys encode an (encrypted) identity, which makes all API requests
+    programmatically identifiable. This makes Debian Code Search more available:
+    <ol class="comfy">
+      <li>
+	When the service would otherwise be overwhelmed by requests, instead of
+	turning off the entire API, we can throttle or reject only requests
+	coming in with an individual API key.
+      </li>
+
+      <li>
+	Because the keys are personalized, we can reach out to the right person
+	and resolve any issues as quickly as possible.
+      </li>
+    </ol>
+  </p>
+
+  <h2><a name="your-key">Your personal API key</a></h2>
+  
+  {{ if (eq .userinfo.Nickname "") }}
+  <p>
+    🔑
+    <em>
+      After you <a href="/apikeys/login">log in via the salsa.debian.org GitLab instance</a>,<br>
+      you will see a personal API key file for download here.
+    </em>
+  </p>
+  {{ else }}
+  <p>
+    Hello <a href="{{ .userinfo.Profile }}"><img src="{{ .userinfo.Picture }}" width="20" height="20" alt="{{ .userinfo.Nickname }} profile picture"><code>{{ .userinfo.Nickname }}</code> ({{ .userinfo.Name }})</a>
+    (<a href="/apikeys/logout">logout</a>)
+  </p>
+
+  <p>
+    🔑
+    <a href="/apikeys/download/{{ .keyfilename }}">Download your personal API key <code>{{ .keyfilename }}</code></a>
+  </p>
+
+  <p>
+    Do not share this key with anyone else.
+  </p>
+
+  {{ end }}
+
+  <p>
+    If you need a non-personal API key for a CLI tool, web service, etc.,<br>
+    please reach out to <a href="mailto:stapelberg@debian.org">stapelberg@debian.org</a>.
+  </p>
+
+  <h2><a name="openapi">OpenAPI Specification, Client Libraries, Docs, Examples</a></h2>
+
+  <p>
+    The Debian Code Search API is described in an OpenAPI specification (OAS),<br>
+    which you can use with various Swagger tools:
+    <ul class="comfy">
+      <li>
+	<a href="https://codesearch.debian.net/apidocs/">a standalone version of the Swagger UI documentation browser</a>
+      </li>
+
+      <li>
+	<a href="http://editor.swagger.io/?url=https://codesearch.debian.net/openapi2.yaml">the editor.swagger.io online editor</a><br>
+	Allows 1-click code generation for many programming languages!
+      </li>
+
+      <li>
+	<a href="https://redocly.github.io/redoc/?url=https://codesearch.debian.net/openapi.yaml">the ReDoc online documentation browser</a>
+      </li>
+
+      <li>
+	<a href="https://mrin9.github.io/OpenAPI-Viewer/#/load/https%3A%2F%2Fcodesearch.debian.net%2Fopenapi.json">the MrinDoc online documentation browser</a>
+      </li>
+
+      <li>
+	<a href="https://rest.sh/">The Restish CLI</a>
+      </li>
+
+      <li>
+	<a href="https://swagger.io/docs/open-source-tools/swagger-codegen/">the Swagger Codegen program</a>
+      </li>
+
+      <li>
+	…and many others, as <a href="https://openapi.tools/">listed at OpenAPI.Tools</a>
+      </li>
+    </ul>
+  </p>
+
+  <h3><a name="openapi-doc-browser">Documentation Browser</a></h3>
+
+  <p>
+    For your convenience, here is an
+    embedded <a href="https://github.com/swagger-api/swagger-ui/">Swagger UI</a>
+    documentation browser:
+  </p>
+
+  <div id="swagger-ui">(Embedded Swagger UI loading…)</div>
+
+  <script src="/apidocs/swagger-ui-bundle.js" charset="UTF-8"> </script>
+  <script src="/apidocs/swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
+  <script>
+    window.onload = function() {
+	const ui = SwaggerUIBundle({
+            url: "https://codesearch.debian.net/openapi2.json",
+            "dom_id": "#swagger-ui",
+            deepLinking: true,
+            presets: [
+		SwaggerUIBundle.presets.apis
+            ],
+            plugins: [
+		SwaggerUIBundle.plugins.DownloadUrl
+            ],
+	    validatorUrl: "none",
+	    docExpansion: "full",
+	    defaultModelsExpandDepth: 2,
+	    defaultModelExpandDepth: 2,
+	    onComplete: () => {
+		{{ if (ne .apikey "") }}
+		ui.preauthorizeApiKey("api_key", "{{ .apikey }}")
+		{{ end }}
+	    }
+	})
+
+	window.ui = ui
+    }
+  </script>
+
+  <h3><a name="openapi-spec-urls">OpenAPI spec URLs</a></h3>
+
+  <p>
+    This table lists all available Debian Code Search OpenAPI spec URLs:
+  </p>
+
+  <table>
+    <tr>
+      <th>Format</th>
+      <th>OpenAPI version</th>
+      <th>URL</th>
+      <th>Note</th>
+    </tr>
+    <tr>
+      <td>YAML</td>
+      <td>OpenAPI 3</td>
+      <td><code>https://codesearch.debian.net/openapi.yaml</code></td>
+      <td>Preferred</td>
+    </tr>
+    <tr>
+      <td>JSON</td>
+      <td>OpenAPI 3</td>
+      <td><code>https://codesearch.debian.net/openapi.json</code></td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>YAML</td>
+      <td>OpenAPI 2</td>
+      <td><code>https://codesearch.debian.net/openapi2.yaml</code></td>
+      <td>Canonical</td>
+    </tr>
+
+    <tr>
+      <td>JSON</td>
+      <td>OpenAPI 2</td>
+      <td><code>https://codesearch.debian.net/openapi2.json</code></td>
+      <td></td>
+    </tr>
+  </table>
+
+  <p>
+    For new developments, if supported in your environment, prefer using
+    OpenAPI 3 in either YAML (hand-written) or JSON (automatically converted).
+  </p>
+
+  <p>
+    OpenAPI 2
+    is <a href="https://github.com/Debian/dcs/blob/master/static/openapi2.yaml">our
+    canonical spec</a> because one can derive OpenAPI 3 from it, but the other
+    way around is not possible. As of September 2020, it is worthwhile to keep
+    OpenAPI 2 around because some tools offer broader compatibility with it.
+  </p>
+
+</div>
+<div id="toc">
+  Table Of Contents
+  <ol>
+    <li><a href="#why-keys">Why require API keys at all?</a></li>
+    <li><a href="#your-key">Your personal API key</a></li>
+    <li>
+      <a href="#openapi">OpenAPI</a>
+      <ol>
+	<li><a href="#openapi-doc-browser">Documentation Browser</a></li>
+	<li><a href="#openapi-spec-urls">Spec URLs</a></li>
+      </ol>
+    </li>
+  </ol>
+</div>
+  
+{{ template "footer.html" . }}

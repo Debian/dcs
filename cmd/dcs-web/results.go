@@ -22,7 +22,9 @@ func startJsonResponse(w http.ResponseWriter) {
 }
 
 func writeResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
+	stateMu.RLock()
 	pointers := state[queryid].resultPointers
+	stateMu.RUnlock()
 	pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
 	if page > pages {
 		http.Error(w, "No such page.", http.StatusNotFound)
@@ -45,8 +47,10 @@ func writeResults(queryid string, page int, results io.Writer, w http.ResponseWr
 }
 
 func writePerPkgResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
+	stateMu.RLock()
 	bypkg := state[queryid].resultPointersByPkg
 	packages := state[queryid].allPackagesSorted
+	stateMu.RUnlock()
 
 	pages := int(math.Ceil(float64(len(packages)) / float64(packagesPerPage)))
 	if page > pages {

@@ -1,0 +1,94 @@
+swagger: "2.0"
+info:
+  description: "OpenAPI for https://codesearch.debian.net/"
+  version: "1.0.0"
+  title: "Debian Code Search"
+  contact:
+    email: "stapelberg@debian.org"
+  license:
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+host: "codesearch.debian.net"
+basePath: "/api/v1"
+schemes:
+- "https"
+tags:
+- name: "search"
+  description: "Code Search"
+paths:
+  /search:
+    get:
+      tags:
+      - "search"
+      summary: "Searches through source code"
+      description: ""
+      operationId: "search"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "query"
+        in: "query"
+        description: "The search query, for example “who knows...” (literal) or “who knows\\\\.\\\\.\\\\.” (regular expression). See https://codesearch.debian.net/faq for more details about which keywords are supported. The regular expression flavor is RE2, see https://github.com/google/re2/blob/master/doc/syntax.txt"
+        required: true
+        type: "string"
+      - name: "literal"
+        in: "query"
+        description: "Whether the query is to be interpreted as a literal (true) instead of as an RE2 regular expression (false). Literal searches are faster and do not require escaping special characters, regular expression searches are more powerful."
+        required: false
+        type: "boolean"
+        default: "false"
+      responses:
+        "200":
+          description: "All search results"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/SearchResult"
+      security:
+      - api_key: []
+
+securityDefinitions:
+  api_key:
+    type: "apiKey"
+    name: "x-dcs-apikey"
+    in: "header"
+definitions:
+  SearchResult:
+    type: "object"
+    required:
+    - "package"
+    - "path"
+    - "line"
+    - "context"
+    properties:
+      package:
+        type: "string"
+        example: "i3-wm_4.18-1"
+      path:
+        type: "string"
+        example: "i3bar/src/xcb.c"
+      line:
+        type: "integer"
+        format: "uint32"
+        example: 1313
+      context_before:
+        type: "array"
+        items:
+          type: "string"
+        example:
+          - "    } else {"
+          - "        cursor = xcb_generate_id(xcb_connection);"
+      context:
+        type: "string"
+        example: "i3Font cursor_font = load_font(\"cursor\", false);"
+      context_after:
+        type: "array"
+        items:
+          type: "string"
+        example:
+          - "        xcb_create_glyph_cursor("
+          - "            xcb_connection,"
+
+externalDocs:
+  description: "Get a Debian Code Search API key"
+  url: "https://codesearch.debian.net/apikeys/"

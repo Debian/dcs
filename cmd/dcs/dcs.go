@@ -21,19 +21,26 @@ Syntax: dcs [global flags] <command> [flags] [args]
 
 To get help on any command, use dcs <command> -help or dcs help <command>.
 
+Service commands:
+    query    - queries codesearch.debian.net
+
 Index query commands:
-	du       — shows disk usage of the specified index files
+	du       - shows disk usage of the specified index files
 	docids   - list the documents covered by this index
 	trigram  - display metadata of the specified trigram
 	raw      - print raw (encoded) index data for the specified trigram
 	posting  - list the (decoded) posting list for the specified trigram
 	matches  - list the filename[:pos] matches for the specified trigram
 	search   - list the filename[:pos] matches for the specified search query
-	replay   — replay a query log
+	replay   - replay a query log
 
 Index manipulation commands:
 	create   - create an index
 	merge    - merge multiple index files into one
+
+API key commands:
+    apikey-create - create a new API key
+    apikey-verify - decode and verify an API key
 `
 
 func usage(fset *flag.FlagSet, help string) func() {
@@ -121,6 +128,8 @@ func main() {
 	}
 	var err error
 	switch cmd {
+	case "query":
+		err = query(args)
 	case "du":
 		err = du(args)
 	case "raw":
@@ -141,6 +150,10 @@ func main() {
 		err = search(args)
 	case "replay":
 		err = replay(args)
+	case "apikey-create":
+		err = apikeyCreate(args)
+	case "apikey-verify":
+		err = apikeyVerify(args)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", cmd)
 		flag.Usage()

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
@@ -20,6 +22,8 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
@@ -27,11 +31,13 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/show"
 	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/grpcutil"
+	"github.com/Debian/dcs/internal/apikeys"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/dcspb"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
+	"github.com/gorilla/securecookie"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
@@ -60,6 +66,14 @@ var (
 	jaegerAgent = flag.String("jaeger_agent",
 		"localhost:5775",
 		"host:port of a github.com/uber/jaeger agent")
+
+	hashKeyStr = flag.String("securecookie_hash_key",
+		"",
+		"32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
+
+	blockKeyStr = flag.String("securecookie_block_key",
+		"",
+		"32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
 
 	accessLog *os.File
 
@@ -376,7 +390,9 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type server struct{}
+type server struct {
+	decoder *apikeys.Decoder
+}
 
 func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer) error {
 	ctx := stream.Context()
@@ -384,7 +400,12 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 	span := opentracing.SpanFromContext(ctx)
 	span.SetOperationName("gRPC: Search: " + query)
 
-	src := "gRPC" // TODO: get remote address
+	key, err := s.decoder.Decode(req.GetApikey())
+	if err != nil {
+		return status.Errorf(codes.Unauthenticated, "invalid x-dcs-apikey header; please see https://codesearch.debian.net/apikeys/")
+	}
+
+	src := key.Subject + "@gRPC" // TODO: get remote address
 	literal := "0"
 	if req.GetLiteral() {
 		literal = "1"
@@ -510,6 +531,23 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 }
 
 func main() {
+	var (
+		clientID = flag.String("salsa_application_id",
+			// Application ID for “Dev Test Debian Code Search API”,
+			// with only 127.0.0.1 as Callback URL
+			"5f03a84a9ade19cd12e2666a3da8a5d00af9d3d8b0bcde4d96d48d50064b4d6d",
+			"salsa.debian.org GitLab Application ID")
+
+		clientSecret = flag.String("salsa_application_secret",
+			// Okay to leak; Callback URL limited to local development.
+			"3e1c36935af8570f3c916200956c129525954f4f19c06cd0abf275db2faca192",
+			"salsa.debian.org GitLab Application Secret")
+
+		redirectURL = flag.String("salsa_application_callback_url",
+			"https://127.0.0.1:28080/apikeys/redirect_uri",
+			"salsa.debian.org GitLab Application login flow callback URL (fully qualified)")
+	)
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 
@@ -536,6 +574,24 @@ func main() {
 	defer closer.Close()
 
 	common.Init(*tlsCertPath, *tlsKeyPath, *staticPath)
+
+	if *hashKeyStr == "" {
+		log.Fatalf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))
+	}
+
+	hashKey, err := hex.DecodeString(*hashKeyStr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if *blockKeyStr == "" {
+		log.Fatalf("-securecookie_block_key is required. E.g.: -securecookie_block_key=%x", securecookie.GenerateRandomKey(32))
+	}
+
+	blockKey, err := hex.DecodeString(*blockKeyStr)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if *accessLogPath != "" {
 		var err error
@@ -633,6 +689,43 @@ func main() {
 
 	http.Handle("/metrics", prometheus.Handler())
 
+	apiOpts := apikeys.Options{
+		HashKey:      hashKey,
+		BlockKey:     blockKey,
+		ClientID:     *clientID,
+		ClientSecret: *clientSecret,
+		RedirectURL:  *redirectURL,
+		Prefix:       "/apikeys",
+	}
+	{
+		mux := http.NewServeMux()
+		http.Handle("/api/", http.StripPrefix("/api", mux))
+		if err := serveAPIOnMux(mux, apiOpts); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// Initialize the /apikeys/ functionality asynchronously, so that a salsa
+	// outage does not take down DCS:
+	{
+		mux := http.NewServeMux()
+		http.Handle("/apikeys/", http.StripPrefix("/apikeys", mux))
+		go func() {
+			if err := apikeys.ServeOnMux(mux, apiOpts); err != nil {
+				log.Printf("cannot serve /apikeys/: %v", err)
+			}
+		}()
+	}
+
+	// Handled by nginx in production, so this is just for testing
+	{
+		u, err := url.Parse("https://codesearch.debian.net")
+		if err != nil {
+			log.Fatal(err)
+		}
+		http.Handle("/apidocs/", httputil.NewSingleHostReverseProxy(u))
+	}
+
 	if *listenAddressPlain != "" {
 		go func() {
 			log.Fatal(http.ListenAndServe(*listenAddressPlain, nil))
@@ -643,6 +736,12 @@ func main() {
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {
-			dcspb.RegisterDCSServer(s, &server{})
+			decoder := &apikeys.Decoder{
+				SecureCookie: apiOpts.SecureCookie(),
+			}
+
+			dcspb.RegisterDCSServer(s, &server{
+				decoder: decoder,
+			})
 		}))
 }
