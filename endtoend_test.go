@@ -224,5 +224,57 @@ func TestEndToEnd(t *testing.T) {
 			}
 			t.Fatalf("search result %+v not found in results %+v", want, results)
 		})
+
+		t.Run("PerPackage", func(t *testing.T) {
+			req, err := http.NewRequest("GET", urlPrefix+"/v1/searchperpackage?query=i3Font", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("x-dcs-apikey", apikey)
+			resp, err := instance.HTTPClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, want := resp.StatusCode, http.StatusOK; got != want {
+				b, _ := ioutil.ReadAll(resp.Body)
+				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
+					resp.Status,
+					strings.TrimSpace(string(b)),
+					want)
+			}
+
+			var results []api.PerPackageResult
+			b, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(b, &results); err != nil {
+				t.Fatal(err)
+			}
+			if got, want := len(results), 1; got != want {
+				t.Fatalf("len(results) = %d, want %d", got, want)
+			}
+			want := api.SearchResult{
+				Package: "i3-wm_4.5.1-2",
+				Path:    "i3-wm_4.5.1-2/libi3/font.c",
+				Line:    0x8b,
+				Context: "i3Font load_font(const char *pattern, const bool fallback) {",
+				ContextBefore: []string{
+					" *",
+					" */",
+				},
+				ContextAfter: []string{
+					"    i3Font font;",
+					"    font.type = FONT_TYPE_NONE;",
+				},
+			}
+			for _, got := range results[0].Results {
+				if reflect.DeepEqual(got, want) {
+					return // test passed
+				}
+			}
+			t.Fatalf("search result %+v not found in results %+v", want, results)
+		})
+
 	})
 }

@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   description: "OpenAPI for https://codesearch.debian.net/"
-  version: "1.0.0"
+  version: "1.1.0"
   title: "Debian Code Search"
   contact:
     email: "stapelberg@debian.org"
@@ -15,6 +15,20 @@ schemes:
 tags:
 - name: "search"
   description: "Code Search"
+parameters:
+  queryParam:
+    name: "query"
+    in: "query"
+    description: "The search query, for example “who knows...” (literal) or “who knows\\\\.\\\\.\\\\.” (regular expression). See https://codesearch.debian.net/faq for more details about which keywords are supported. The regular expression flavor is RE2, see https://github.com/google/re2/blob/master/doc/syntax.txt"
+    required: true
+    type: "string"
+  literalParam:
+    name: "literal"
+    in: "query"
+    description: "Whether the query is to be interpreted as a literal (true) instead of as an RE2 regular expression (false). Literal searches are faster and do not require escaping special characters, regular expression searches are more powerful."
+    required: false
+    type: "boolean"
+    default: "false"
 paths:
   /search:
     get:
@@ -26,17 +40,8 @@ paths:
       produces:
       - "application/json"
       parameters:
-      - name: "query"
-        in: "query"
-        description: "The search query, for example “who knows...” (literal) or “who knows\\\\.\\\\.\\\\.” (regular expression). See https://codesearch.debian.net/faq for more details about which keywords are supported. The regular expression flavor is RE2, see https://github.com/google/re2/blob/master/doc/syntax.txt"
-        required: true
-        type: "string"
-      - name: "literal"
-        in: "query"
-        description: "Whether the query is to be interpreted as a literal (true) instead of as an RE2 regular expression (false). Literal searches are faster and do not require escaping special characters, regular expression searches are more powerful."
-        required: false
-        type: "boolean"
-        default: "false"
+      - $ref: "#/parameters/queryParam"
+      - $ref: "#/parameters/literalParam"
       responses:
         "200":
           description: "All search results"
@@ -46,7 +51,27 @@ paths:
               $ref: "#/definitions/SearchResult"
       security:
       - api_key: []
-
+  /searchperpackage:
+    get:
+      tags:
+      - "search"
+      summary: "Like /search, but aggregates per package"
+      description: ""
+      operationId: "searchperpackage"
+      produces:
+      - "application/json"
+      parameters:
+      - $ref: "#/parameters/queryParam"
+      - $ref: "#/parameters/literalParam"
+      responses:
+        "200":
+          description: "All search results"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/PackageSearchResult"
+      security:
+      - api_key: []
 securityDefinitions:
   api_key:
     type: "apiKey"
@@ -88,7 +113,19 @@ definitions:
         example:
           - "        xcb_create_glyph_cursor("
           - "            xcb_connection,"
-
+  PackageSearchResult:
+    type: "object"
+    required:
+    - "package"
+    - "results"
+    properties:
+      package:
+        type: "string"
+        example: "i3-wm_4.18-1"
+      results:
+        type: "array"
+        items:
+          $ref: "#/definitions/SearchResult"
 externalDocs:
   description: "Get a Debian Code Search API key"
   url: "https://codesearch.debian.net/apikeys/"

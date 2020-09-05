@@ -8,3 +8,8 @@ type SearchResult struct {
 	ContextBefore []string `json:"context_before,omitempty"`
 	ContextAfter  []string `json:"context_after,omitempty"`
 }
+
+type PerPackageResult struct {
+	Package string         `json:"package"`
+	Results []SearchResult `json:"results"`
+}
