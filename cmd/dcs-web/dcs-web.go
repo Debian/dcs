@@ -37,6 +37,7 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
+	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/securecookie"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -461,6 +462,53 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 			return err
 		}
 		if err := stream.Send(ev); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServer) error {
+	// TODO: de-dup with Search
+
+	ctx := stream.Context()
+	queryid := req.GetQueryId()
+	span := opentracing.SpanFromContext(ctx)
+	span.SetOperationName("gRPC: Results: " + queryid)
+
+	key, err := s.decoder.Decode(req.GetApikey())
+	if err != nil {
+		return status.Errorf(codes.Unauthenticated, "invalid x-dcs-apikey header; please see https://codesearch.debian.net/apikeys/")
+	}
+
+	src := key.Subject + "@gRPC" // TODO: get remote address
+
+	log.Printf("Results(queryid=%s, src=%s)", queryid, src)
+
+	stateMu.RLock()
+	state, ok := state[queryid]
+	stateMu.RUnlock()
+	if !ok {
+		// TODO: canonical code
+		return fmt.Errorf("not found")
+	}
+
+	perBackend, err := perBackendFromState(state)
+	if err != nil {
+		return err
+	}
+
+	var msg sourcebackendpb.SearchReply
+	for _, ptr := range state.resultPointers {
+		mapping := perBackend[ptr.backendidx]
+		if err := proto.Unmarshal(mapping[ptr.offset:ptr.offset+int64(ptr.length)], &msg); err != nil {
+			return err
+		}
+		if msg.Type != sourcebackendpb.SearchReply_MATCH {
+			continue
+		}
+		if err := stream.Send(msg.Match); err != nil {
 			return err
 		}
 	}

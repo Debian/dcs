@@ -77,7 +77,7 @@ func (rw *resultWriter) Close() error {
 	return nil
 }
 
-func resultWriterFor(w io.Writer, state queryState) (*resultWriter, error) {
+func perBackendFromState(state queryState) ([]mmap.MMap, error) {
 	state.tempFilesMu.Lock()
 	perBackend := make([]mmap.MMap, len(state.perBackend))
 	for idx, state := range state.perBackend {
@@ -88,6 +88,14 @@ func resultWriterFor(w io.Writer, state queryState) (*resultWriter, error) {
 		perBackend[idx] = mapping
 	}
 	state.tempFilesMu.Unlock()
+	return perBackend, nil
+}
+
+func resultWriterFor(w io.Writer, state queryState) (*resultWriter, error) {
+	perBackend, err := perBackendFromState(state)
+	if err != nil {
+		return nil, err
+	}
 
 	w.Write([]byte{'['})
 

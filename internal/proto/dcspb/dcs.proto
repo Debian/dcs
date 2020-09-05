@@ -54,7 +54,16 @@ message Event {
   }
 }
 
+message ResultsRequest {
+  // See https://codesearch.debian.net/apikeys/
+  string apikey = 1;
+
+  string query_id = 2;
+}
+
 service DCS {
   rpc Search(SearchRequest) returns (stream Event) {}
+
+  rpc Results(ResultsRequest) returns (stream sourcebackendpb.Match) {}
 }
 

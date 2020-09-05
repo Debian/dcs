@@ -492,6 +492,62 @@ func (*Event_Match) isEvent_Data() {}
 
 func (*Event_Pagination) isEvent_Data() {}
 
+type ResultsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// See https://codesearch.debian.net/apikeys/
+	Apikey  string `protobuf:"bytes,1,opt,name=apikey,proto3" json:"apikey,omitempty"`
+	QueryId string `protobuf:"bytes,2,opt,name=query_id,json=queryId,proto3" json:"query_id,omitempty"`
+}
+
+func (x *ResultsRequest) Reset() {
+	*x = ResultsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_dcs_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ResultsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResultsRequest) ProtoMessage() {}
+
+func (x *ResultsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dcs_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResultsRequest.ProtoReflect.Descriptor instead.
+func (*ResultsRequest) Descriptor() ([]byte, []int) {
+	return file_dcs_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ResultsRequest) GetApikey() string {
+	if x != nil {
+		return x.Apikey
+	}
+	return ""
+}
+
+func (x *ResultsRequest) GetQueryId() string {
+	if x != nil {
+		return x.QueryId
+	}
+	return ""
+}
+
 var File_dcs_proto protoreflect.FileDescriptor
 
 var file_dcs_proto_rawDesc = []byte{
@@ -544,14 +600,22 @@ var file_dcs_proto_rawDesc = []byte{
 	0x52, 0x10, 0x00, 0x12, 0x0c, 0x0a, 0x08, 0x50, 0x52, 0x4f, 0x47, 0x52, 0x45, 0x53, 0x53, 0x10,
 	0x01, 0x12, 0x09, 0x0a, 0x05, 0x4d, 0x41, 0x54, 0x43, 0x48, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x0a,
 	0x50, 0x41, 0x47, 0x49, 0x4e, 0x41, 0x54, 0x49, 0x4f, 0x4e, 0x10, 0x03, 0x12, 0x08, 0x0a, 0x04,
-	0x44, 0x4f, 0x4e, 0x45, 0x10, 0x04, 0x42, 0x06, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x32, 0x37,
-	0x0a, 0x03, 0x44, 0x43, 0x53, 0x12, 0x30, 0x0a, 0x06, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x12,
-	0x14, 0x2e, 0x64, 0x63, 0x73, 0x70, 0x62, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x0c, 0x2e, 0x64, 0x63, 0x73, 0x70, 0x62, 0x2e, 0x45, 0x76,
-	0x65, 0x6e, 0x74, 0x22, 0x00, 0x30, 0x01, 0x42, 0x2c, 0x5a, 0x2a, 0x67, 0x69, 0x74, 0x68, 0x75,
-	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x44, 0x65, 0x62, 0x69, 0x61, 0x6e, 0x2f, 0x64, 0x63, 0x73,
-	0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f,
-	0x64, 0x63, 0x73, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x44, 0x4f, 0x4e, 0x45, 0x10, 0x04, 0x42, 0x06, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x43,
+	0x0a, 0x0e, 0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x16, 0x0a, 0x06, 0x61, 0x70, 0x69, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x06, 0x61, 0x70, 0x69, 0x6b, 0x65, 0x79, 0x12, 0x19, 0x0a, 0x08, 0x71, 0x75, 0x65, 0x72,
+	0x79, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x71, 0x75, 0x65, 0x72,
+	0x79, 0x49, 0x64, 0x32, 0x75, 0x0a, 0x03, 0x44, 0x43, 0x53, 0x12, 0x30, 0x0a, 0x06, 0x53, 0x65,
+	0x61, 0x72, 0x63, 0x68, 0x12, 0x14, 0x2e, 0x64, 0x63, 0x73, 0x70, 0x62, 0x2e, 0x53, 0x65, 0x61,
+	0x72, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x0c, 0x2e, 0x64, 0x63, 0x73,
+	0x70, 0x62, 0x2e, 0x45, 0x76, 0x65, 0x6e, 0x74, 0x22, 0x00, 0x30, 0x01, 0x12, 0x3c, 0x0a, 0x07,
+	0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73, 0x12, 0x15, 0x2e, 0x64, 0x63, 0x73, 0x70, 0x62, 0x2e,
+	0x52, 0x65, 0x73, 0x75, 0x6c, 0x74, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x16,
+	0x2e, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x70, 0x62,
+	0x2e, 0x4d, 0x61, 0x74, 0x63, 0x68, 0x22, 0x00, 0x30, 0x01, 0x42, 0x2c, 0x5a, 0x2a, 0x67, 0x69,
+	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x44, 0x65, 0x62, 0x69, 0x61, 0x6e, 0x2f,
+	0x64, 0x63, 0x73, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x2f, 0x64, 0x63, 0x73, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -567,7 +631,7 @@ func file_dcs_proto_rawDescGZIP() []byte {
 }
 
 var file_dcs_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dcs_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_dcs_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_dcs_proto_goTypes = []interface{}{
 	(Error_ErrorType)(0),          // 0: dcspb.Error.ErrorType
 	(Event_Type)(0),               // 1: dcspb.Event.Type
@@ -576,18 +640,21 @@ var file_dcs_proto_goTypes = []interface{}{
 	(*Progress)(nil),              // 4: dcspb.Progress
 	(*Pagination)(nil),            // 5: dcspb.Pagination
 	(*Event)(nil),                 // 6: dcspb.Event
-	(*sourcebackendpb.Match)(nil), // 7: sourcebackendpb.Match
+	(*ResultsRequest)(nil),        // 7: dcspb.ResultsRequest
+	(*sourcebackendpb.Match)(nil), // 8: sourcebackendpb.Match
 }
 var file_dcs_proto_depIdxs = []int32{
 	0, // 0: dcspb.Error.type:type_name -> dcspb.Error.ErrorType
 	3, // 1: dcspb.Event.error:type_name -> dcspb.Error
 	4, // 2: dcspb.Event.progress:type_name -> dcspb.Progress
-	7, // 3: dcspb.Event.match:type_name -> sourcebackendpb.Match
+	8, // 3: dcspb.Event.match:type_name -> sourcebackendpb.Match
 	5, // 4: dcspb.Event.pagination:type_name -> dcspb.Pagination
 	2, // 5: dcspb.DCS.Search:input_type -> dcspb.SearchRequest
-	6, // 6: dcspb.DCS.Search:output_type -> dcspb.Event
-	6, // [6:7] is the sub-list for method output_type
-	5, // [5:6] is the sub-list for method input_type
+	7, // 6: dcspb.DCS.Results:input_type -> dcspb.ResultsRequest
+	6, // 7: dcspb.DCS.Search:output_type -> dcspb.Event
+	8, // 8: dcspb.DCS.Results:output_type -> sourcebackendpb.Match
+	7, // [7:9] is the sub-list for method output_type
+	5, // [5:7] is the sub-list for method input_type
 	5, // [5:5] is the sub-list for extension type_name
 	5, // [5:5] is the sub-list for extension extendee
 	0, // [0:5] is the sub-list for field type_name
@@ -659,6 +726,18 @@ func file_dcs_proto_init() {
 				return nil
 			}
 		}
+		file_dcs_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ResultsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	file_dcs_proto_msgTypes[4].OneofWrappers = []interface{}{
 		(*Event_Error)(nil),
@@ -672,7 +751,7 @@ func file_dcs_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_dcs_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
@@ -700,6 +779,7 @@ const _ = grpc.SupportPackageIsVersion6
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type DCSClient interface {
 	Search(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (DCS_SearchClient, error)
+	Results(ctx context.Context, in *ResultsRequest, opts ...grpc.CallOption) (DCS_ResultsClient, error)
 }
 
 type dCSClient struct {
@@ -742,9 +822,42 @@ func (x *dCSSearchClient) Recv() (*Event, error) {
 	return m, nil
 }
 
+func (c *dCSClient) Results(ctx context.Context, in *ResultsRequest, opts ...grpc.CallOption) (DCS_ResultsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_DCS_serviceDesc.Streams[1], "/dcspb.DCS/Results", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &dCSResultsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DCS_ResultsClient interface {
+	Recv() (*sourcebackendpb.Match, error)
+	grpc.ClientStream
+}
+
+type dCSResultsClient struct {
+	grpc.ClientStream
+}
+
+func (x *dCSResultsClient) Recv() (*sourcebackendpb.Match, error) {
+	m := new(sourcebackendpb.Match)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DCSServer is the server API for DCS service.
 type DCSServer interface {
 	Search(*SearchRequest, DCS_SearchServer) error
+	Results(*ResultsRequest, DCS_ResultsServer) error
 }
 
 // UnimplementedDCSServer can be embedded to have forward compatible implementations.
@@ -753,6 +866,9 @@ type UnimplementedDCSServer struct {
 
 func (*UnimplementedDCSServer) Search(*SearchRequest, DCS_SearchServer) error {
 	return status.Errorf(codes.Unimplemented, "method Search not implemented")
+}
+func (*UnimplementedDCSServer) Results(*ResultsRequest, DCS_ResultsServer) error {
+	return status.Errorf(codes.Unimplemented, "method Results not implemented")
 }
 
 func RegisterDCSServer(s *grpc.Server, srv DCSServer) {
@@ -780,6 +896,27 @@ func (x *dCSSearchServer) Send(m *Event) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _DCS_Results_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ResultsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(DCSServer).Results(m, &dCSResultsServer{stream})
+}
+
+type DCS_ResultsServer interface {
+	Send(*sourcebackendpb.Match) error
+	grpc.ServerStream
+}
+
+type dCSResultsServer struct {
+	grpc.ServerStream
+}
+
+func (x *dCSResultsServer) Send(m *sourcebackendpb.Match) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 var _DCS_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "dcspb.DCS",
 	HandlerType: (*DCSServer)(nil),
@@ -788,6 +925,11 @@ var _DCS_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Search",
 			Handler:       _DCS_Search_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "Results",
+			Handler:       _DCS_Results_Handler,
 			ServerStreams: true,
 		},
 	},

@@ -82,16 +82,37 @@ func query(args []string) error {
 		if err != nil {
 			return err
 		}
-		// if prog, ok := event.Data.(*dcspb.Event_Progress); !ok {
-		// 	continue // TODO: compare the rest, too
-		// } else {
-		// 	if prog.Progress.FilesProcessed > 0 &&
-		// 		prog.Progress.FilesProcessed < prog.Progress.FilesTotal {
-		// 		continue // TODO: compare intermediate progress updates, too
-		// 	}
-		// }
-		log.Printf("event: %+v", event)
-		//events = append(events, event)
+		switch ev := event.Data.(type) {
+		case *dcspb.Event_Progress:
+			log.Printf("progress: %v of %v files searched (%.2f%%)",
+				ev.Progress.FilesProcessed,
+				ev.Progress.FilesTotal,
+				100*float64(ev.Progress.FilesProcessed)/float64(ev.Progress.FilesTotal))
+
+		case *dcspb.Event_Pagination:
+			log.Printf("query complete, now downloading results for %q", ev.Pagination.GetQueryId())
+			stream, err := dcs.Results(context.Background(), &dcspb.ResultsRequest{
+				QueryId: ev.Pagination.GetQueryId(),
+				Apikey:  apikey,
+			})
+			if err != nil {
+				return err
+			}
+			for {
+				match, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					return err
+				}
+				fmt.Printf("%s:%d: %s\n",
+					match.GetPath(),
+					match.GetLine(),
+					match.GetContext())
+			}
+
+		}
 	}
 
 	return nil
