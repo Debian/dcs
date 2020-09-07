@@ -16,7 +16,69 @@ import (
 	"github.com/edsrzf/mmap-go"
 	"github.com/golang/protobuf/proto"
 	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 )
+
+var (
+	metricQueryLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "dcs",
+			Subsystem: "openapi",
+			Name:      "query_latency_ms",
+			Help:      "histogram of API query latency (in milliseconds)",
+			Buckets: []float64{
+				1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+				15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
+				150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750, 800, 850, 900, 950, 1000,
+				2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
+				20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000,
+				500000, 1000000,
+			},
+		},
+		[]string{
+			"source",
+		})
+
+	metricInflightQueries = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "dcs",
+			Subsystem: "openapi",
+			Name:      "inflight_queries",
+			Help:      "number of queries currently being processed",
+		},
+		[]string{
+			"source",
+		})
+
+	metricSuccessfulQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "dcs",
+			Subsystem: "openapi",
+			Name:      "successful_queries",
+			Help:      "counter of successful queries",
+		},
+		[]string{
+			"source",
+		})
+
+	metricErroredQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "dcs",
+			Subsystem: "openapi",
+			Name:      "errored_queries",
+			Help:      "counter of errored queries",
+		},
+		[]string{
+			"source",
+		})
+)
+
+func init() {
+	prometheus.MustRegister(metricQueryLatency)
+	prometheus.MustRegister(metricInflightQueries)
+	prometheus.MustRegister(metricSuccessfulQueries)
+	prometheus.MustRegister(metricErroredQueries)
+}
 
 type resultWriter struct {
 	perBackend []mmap.MMap
@@ -175,9 +237,11 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	}
 
 	src := key.Subject + "@" + r.RemoteAddr
+	srcLabel := prometheus.Labels{"source": key.Subject}
 
 	query := r.FormValue("query")
 	if query == "" {
+		metricErroredQueries.With(srcLabel).Inc()
 		http.Error(w, "no query parameter specified", http.StatusBadRequest)
 		return nil
 	}
@@ -201,13 +265,17 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	io.WriteString(h, q)
 	queryid := fmt.Sprintf("%x", h.Sum64())
 
+	metricInflightQueries.With(srcLabel).Inc()
+	defer metricInflightQueries.With(srcLabel).Dec()
 	log.Printf("api(%q, %q, %q)\n", queryid, src, q)
 
 	if err := validateQuery("?" + q); err != nil {
+		metricErroredQueries.With(srcLabel).Inc()
 		return fmt.Errorf("Invalid query: %v", err)
 	}
 
 	if _, err := maybeStartQuery(ctx, queryid, src, q); err != nil {
+		metricErroredQueries.With(srcLabel).Inc()
 		return fmt.Errorf("Could not start query: %v", err)
 	}
 
@@ -217,11 +285,16 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	metricSuccessfulQueries.With(srcLabel).Inc()
+
 	log.Printf("[%s] serving API results\n", queryid)
 
 	stateMu.RLock()
 	state := state[queryid]
 	stateMu.RUnlock()
+
+	latency := time.Since(state.started)
+	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
 
 	startJsonResponse(w)
 
