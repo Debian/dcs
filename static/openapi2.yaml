@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   description: "OpenAPI for https://codesearch.debian.net/"
-  version: "1.1.0"
+  version: "1.3.0"
   title: "Debian Code Search"
   contact:
     email: "stapelberg@debian.org"
@@ -19,7 +19,7 @@ parameters:
   queryParam:
     name: "query"
     in: "query"
-    description: "The search query, for example “who knows...” (literal) or “who knows\\\\.\\\\.\\\\.” (regular expression). See https://codesearch.debian.net/faq for more details about which keywords are supported. The regular expression flavor is RE2, see https://github.com/google/re2/blob/master/doc/syntax.txt"
+    description: "The search query, for example `who knows...` (literal) or `who knows\\.\\.\\.` (regular expression). See https://codesearch.debian.net/faq for more details about which keywords are supported. The regular expression flavor is RE2, see https://github.com/google/re2/blob/master/doc/syntax.txt"
     required: true
     type: "string"
   literalParam:
@@ -35,7 +35,7 @@ paths:
       tags:
       - "search"
       summary: "Searches through source code"
-      description: ""
+      description: "Performs a search through the full Debian Code Search corpus, blocking until all results are available (might take a few seconds depending on the search query)."
       operationId: "search"
       produces:
       - "application/json"
@@ -49,6 +49,8 @@ paths:
             type: "array"
             items:
               $ref: "#/definitions/SearchResult"
+        "403":
+          description: "The x-dcs-apikey header was either not set at all, or contained an invalid (no longer valid?) API key. Please see https://codesearch.debian.net/apikeys/ for obtaining a key."
       security:
       - api_key: []
   /searchperpackage:
@@ -56,7 +58,7 @@ paths:
       tags:
       - "search"
       summary: "Like /search, but aggregates per package"
-      description: ""
+      description: "The search results are currently sorted arbitrarily, but we intend to sort them by ranking eventually: https://github.com/Debian/dcs/blob/51338e934eb7ee18d00c5c18531c0790a83cb698/cmd/dcs-web/querymanager.go#L719"
       operationId: "searchperpackage"
       produces:
       - "application/json"
@@ -70,6 +72,8 @@ paths:
             type: "array"
             items:
               $ref: "#/definitions/PackageSearchResult"
+        "403":
+          description: "The x-dcs-apikey header was either not set at all, or contained an invalid (no longer valid?) API key. Please see https://codesearch.debian.net/apikeys/ for obtaining a key."
       security:
       - api_key: []
 securityDefinitions:
@@ -85,31 +89,38 @@ definitions:
     - "path"
     - "line"
     - "context"
+    description: "A search result matching the specified query. You can use sources.debian.org to view the file contents. See https://github.com/Debian/dcs/blob/master/cmd/dcs-web/show/show.go for how to construct a sources.debian.org URL from a search result."
     properties:
       package:
         type: "string"
+        description: "The Debian source package containing this search result, including the full Debian version number."
         example: "i3-wm_4.18-1"
       path:
         type: "string"
         example: "i3bar/src/xcb.c"
+        description: "Path to the file containing the this search result, relative to `package`."
       line:
         type: "integer"
         format: "uint32"
         example: 1313
+        description: "Line number containing the search result."
       context_before:
         type: "array"
         items:
           type: "string"
+        description: "Up to 2 full lines before the search result (see `context`)."
         example:
           - "    } else {"
           - "        cursor = xcb_generate_id(xcb_connection);"
       context:
         type: "string"
         example: "i3Font cursor_font = load_font(\"cursor\", false);"
+        description: "The full line containing the search result."
       context_after:
         type: "array"
         items:
           type: "string"
+        description: "Up to 2 full lines after the search result (see `context`)."
         example:
           - "        xcb_create_glyph_cursor("
           - "            xcb_connection,"
@@ -122,6 +133,7 @@ definitions:
       package:
         type: "string"
         example: "i3-wm_4.18-1"
+        description: "The Debian source package for which up to 2 search results have been aggregated in `results`."
       results:
         type: "array"
         items:
