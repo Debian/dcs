@@ -250,6 +250,12 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	if literal == "" {
 		literal = "0"
 	}
+	switch r.FormValue("match_mode") {
+	case "literal":
+		literal = "1"
+	case "regex", "regexp":
+		literal = "0"
+	}
 
 	if span := opentracing.SpanFromContext(ctx); span != nil {
 		span.SetOperationName("API: " + query)

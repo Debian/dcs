@@ -1,7 +1,7 @@
 swagger: "2.0"
 info:
   description: "OpenAPI for https://codesearch.debian.net/"
-  version: "1.3.0"
+  version: "1.4.0"
   title: "Debian Code Search"
   contact:
     email: "stapelberg@debian.org"
@@ -22,26 +22,29 @@ parameters:
     description: "The search query, for example `who knows...` (literal) or `who knows\\.\\.\\.` (regular expression). See https://codesearch.debian.net/faq for more details about which keywords are supported. The regular expression flavor is RE2, see https://github.com/google/re2/blob/master/doc/syntax.txt"
     required: true
     type: "string"
-  literalParam:
-    name: "literal"
+  matchModeParam:
+    name: "match_mode"
     in: "query"
-    description: "Whether the query is to be interpreted as a literal (true) instead of as an RE2 regular expression (false). Literal searches are faster and do not require escaping special characters, regular expression searches are more powerful."
+    description: "Whether the query is to be interpreted as a literal (`literal`) instead of as an RE2 regular expression (`regexp`). Literal searches are faster and do not require escaping special characters, regular expression searches are more powerful."
     required: false
-    type: "boolean"
-    default: "false"
+    type: "string"
+    default: "regexp"
+    enum:
+    - "literal"
+    - "regexp"
 paths:
   /search:
     get:
       tags:
       - "search"
       summary: "Searches through source code"
-      description: "Performs a search through the full Debian Code Search corpus, blocking until all results are available (might take a few seconds depending on the search query)."
+      description: "Performs a search through the full Debian Code Search corpus, blocking until all results are available (might take a few seconds depending on the search query).\n\nSearch results are ordered by their ranking (best results come first)."
       operationId: "search"
       produces:
       - "application/json"
       parameters:
       - $ref: "#/parameters/queryParam"
-      - $ref: "#/parameters/literalParam"
+      - $ref: "#/parameters/matchModeParam"
       responses:
         "200":
           description: "All search results"
@@ -64,7 +67,7 @@ paths:
       - "application/json"
       parameters:
       - $ref: "#/parameters/queryParam"
-      - $ref: "#/parameters/literalParam"
+      - $ref: "#/parameters/matchModeParam"
       responses:
         "200":
           description: "All search results"
@@ -114,7 +117,7 @@ definitions:
           - "        cursor = xcb_generate_id(xcb_connection);"
       context:
         type: "string"
-        example: "i3Font cursor_font = load_font(\"cursor\", false);"
+        example: "        i3Font cursor_font = load_font(\"cursor\", false);"
         description: "The full line containing the search result."
       context_after:
         type: "array"
