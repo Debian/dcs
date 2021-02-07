@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/Debian/dcs/internal/api"
@@ -302,6 +303,11 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	latency := time.Since(state.started)
 	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
 
+	filesTotal := 0
+	for _, total := range state.filesTotal {
+		filesTotal += total
+	}
+	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
 	startJsonResponse(w)
 
 	if err := writeResults(w, state); err != nil {
