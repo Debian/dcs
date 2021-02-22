@@ -1,6 +1,7 @@
 module github.com/Debian/dcs
 
 require (
+	github.com/antihax/optional v1.0.0 // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
