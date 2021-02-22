@@ -37,7 +37,7 @@ jobs:
 
     - name: Build
       run: |
-        go build -v .
+        go build -v ./cmd/...
 
     - name: Test
       run: |
