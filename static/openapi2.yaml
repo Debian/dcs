@@ -101,7 +101,7 @@ definitions:
       path:
         type: "string"
         example: "i3bar/src/xcb.c"
-        description: "Path to the file containing the this search result, relative to `package`."
+        description: "Path to the file containing the this search result, starting with `package`."
       line:
         type: "integer"
         format: "uint32"
