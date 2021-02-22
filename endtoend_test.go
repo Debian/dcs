@@ -47,7 +47,7 @@ func TestEndToEnd(t *testing.T) {
 	}()
 
 	// Created using dcs apikey-create; subject is set to “unittest!”
-	const apikey = "MTU5OTIxMjMxNnxROUFqS0VtZGRjdkc4cWFCSWw3akFlQkRNdml5TnFYd3VCaHZVRXhUUUJrYV82YzRXOGZoNlVkZFV0UTRNdEZXbGc9PXx2ejzsDln3fGnHoF7TwYz_x5BpqzFxELfWUa5we-4x-A=="
+	const apikey = "MTYxNDAxMzI4OXwyb2pFeXdGd0Q0VmdhTkZtMkRoeDdsa1JUa3ZwOTQtM3M2MG1ybGFWRkhacUZwZ1dmMmFlMG5lbkM3UWQ1SV96LXc9PXxdMAS04xLgPDL02_RXt7IftcfPZ4x839RuMhy0_WSX0g=="
 
 	t.Run("GRPC", func(t *testing.T) {
 
