@@ -12,6 +12,6 @@ package swagger
 
 type PackageSearchResult struct {
 	// The Debian source package for which up to 2 search results have been aggregated in `results`.
-	Package_ string `json:"package"`
-	Results []SearchResult `json:"results"`
+	Package_ string         `json:"package"`
+	Results  []SearchResult `json:"results"`
 }
