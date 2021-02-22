@@ -132,8 +132,12 @@ func TestEndToEnd(t *testing.T) {
 			},
 		}
 
-		if diff := cmp.Diff(want, events, cmp.Comparer(proto.Equal)); diff != "" {
-			t.Fatalf("Search: events differ (-want +got)\n%s", diff)
+		diff1 := cmp.Diff(want, events, cmp.Comparer(proto.Equal))
+		// The second event (progress update) obsoletes the first one. Depending
+		// on timing, only the second one may be received.
+		diff2 := cmp.Diff(want[1:], events, cmp.Comparer(proto.Equal))
+		if diff1 != "" && diff2 != "" {
+			t.Fatalf("Search: events differ (-want +got)\n%s", diff1)
 		}
 	})
 
