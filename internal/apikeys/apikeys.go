@@ -90,6 +90,7 @@ type Options struct {
 
 func (o *Options) SecureCookie() *securecookie.SecureCookie {
 	cookies := securecookie.New(o.HashKey, o.BlockKey)
+	cookies.MaxAge(0) // do not restrict max age, our API keys should remain valid
 	cookies.SetSerializer(securecookie.JSONEncoder{})
 	return cookies
 }
