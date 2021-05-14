@@ -314,7 +314,8 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
 	simplified := re.Syntax.Simplify()
-	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral
+	caseSensitive := simplified.Flags&syntax.FoldCase != 0
+	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseSensitive
 	var files ranking.ResultPaths
 	if queryPos {
 		possible, err := s.queryPositional(string(simplified.Rune))
