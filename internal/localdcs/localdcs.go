@@ -399,6 +399,8 @@ func Start(args ...string) (*Instance, error) {
 			"-listen_address_http=localhost:0",
 			"-query_results_path=" + filepath.Join(*localdcsPath, "qr"),
 			"-tls_require_client_auth=false",
+			"-securecookie_hash_key=268afdf10dfe2bd9bc1aa7ceb3f448071cfb3e06488f02affabb6e8d60ccf994",
+			"-securecookie_block_key=132c2e1cff7c4735f746500bd03780bf9b2aaa1ba7f706b8edb22dedeb39f46e",
 		}, args...)...)
 	if err != nil {
 		return nil, err
