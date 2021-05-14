@@ -7,7 +7,7 @@ require (
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/edsrzf/mmap-go v1.0.0
 	github.com/golang/protobuf v1.4.1
-	github.com/google/codesearch v0.0.0-20150617151851-a45d81b686e8
+	github.com/google/codesearch v1.2.0
 	github.com/google/go-cmp v0.5.0
 	github.com/google/renameio v0.0.0-20181127164028-8bac8552c408
 	github.com/gorilla/csrf v1.7.0 // indirect

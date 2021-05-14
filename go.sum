@@ -42,6 +42,8 @@ github.com/golang/protobuf v1.4.1 h1:ZFgWrT+bLgsYPirOnRfKLYJLvssAegOj/hgyMFdJZe0
 github.com/golang/protobuf v1.4.1/go.mod h1:U8fpvMrcmy5pZrNK1lt4xCsGvpyWQ/VVv6QDs8UjoX8=
 github.com/google/codesearch v0.0.0-20150617151851-a45d81b686e8 h1:I9HGzS6ueAzgaT5ggBGq+HJw2vfKlppi0jt2gIctDLE=
 github.com/google/codesearch v0.0.0-20150617151851-a45d81b686e8/go.mod h1:qCnXDFnak/trCmLaE50kgPte3AX9jSeruZexWEOivi0=
+github.com/google/codesearch v1.2.0 h1:VlyAH+AntnIbGGArOUs6sEBdPVwYvf1e8Uw3/TC77cA=
+github.com/google/codesearch v1.2.0/go.mod h1:9wQjQDVAP7Mvt96tw1KqVeXncdBLOWUYdxRiHlsG6Xc=
 github.com/google/go-cmp v0.2.0 h1:+dTQ8DZQJz0Mb/HjFlkptS1FeQ4cWSnN941F8aEG4SQ=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
 github.com/google/go-cmp v0.3.0/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
