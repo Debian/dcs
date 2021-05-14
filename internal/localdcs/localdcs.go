@@ -179,6 +179,8 @@ func launchInBackground(binary string, args ...string) (addr string, _ error) {
 }
 
 func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file string) error {
+	// TODO: stream file contents like in feeder.go to avoid hitting gRPC max
+	// message size limit
 	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
@@ -356,7 +358,8 @@ func Start(args ...string) (*Instance, error) {
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
 		"-listen_address="+*listenSourceBackend,
-		"-tls_require_client_auth=false")
+		"-tls_require_client_auth=false",
+		"-use_positional_index")
 	if err != nil {
 		return nil, err
 	}
