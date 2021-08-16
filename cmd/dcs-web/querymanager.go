@@ -330,6 +330,10 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 		return true, nil
 	}
 
+	// TODO: without this line, searches would fail too early.
+	// Debug and figure out why.
+	ctx = context.Background()
+
 	querystate := queryState{
 		started:        time.Now(),
 		query:          query,
