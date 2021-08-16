@@ -23,8 +23,6 @@ import (
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 	"github.com/google/renameio"
-	opentracing "github.com/opentracing/opentracing-go"
-	olog "github.com/opentracing/opentracing-go/log"
 )
 
 func FilterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.ResultPath {
@@ -290,13 +288,8 @@ func (s *Server) query(query *index.Query) ([]string, error) {
 // Reads a single JSON request from the TCP connection, performs the search and
 // sends results back over the TCP connection as they appear.
 func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendpb.SourceBackend_SearchServer) error {
-	ctx := stream.Context()
 	connMu := new(sync.Mutex)
 	logprefix := fmt.Sprintf("[%q]", in.Query)
-	span := opentracing.SpanFromContext(ctx)
-	if span == nil {
-		span = (&opentracing.NoopTracer{}).StartSpan("Search")
-	}
 
 	re, err := regexp.Compile(in.Query)
 	if err != nil {
@@ -309,7 +302,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 		return err
 	}
 	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
-	span.LogFields(olog.String("rankingopts", fmt.Sprintf("%+v", rankingopts)))
 
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
@@ -339,10 +331,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			return err
 		}
 
-		span.LogFields(olog.Int("files.possible", len(possible)))
-
 		// Rank all the paths.
-		rankspan, _ := opentracing.StartSpanFromContext(ctx, "Rank")
 		files = make(ranking.ResultPaths, 0, len(possible))
 		for _, filename := range possible {
 			result := ranking.ResultPath{Path: filename}
@@ -351,15 +340,11 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				files = append(files, result)
 			}
 		}
-		rankspan.Finish()
+
 	}
 
 	// Filter all files that should be excluded.
-	filterspan, _ := opentracing.StartSpanFromContext(ctx, "Filter")
 	files = FilterByKeywords(rewritten, files)
-	filterspan.Finish()
-
-	span.LogFields(olog.Int("files.filtered", len(files)))
 
 	// While not strictly necessary, this will lead to better results being
 	// discovered (and returned!) earlier, so let’s spend a few cycles on
@@ -367,8 +352,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	if !queryPos {
 		sort.Sort(files)
 	}
-
-	span.LogFields(olog.String("regexp", re.String()))
 
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
 

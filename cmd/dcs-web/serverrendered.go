@@ -21,7 +21,6 @@ import (
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	dcsregexp "github.com/Debian/dcs/regexp"
-	opentracing "github.com/opentracing/opentracing-go"
 )
 
 // XXX: Using a dcsregexp.Match anonymous struct member doesn’t work,
@@ -220,9 +219,6 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	if literal == "" {
 		literal = "0"
 	}
-
-	span := opentracing.SpanFromContext(ctx)
-	span.SetOperationName("Serverrendered: " + query)
 
 	// We encode a URL that contains _only_ the q parameter.
 	q := url.Values{"q": []string{query}}.Encode() + "&literal=" + literal

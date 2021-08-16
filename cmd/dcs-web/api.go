@@ -16,7 +16,6 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/edsrzf/mmap-go"
 	"github.com/golang/protobuf/proto"
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -256,10 +255,6 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		literal = "1"
 	case "regex", "regexp":
 		literal = "0"
-	}
-
-	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span.SetOperationName("API: " + query)
 	}
 
 	// We encode a URL that contains _only_ the q parameter.

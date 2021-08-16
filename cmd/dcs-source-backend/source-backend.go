@@ -20,8 +20,6 @@ import (
 	"github.com/Debian/dcs/ranking"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/uber/jaeger-client-go"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 )
 
@@ -37,9 +35,6 @@ var (
 		"Path to the JSON containing ranking data")
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
-	jaegerAgent = flag.String("jaeger_agent",
-		"localhost:5775",
-		"host:port of a github.com/uber/jaeger agent")
 
 	usePositionalIndex = flag.Bool("use_positional_index",
 		false,
@@ -49,25 +44,6 @@ var (
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
-
-	cfg := jaegercfg.Configuration{
-		Sampler: &jaegercfg.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jaegercfg.ReporterConfig{
-			BufferFlushInterval: 1 * time.Second,
-			LocalAgentHostPort:  *jaegerAgent,
-		},
-	}
-	closer, err := cfg.InitGlobalTracer(
-		"dcs-source-backend",
-		jaegercfg.Logger(jaeger.StdLogger),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer closer.Close()
 
 	rand.Seed(time.Now().UnixNano())
 	if !strings.HasSuffix(*unpackedPath, "/") {

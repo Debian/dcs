@@ -27,7 +27,6 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/golang/protobuf/proto"
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
@@ -330,14 +329,6 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 	if queryExists(queryid) {
 		return true, nil
 	}
-
-	// carry over the tracing span id to a background context: queries are
-	// executed independent of the client, so that when a link is posted
-	// somewhere popular, we don’t duplicate a bunch of work.
-	// TODO(golang.org/issues/19643): replace the code below once a “detach” API
-	// is available
-	span := opentracing.SpanFromContext(ctx)
-	ctx = opentracing.ContextWithSpan(context.Background(), span)
 
 	querystate := queryState{
 		started:        time.Now(),

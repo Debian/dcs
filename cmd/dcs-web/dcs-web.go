@@ -39,11 +39,7 @@ import (
 	_ "github.com/Debian/dcs/varz"
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/securecookie"
-	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/uber/jaeger-client-go"
-	jaegercfg "github.com/uber/jaeger-client-go/config"
 	_ "golang.org/x/net/trace"
 	"golang.org/x/net/websocket"
 )
@@ -64,9 +60,6 @@ var (
 		"Where to write access.log entries (in Apache Common Log Format). Disabled if empty.")
 	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
 	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
-	jaegerAgent = flag.String("jaeger_agent",
-		"localhost:5775",
-		"host:port of a github.com/uber/jaeger agent")
 
 	hashKeyStr = flag.String("securecookie_hash_key",
 		"",
@@ -127,8 +120,6 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	if query == "" {
 		query = strings.TrimPrefix(r.URL.Path, "/events/")
 	}
-	span := opentracing.SpanFromContext(ctx)
-	span.SetOperationName("Events: " + query)
 	w.Header().Set("Content-Type", "text/event-stream")
 
 	// The additional ":" at the end is necessary so that we don’t need to
@@ -246,9 +237,6 @@ func InstantServer(ws *websocket.Conn) {
 			return
 		}
 		log.Printf("[%s] Received query %v\n", src, q)
-
-		// span := opentracing.SpanFromContext(ctx)
-		// span.SetOperationName("Websocket: " + q.Query)
 
 		if err := validateQuery("?" + q.Query); err != nil {
 			log.Printf("[%s] Query %q failed validation: %v\n", src, q.Query, err)
@@ -398,8 +386,6 @@ type server struct {
 func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer) error {
 	ctx := stream.Context()
 	query := req.GetQuery()
-	span := opentracing.SpanFromContext(ctx)
-	span.SetOperationName("gRPC: Search: " + query)
 
 	key, err := s.decoder.Decode(req.GetApikey())
 	if err != nil {
@@ -472,10 +458,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServer) error {
 	// TODO: de-dup with Search
 
-	ctx := stream.Context()
 	queryid := req.GetQueryId()
-	span := opentracing.SpanFromContext(ctx)
-	span.SetOperationName("gRPC: Results: " + queryid)
 
 	key, err := s.decoder.Decode(req.GetApikey())
 	if err != nil {
@@ -599,28 +582,6 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
 
-	// Initialize the global tracer as early as possible:
-	// common.Init uses gRPC.
-	cfg := jaegercfg.Configuration{
-		Sampler: &jaegercfg.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &jaegercfg.ReporterConfig{
-			BufferFlushInterval: 1 * time.Second,
-			LocalAgentHostPort:  *jaegerAgent,
-		},
-	}
-	tracer, closer, err := cfg.New(
-		"dcs-web",
-		jaegercfg.Logger(jaeger.StdLogger),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	opentracing.SetGlobalTracer(tracer)
-	defer closer.Close()
-
 	common.Init(*tlsCertPath, *tlsKeyPath, *staticPath)
 
 	if *hashKeyStr == "" {
@@ -713,13 +674,12 @@ func main() {
 	traced.HandleFunc("/search", Search)
 	traced.HandleFunc("/events/", EventsHandler)
 	traced.Handle("/instantws", websocket.Handler(InstantServer))
-	traceHandler := nethttp.Middleware(tracer, traced)
-	http.Handle("/events/", traceHandler)
+	http.Handle("/events/", traced)
 	// TODO: find a way to trace /instantws calls — re-implement the
 	// http.Hijacker interface in nethttp.Middleware?
 	// http.Handle("/instantws", traceHandler)
 	http.Handle("/instantws", websocket.Handler(InstantServer))
-	http.Handle("/search", traceHandler)
+	http.Handle("/search", traced)
 
 	// Used by the service worker.
 	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
