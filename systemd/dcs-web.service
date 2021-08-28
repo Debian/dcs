@@ -1,5 +1,3 @@
-.include dcs-common.service
-
 [Unit]
 Description=Debian Code Search: web frontend
 
