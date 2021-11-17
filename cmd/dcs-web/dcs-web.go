@@ -109,7 +109,7 @@ func validateQuery(query string) error {
 	indexQuery := index.RegexpQuery(re.Syntax)
 	log.Printf("trigram = %v, sub = %v", indexQuery.Trigram, indexQuery.Sub)
 	if len(indexQuery.Trigram) == 0 && len(indexQuery.Sub) == 0 {
-		return fmt.Errorf("Empty index query")
+		return fmt.Errorf("Empty index query. See https://codesearch.debian.net/faq#emptyindex")
 	}
 	return nil
 }

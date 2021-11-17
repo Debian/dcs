@@ -104,6 +104,20 @@ was uploaded.
 <p>
   We have a list of <a href="./thirdparty">third party projects</a>, which use Debian Code Search.
 </p>
+
+<a name="emptyindex">
+  <h2>Q: Why does my regular expression query error out with “Empty index query”?</h2>
+</a>
+
+<p>
+  This error message is returned when the regexp code cannot finding enough
+  consecutive non-optional characters to construct any trigrams to query the
+  index with. In other words: your search query is too short, or not specific
+  enough. Try making your search query longer. See
+  also <a href="https://github.com/Debian/dcs/issues/110">issue #110</a> for a
+  specific example.
+</p>
+
 </div>
 <div id="footer">
 <hr>
