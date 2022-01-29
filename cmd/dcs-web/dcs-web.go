@@ -722,8 +722,10 @@ func main() {
 			for {
 				if err := apikeys.ServeOnMux(mux, apiOpts); err != nil {
 					log.Printf("cannot serve /apikeys/: %v", err)
+					time.Sleep(10 * time.Second)
+					continue
 				}
-				time.Sleep(10 * time.Second)
+				break
 			}
 		}()
 	}
