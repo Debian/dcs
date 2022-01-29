@@ -719,8 +719,11 @@ func main() {
 		mux := http.NewServeMux()
 		http.Handle("/apikeys/", http.StripPrefix("/apikeys", mux))
 		go func() {
-			if err := apikeys.ServeOnMux(mux, apiOpts); err != nil {
-				log.Printf("cannot serve /apikeys/: %v", err)
+			for {
+				if err := apikeys.ServeOnMux(mux, apiOpts); err != nil {
+					log.Printf("cannot serve /apikeys/: %v", err)
+				}
+				time.Sleep(10 * time.Second)
 			}
 		}()
 	}
