@@ -14,7 +14,7 @@ import (
 // linux_3.14.4-1/debian/abi/3.14-1/armel_none_orion5x
 var (
 	ignoredDirnamesList = flag.String("ignored_dirnames",
-		".pc,po,.git,libtool.m4",
+		".pc,.git,libtool.m4",
 		"(comma-separated list of) names of directories that will be deleted from packages when importing")
 
 	// NB: we don’t skip "configure" since that might be a custom shell-script
@@ -24,11 +24,11 @@ var (
 		"(comma-separated list of) names of files that will be deleted from packages when importing")
 
 	ignoredSuffixesList = flag.String("ignored_suffixes",
-		"conf,dic,cfg,man,xml,xsl,html,sgml,pod,po,txt,tex,rtf,docbook,symbols",
+		"dic,xml,xsl,sgml,symbols",
 		"(comma-separated list of) suffixes of files that will be deleted from packages when importing")
 
 	onlySmallFilesSuffixesList = flag.String("only_small_files_suffixes",
-		"ref,result,S,out,rst,def,afm,ps,pao,tom,ovp,UPF,map,ucm,json,svg,ppd,acc,ipp,eps,sym,pass,F90,tei,stl,tmp,dmp,vtk,csv,stp,decTest,test,lla,pamphlet",
+		"ref,result,S,out,rst,def,afm,ps,pao,tom,ovp,UPF,map,ucm,json,svg,ppd,acc,ipp,eps,sym,pass,F90,tei,stl,tmp,dmp,vtk,csv,stp,decTest,test,lla,pamphlet,html",
 		"(comma-separated list of) suffixes of files that will not be indexed if their size is more than 64 KB")
 
 	ignoredDirnames        = make(map[string]bool)
@@ -100,13 +100,6 @@ func Ignored(info os.FileInfo, dir, filename string) error {
 		return errIgnoredFilenames
 	}
 
-	// Don’t match /debian/changelog or /debian/README, but
-	// exclude changelog and readme files generally.
-	if !strings.HasSuffix(dir, "/debian/") &&
-		strings.HasPrefix(strings.ToLower(filename), "changelog") ||
-		strings.HasPrefix(strings.ToLower(filename), "readme") {
-		return errIgnoredFilenames
-	}
 	if hasManpageSuffix(filename) {
 		return errManpageSuffix
 	}
