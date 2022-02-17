@@ -396,6 +396,9 @@ func checkSources() {
 		if pkg["Package"] == "kicad-packages3d" {
 			continue // TODO: should this have been called -data?
 		}
+		if strings.HasPrefix(pkg["Package"], "sagemath-database-") {
+			continue
+		}
 		p := pkg["Package"] + "_" + pkg["Version"]
 		shardIdx := shardmapping.TaskIdxForPackage(p, len(packageImporters))
 		importer := packageImporters[shardIdx]
