@@ -555,11 +555,9 @@ func unpackAndIndex(dscPath string) error {
 	return os.RemoveAll(filepath.Join(tmpdir, pkg))
 }
 
-func main() {
-	flag.Parse()
-
+func packageImporter() error {
 	if err := os.MkdirAll(*shardPath, 0755); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	filter.Init()
@@ -567,12 +565,13 @@ func main() {
 	var err error
 	tmpdir, err = ioutil.TempDir("", "dcs-importer")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
+	defer os.RemoveAll(tmpdir)
 
 	http.Handle("/metrics", prometheus.Handler())
 
-	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+	return grpcutil.ListenAndServeTLS(*listenAddress,
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {
@@ -580,5 +579,12 @@ func main() {
 				unpacksem: make(chan struct{}, runtime.NumCPU()),
 				mergesem:  make(chan struct{}, 1),
 			})
-		}))
+		})
+}
+
+func main() {
+	flag.Parse()
+	if err := packageImporter(); err != nil {
+		log.Fatal(err)
+	}
 }
