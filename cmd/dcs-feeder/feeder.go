@@ -17,6 +17,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -70,6 +71,8 @@ var (
 	initial = flag.Bool("initial", false, "Whether this is the initial feeder call, in which case Merge will not be called on the dcs-package-importer jobs, speeding up the run.")
 
 	dryRun = flag.Bool("dry_run", false, "Only print changes")
+
+	refeed = flag.String("refeed", "", "If non-empty, all packages will be imported again and the string determines the path to the state file that keeps track of which packages were fed")
 
 	packageImporters []*packageImporter
 
@@ -407,10 +410,15 @@ func checkSources() {
 			continue
 		}
 		status := packages[importer.shard][p]
-		//log.Printf("package %s: shard %d (%s), status %v\n", p, shardIdx, shard, status)
-		if status == Present {
+		needRefeed := needRefeed(pkg["Package"])
+		// log.Printf("package %s: shard %d, status %v, need refeed? %v\n", p, shardIdx, status, needRefeed)
+		if status == Present && !needRefeed {
 			packages[importer.shard][p] = Confirmed
-		} else if status == NotPresent {
+		} else if status == NotPresent || needRefeed {
+			if needRefeed {
+				// Prevent garbage collection below.
+				packages[importer.shard][p] = NotPresent
+			}
 			var pkgfiles []string
 			for _, line := range strings.Split(pkg["Files"], "\n") {
 				parts := strings.Split(strings.TrimSpace(line), " ")
@@ -438,6 +446,9 @@ func checkSources() {
 				}
 
 				feedfiles(p, pkgfiles)
+				if needRefeed {
+					markFed(p)
+				}
 
 				successfulSanityFeed.Inc()
 			}()
@@ -470,6 +481,47 @@ func checkSources() {
 
 			successfulGarbageCollect.Inc()
 		}
+	}
+}
+
+var refeedMu sync.Mutex
+
+func needRefeed(pkg string) bool {
+	if *refeed == "" {
+		return false
+	}
+	refeedMu.Lock()
+	defer refeedMu.Unlock()
+	b, err := os.ReadFile(*refeed)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatal(err)
+		}
+	}
+	fed := strings.Split(strings.TrimSpace(string(b)), "\n")
+	for _, f := range fed {
+		if f == pkg {
+			return false // already re-fed
+		}
+	}
+	return true // needs re-feed
+}
+
+func markFed(pkg string) {
+	if *refeed == "" {
+		return
+	}
+	refeedMu.Lock()
+	defer refeedMu.Unlock()
+	b, err := os.ReadFile(*refeed)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatal(err)
+		}
+	}
+	b = append(b, []byte(pkg+"\n")...)
+	if err := os.WriteFile(*refeed, b, 0644); err != nil {
+		log.Fatal(err)
 	}
 }
 
