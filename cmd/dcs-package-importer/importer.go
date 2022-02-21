@@ -442,6 +442,17 @@ func indexPackage(pkg string) error {
 	}
 
 	finalIndexPath := filepath.Join(*shardPath, "idx", pkg)
+	// Move the old index out of the way, if present
+	oldIndexPath := filepath.Join(*shardPath, "idx", "O."+pkg)
+	if err := os.Rename(finalIndexPath, oldIndexPath); err != nil {
+		if os.IsNotExist(err) {
+		} else {
+			return err
+		}
+	} else {
+		defer os.RemoveAll(oldIndexPath)
+	}
+
 	if err := os.Rename(tmpIndexPath, finalIndexPath); err != nil {
 		return err
 	}
