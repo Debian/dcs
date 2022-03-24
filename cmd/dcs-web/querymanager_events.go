@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"time"
+
+	"github.com/Debian/dcs/internal/frequency"
 )
 
 // Since multiple users can perform the same query at (roughly) the same time
@@ -51,6 +53,7 @@ func addEvent(queryid string, data []byte, origdata interface{}) {
 		s.done = true
 		s.ended = time.Now()
 		activeQueries.Sub(1)
+		frequency.DecUsers()
 	}
 	state[queryid] = s
 

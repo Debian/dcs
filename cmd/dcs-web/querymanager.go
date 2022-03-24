@@ -24,6 +24,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/dpkgversion"
+	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/golang/protobuf/proto"
@@ -315,6 +316,7 @@ func startQuery(queryid string, querystate queryState) error {
 	}
 	state[queryid] = querystate
 	activeQueries.Add(1)
+	frequency.IncUsers()
 	return nil
 }
 
