@@ -101,6 +101,9 @@ func validateQuery(query string) error {
 		return err
 	}
 	rewritten := search.RewriteQuery(*fakeUrl)
+	if rewritten.Query().Get("literal") == "1" {
+		return nil // not a regular expression
+	}
 	log.Printf("rewritten query = %q\n", rewritten.String())
 	re, err := dcsregexp.Compile(rewritten.Query().Get("q"))
 	if err != nil {
