@@ -92,7 +92,7 @@ pre {
 <p>
 <strong>Filter by package:</strong>
 {{range $index, $package := .packages}}
-<a href="{{$.filterurl}}?q={{$.q}}+package:{{$package}}">{{$package}}</a>,
+<a href="{{$.filterurl}}&q={{$.q}}+package:{{$package}}">{{$package}}</a>,
 {{end}}
 </p>
 

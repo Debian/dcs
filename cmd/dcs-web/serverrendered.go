@@ -178,6 +178,9 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 
 	basequery.Del("perpkg")
 	basequery.Del("q")
+	// Ensure the filterurl has at least one parameter, so that we can
+	// always concatenate with the & sign.
+	basequery.Set("_", "_")
 	baseurl.RawQuery = basequery.Encode()
 	filterurl := baseurl.String()
 
@@ -328,6 +331,9 @@ func Search(w http.ResponseWriter, r *http.Request) {
 
 	basequery.Del("perpkg")
 	basequery.Del("q")
+	// Ensure the filterurl has at least one parameter, so that we can
+	// always concatenate with the & sign.
+	basequery.Set("_", "_")
 	baseurl.RawQuery = basequery.Encode()
 	filterurl := baseurl.String()
 
