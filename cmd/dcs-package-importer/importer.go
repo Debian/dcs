@@ -127,12 +127,14 @@ type server struct {
 // Accepts arbitrary files for a given package and starts unpacking once a .dsc
 // file is uploaded. E.g.:
 //
-// curl -X PUT --data-binary @i3-wm_4.7.2-1.debian.tar.xz \
-//     http://localhost:21010/import/i3-wm_4.7.2-1/i3-wm_4.7.2-1.debian.tar.xz
-// curl -X PUT --data-binary @i3-wm_4.7.2.orig.tar.bz2 \
-//     http://localhost:21010/import/i3-wm_4.7.2-1/i3-wm_4.7.2.orig.tar.bz2
-// curl -X PUT --data-binary @i3-wm_4.7.2-1.dsc \
-//     http://localhost:21010/import/i3-wm_4.7.2-1/i3-wm_4.7.2-1.dsc
+//	curl -X PUT --data-binary @i3-wm_4.7.2-1.debian.tar.xz \
+//	    http://localhost:21010/import/i3-wm_4.7.2-1/i3-wm_4.7.2-1.debian.tar.xz
+//
+//	curl -X PUT --data-binary @i3-wm_4.7.2.orig.tar.bz2 \
+//	    http://localhost:21010/import/i3-wm_4.7.2-1/i3-wm_4.7.2.orig.tar.bz2
+//
+//	curl -X PUT --data-binary @i3-wm_4.7.2-1.dsc \
+//	    http://localhost:21010/import/i3-wm_4.7.2-1/i3-wm_4.7.2-1.dsc
 //
 // All the files are stored in the same directory and after the .dsc is stored,
 // the package is unpacked with dpkg-source, then indexed.
