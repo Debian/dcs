@@ -368,7 +368,8 @@ func Start(args ...string) (*Instance, error) {
 		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
 		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
 		"-listen_address="+*listenSourceBackend,
-		"-tls_require_client_auth=false")
+		"-tls_require_client_auth=false",
+		"-use_positional_index")
 	if err != nil {
 		return nil, err
 	}
