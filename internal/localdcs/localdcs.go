@@ -49,7 +49,7 @@ var (
 )
 
 func installBinaries() error {
-	cmd := exec.Command("go", "install", "-ldflags", "-X github.com/Debian/dcs/cmd/dcs-web/common.Version=git", "github.com/Debian/dcs/cmd/...")
+	cmd := exec.Command("go", "install", "github.com/Debian/dcs/cmd/...")
 	cmd.Stderr = os.Stderr
 	log.Printf("Compiling and installing binaries: %v\n", cmd.Args)
 	return cmd.Run()

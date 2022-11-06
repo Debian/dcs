@@ -10,6 +10,7 @@ import (
 	"log"
 	"path/filepath"
 	"reflect"
+	"runtime/debug"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -18,7 +19,37 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 )
 
-var Version string = "unknown"
+type StructuredVersion struct {
+	Revision string
+	Modified bool
+}
+
+func (sv StructuredVersion) String() string {
+	if len(sv.Revision) > 7 {
+		sv.Revision = sv.Revision[:7]
+	}
+	modifiedSuffix := ""
+	if sv.Modified {
+		modifiedSuffix = " (modified)"
+	}
+	return sv.Revision + modifiedSuffix
+}
+
+func Version() StructuredVersion {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return StructuredVersion{Revision: "<ReadBuildInfo() failed>"}
+	}
+	settings := make(map[string]string)
+	for _, s := range info.Settings {
+		settings[s.Key] = s.Value
+	}
+	return StructuredVersion{
+		Revision: settings["vcs.revision"],
+		Modified: settings["vcs.modified"] == "true",
+	}
+}
+
 var CriticalCss template.CSS
 var templatePattern = flag.String("template_pattern",
 	"templates/*",

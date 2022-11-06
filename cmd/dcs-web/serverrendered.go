@@ -194,7 +194,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		"literal":     r.Form.Get("literal") == "1",
 		"page":        page,
 		"host":        r.Host,
-		"version":     common.Version,
+		"version":     common.Version(),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -266,7 +266,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 			"q":           r.Form.Get("q"),
 			"literal":     literal == "1",
 			"host":        r.Host,
-			"version":     common.Version,
+			"version":     common.Version(),
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -348,7 +348,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		"literal":     literal == "1",
 		"page":        page,
 		"host":        r.Host,
-		"version":     common.Version,
+		"version":     common.Version(),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

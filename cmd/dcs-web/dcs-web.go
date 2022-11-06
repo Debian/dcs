@@ -580,10 +580,19 @@ func main() {
 		redirectURL = flag.String("salsa_application_callback_url",
 			"https://127.0.0.1:28080/apikeys/redirect_uri",
 			"salsa.debian.org GitLab Application login flow callback URL (fully qualified)")
+
+		printVersion = flag.Bool("version",
+			false,
+			"print version and exit")
 	)
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
+
+	if *printVersion {
+		fmt.Printf("dcs-web version %s\n", common.Version())
+		return
+	}
 
 	common.Init(*tlsCertPath, *tlsKeyPath, *staticPath)
 
@@ -621,7 +630,7 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Debian Code Search webapp, version %s\n", common.Version)
+	fmt.Printf("Debian Code Search webapp, version %s\n", common.Version())
 
 	health.StartChecking()
 
@@ -645,7 +654,7 @@ func main() {
 
 		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
-			"version":     common.Version,
+			"version":     common.Version(),
 			"host":        r.Host,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -688,7 +697,7 @@ func main() {
 	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
-			"version":     common.Version,
+			"version":     common.Version(),
 			"host":        r.Host,
 			"q":           "%q%",
 			"literal":     true,
