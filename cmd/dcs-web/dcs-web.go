@@ -35,6 +35,7 @@ import (
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/dcspb"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
+	"github.com/Debian/dcs/internal/version"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/golang/protobuf/proto"
@@ -590,7 +591,7 @@ func main() {
 	flag.Parse()
 
 	if *printVersion {
-		fmt.Printf("dcs-web version %s\n", common.Version())
+		fmt.Printf("dcs-web version %s\n", version.Read())
 		return
 	}
 
@@ -630,7 +631,7 @@ func main() {
 		}
 	}
 
-	fmt.Printf("Debian Code Search webapp, version %s\n", common.Version())
+	fmt.Printf("Debian Code Search webapp, version %s\n", version.Read())
 
 	health.StartChecking()
 
@@ -654,7 +655,7 @@ func main() {
 
 		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
-			"version":     common.Version(),
+			"version":     version.Read(),
 			"host":        r.Host,
 		}); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -697,7 +698,7 @@ func main() {
 	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
-			"version":     common.Version(),
+			"version":     version.Read(),
 			"host":        r.Host,
 			"q":           "%q%",
 			"literal":     true,

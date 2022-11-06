@@ -17,6 +17,7 @@ import (
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/sourcebackend"
+	"github.com/Debian/dcs/internal/version"
 	"github.com/Debian/dcs/ranking"
 	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,14 +43,23 @@ var (
 )
 
 func main() {
+	printVersion := flag.Bool("version",
+		false,
+		"print version and exit")
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	flag.Parse()
+
+	if *printVersion {
+		fmt.Printf("dcs-web version %s\n", version.Read())
+		return
+	}
 
 	rand.Seed(time.Now().UnixNano())
 	if !strings.HasSuffix(*unpackedPath, "/") {
 		*unpackedPath = *unpackedPath + "/"
 	}
-	fmt.Println("Debian Code Search source-backend")
+	fmt.Printf("Debian Code Search source-backend %s\n", version.Read())
 
 	if err := ranking.ReadRankingData(*rankingDataPath); err != nil {
 		log.Fatal(err)

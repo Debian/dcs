@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/internal/version"
 	"github.com/coreos/go-oidc"
 	"github.com/gorilla/securecookie"
 	"golang.org/x/oauth2"
@@ -183,7 +184,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		}
 		if err := common.Templates.ExecuteTemplate(w, "apikeys.html", map[string]interface{}{
 			"criticalcss": common.CriticalCss,
-			"version":     common.Version(),
+			"version":     version.Read(),
 			"host":        r.Host,
 			"userinfo":    session.GetUserInfo(),
 			"keyfilename": session.KeyFilename(),
