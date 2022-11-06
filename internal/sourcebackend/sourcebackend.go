@@ -136,6 +136,9 @@ type SourceReply struct {
 }
 
 type Server struct {
+	// For forward compatibility
+	sourcebackendpb.UnimplementedSourceBackendServer
+
 	mu                 sync.Mutex
 	Index              *index.Index
 	UnpackedPath       string

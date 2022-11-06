@@ -20,8 +20,9 @@ import (
 	"github.com/Debian/dcs/internal/api"
 	"github.com/Debian/dcs/internal/localdcs"
 	"github.com/Debian/dcs/internal/proto/dcspb"
-	"github.com/golang/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -134,7 +135,7 @@ func TestEndToEnd(t *testing.T) {
 
 		t.Logf("printing %d events:", len(events))
 		for _, ev := range events {
-			t.Logf("event: %s", proto.MarshalTextString(ev))
+			t.Logf("event: %s", prototext.Format(ev))
 			// TODO: figure out why results is sometimes 17, sometimes less?!
 			// might be related to positional index
 			ev.Data.(*dcspb.Event_Progress).Progress.Results = 0

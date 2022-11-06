@@ -15,8 +15,8 @@ import (
 	"github.com/Debian/dcs/internal/apikeys"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/edsrzf/mmap-go"
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/proto"
 )
 
 var (

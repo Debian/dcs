@@ -27,10 +27,10 @@ import (
 	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/stringpool"
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -220,7 +220,6 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 	bstate := state[queryid].perBackend[backendidx]
 	stateMu.RUnlock()
 	tempFileWriter := bstate.tempFileWriter
-	buf := proto.NewBuffer(nil)
 	orderlyFinished := false
 	done := false
 
@@ -235,25 +234,25 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 			return
 		}
 
-		buf.Reset()
-		if err := buf.Marshal(msg); err != nil {
+		b, err := proto.Marshal(msg)
+		if err != nil {
 			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, src, err)
 			return
 		}
-		if _, err := tempFileWriter.Write(buf.Bytes()); err != nil {
+		if _, err := tempFileWriter.Write(b); err != nil {
 			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, src, err)
 			return
 		}
 
 		switch msg.Type {
 		case sourcebackendpb.SearchReply_MATCH:
-			storeResult(queryid, backendidx, msg.Match, len(buf.Bytes()))
+			storeResult(queryid, backendidx, msg.Match, len(b))
 		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
 			storeProgress(queryid, backendidx, msg.ProgressUpdate)
 			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
 		}
 
-		bstate.tempFileOffset += int64(len(buf.Bytes()))
+		bstate.tempFileOffset += int64(len(b))
 		stateMu.RLock()
 		done = state[queryid].done
 		stateMu.RUnlock()
@@ -631,7 +630,6 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 		return err
 	}
 	var msg sourcebackendpb.SearchReply
-	buf := proto.NewBuffer(nil)
 	for idx, pointer := range pointers {
 		src := s.perBackend[pointer.backendidx].tempFile
 		if _, err := src.Seek(pointer.offset, os.SEEK_SET); err != nil {
@@ -647,9 +645,8 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 				return err
 			}
 		}
-		buf.SetBuf(rdbuf)
 		msg.Reset()
-		if err := buf.Unmarshal(&msg); err != nil {
+		if err := proto.Unmarshal(rdbuf, &msg); err != nil {
 			return err
 		}
 		if msg.Type != sourcebackendpb.SearchReply_MATCH {

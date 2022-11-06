@@ -120,6 +120,9 @@ func init() {
 }
 
 type server struct {
+	// For forward compatibility
+	packageimporterpb.UnimplementedPackageImporterServer
+
 	unpacksem chan struct{} // semaphore for unpackAndIndex
 	mergesem  chan struct{} // semaphore for merge
 }

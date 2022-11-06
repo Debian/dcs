@@ -38,11 +38,11 @@ import (
 	"github.com/Debian/dcs/internal/version"
 	dcsregexp "github.com/Debian/dcs/regexp"
 	_ "github.com/Debian/dcs/varz"
-	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/securecookie"
 	"github.com/prometheus/client_golang/prometheus"
 	_ "golang.org/x/net/trace"
 	"golang.org/x/net/websocket"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -384,6 +384,9 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type server struct {
+	// For forward compatibility
+	dcspb.UnimplementedDCSServer
+
 	decoder *apikeys.Decoder
 }
 
