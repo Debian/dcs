@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -179,22 +180,31 @@ func launchInBackground(binary string, args ...string) (addr string, _ error) {
 }
 
 func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file string) error {
-	// TODO: stream file contents like in feeder.go to avoid hitting gRPC max
-	// message size limit
-	b, err := ioutil.ReadFile(file)
-	if err != nil {
-		return err
-	}
 	stream, err := packageImporter.Import(context.Background())
 	if err != nil {
 		return err
 	}
-	if err := stream.Send(&packageimporterpb.ImportRequest{
-		SourcePackage: pkg,
-		Filename:      filepath.Base(file),
-		Content:       b,
-	}); err != nil {
+	f, err := os.Open(file)
+	if err != nil {
 		return err
+	}
+	defer f.Close()
+	buffer := make([]byte, 1*1024*1024) // 1 MB
+	for {
+		n, err := f.Read(buffer)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if err := stream.Send(&packageimporterpb.ImportRequest{
+			SourcePackage: pkg,
+			Filename:      filepath.Base(file),
+			Content:       buffer[:n],
+		}); err != nil {
+			return err
+		}
+		if err == io.EOF {
+			break
+		}
 	}
 	_, err = stream.CloseAndRecv()
 	return err
