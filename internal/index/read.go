@@ -436,38 +436,44 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 
 // FiveLines returns five \n-separated lines surrounding pos. The first two
 // lines are context above the line containing pos (which is always element
-// [2]), the last two lines are context above that line.
+// [2]), the last two lines are context below that line.
 func FiveLines(b []byte, pos int) [5]string {
-	//fmt.Printf("FiveLines(%q, %d)", string(b), pos)
+	//fmt.Printf("FiveLines(%q, %d)\n", string(b), pos)
 	var five [5]string
 	prev := pos
 	start := 2 // no before lines
-	if prev > 0 {
-		// start of line of match
+
+	// move prev to the beginning of the line in case the match starts in the
+	// middle of the line
+	if idx := bytes.LastIndexByte(b[:prev], '\n'); idx != -1 {
+		prev = idx + 1
+	} else {
+		prev = 0
+	}
+
+	for start > 0 {
+		// fmt.Printf("  looking for newline in %q\n  (would extract from: %q)\n", string(b[:prev]), string(b[prev:]))
 		if idx := bytes.LastIndexByte(b[:prev], '\n'); idx != -1 {
-			prev = idx + 1
-		}
-		// first context line
-		if idx := bytes.LastIndexByte(b[:prev-1], '\n'); idx != -1 {
-			prev = idx + 1
-			start--
-			// second context line (maybe start of file)
-			if idx := bytes.LastIndexByte(b[:prev-1], '\n'); idx != -1 {
+			// fmt.Printf("  new line found at %d, could add one more context line\n", idx)
+			// idx points to the end of the line (\n),
+			// but we want to position prev at the start of the line.
+			if idx := bytes.LastIndexByte(b[:idx], '\n'); idx != -1 {
 				prev = idx + 1
 			} else {
 				prev = 0
 			}
 			start--
 		} else {
-			prev = 0
-			start--
+			break
 		}
+		// fmt.Println()
 	}
+	// fmt.Printf("  will extract from: %q", string(b[prev:]))
 
 	if prev == -1 {
 		return five // TODO: BUG
 	}
-	//fmt.Printf("start=%d, prev=%d, window = %q\n", start, prev, b[prev:])
+	// fmt.Printf("start=%d, prev=%d, window = %q\n", start, prev, b[prev:])
 	scanner := bufio.NewScanner(bytes.NewReader(b[prev:]))
 	for ; start < 5; start++ {
 		if scanner.Scan() {
