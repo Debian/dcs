@@ -19,6 +19,8 @@ message SearchRequest {
   // Rewritten URL (after RewriteQuery()) with all the parameters that
   // are relevant for ranking.
   string rewritten_url = 2;
+
+  bool literal = 3;
 }
 
 message Match {

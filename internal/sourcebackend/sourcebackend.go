@@ -294,9 +294,13 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	connMu := new(sync.Mutex)
 	logprefix := fmt.Sprintf("[%q]", in.Query)
 
-	re, err := regexp.Compile(in.Query)
+	flags := syntax.Perl
+	if in.GetLiteral() {
+		flags |= syntax.Literal
+	}
+	re, err := syntax.Parse(in.Query, flags)
 	if err != nil {
-		return fmt.Errorf("%s Could not compile regexp: %v\n", logprefix, err)
+		return err
 	}
 
 	// Parse the (rewritten) URL to extract all ranking options/keywords.
@@ -308,7 +312,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
-	simplified := re.Syntax.Simplify()
+	simplified := re.Simplify()
 	caseSensitive := simplified.Flags&syntax.FoldCase != 0
 	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseSensitive
 	var files ranking.ResultPaths
@@ -329,7 +333,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			}
 		}
 	} else {
-		possible, err := s.query(index.RegexpQuery(re.Syntax))
+		possible, err := s.query(index.RegexpQuery(re))
 		if err != nil {
 			return err
 		}

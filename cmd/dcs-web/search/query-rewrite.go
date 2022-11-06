@@ -53,10 +53,6 @@ func RewriteQuery(u url.URL) url.URL {
 	// query is a copy which we will modify using Set() and use in the result
 	query := rewriteFilters(u.Query(), start)
 	query = rewriteFilters(query, end)
-
-	if query.Get("literal") == "1" {
-		query.Set("q", `\Q`+query.Get("q")+`\E`)
-	}
 	u.RawQuery = query.Encode()
 
 	return u

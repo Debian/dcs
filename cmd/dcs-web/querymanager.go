@@ -380,6 +380,7 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 	searchRequest := &sourcebackendpb.SearchRequest{
 		Query:        rewritten.Query().Get("q"),
 		RewrittenUrl: rewritten.String(),
+		Literal:      rewritten.Query().Get("literal") == "1",
 	}
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
 	if err := startQuery(queryid, querystate); err != nil {
