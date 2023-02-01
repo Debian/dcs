@@ -2,7 +2,7 @@ package turbopfor
 
 /*
 #cgo CFLAGS: -g
-#cgo LDFLAGS: ${SRCDIR}/vp4c.o ${SRCDIR}/vp4c_avx2.o ${SRCDIR}/vp4d.o ${SRCDIR}/vp4d_sse.o ${SRCDIR}/vp4d_avx2.o ${SRCDIR}/bitutil.o ${SRCDIR}/vint.o ${SRCDIR}/bitunpack.o ${SRCDIR}/bitunpack_sse.o ${SRCDIR}/bitunpack_avx2.o ${SRCDIR}/bitpack.o ${SRCDIR}/bitpack_avx2.o -lm
+#cgo LDFLAGS: -lm
 #include "conf.h"
 #include "bitpack.h"
 #include "vp4.h"
