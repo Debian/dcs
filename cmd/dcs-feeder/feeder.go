@@ -18,10 +18,12 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Debian/dcs/goroutinez"
@@ -555,6 +557,20 @@ func main() {
 		for {
 			checkSources()
 			time.Sleep(1 * time.Hour)
+		}
+	}()
+
+	// Triggers a merge on all package importers on SIGHUP,
+	// e.g. to immediately roll out changes to index merging.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGHUP)
+	go func() {
+		for range sig {
+			log.Printf("received SIGHUP, requesting merge on all package importers")
+			for i := 0; i < len(packageImporters); i++ {
+				log.Printf("requesting merge on package importer %d", i)
+				requestMerge(i)
+			}
 		}
 	}()
 
