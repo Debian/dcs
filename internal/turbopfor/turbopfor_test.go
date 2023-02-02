@@ -89,7 +89,7 @@ func TestDeltaEncode(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			padded := make([]uint32, len(test.input)+32)
+			padded := make([]uint32, turbopfor.DecodingSize(len(test.input)))
 			copy(padded, test.input)
 			padded = padded[:len(test.input)]
 			got := turbopfor.P4nd1enc32(padded)
@@ -135,7 +135,7 @@ func TestChunkedEncode(t *testing.T) {
 
 	var got []byte
 	for len(input) >= 256 {
-		tmp := make([]byte, turbopfor.Size(input))
+		tmp := make([]byte, turbopfor.EncodingSize(len(input)))
 		n := turbopfor.P4enc256v32(input, tmp)
 		got = append(got, tmp[:n]...)
 		input = input[256:]

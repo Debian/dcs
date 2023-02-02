@@ -44,11 +44,22 @@ import (
 	"sync"
 )
 
+// Corresponding to #define P4NENC256_BOUND(n) ((n + 255) /256 + (n + 32) * sizeof(uint32_t))
+// from https://github.com/powturbo/TurboPFor-Integer-Compression/issues/59
+func EncodingSize(n int) int {
+	return ((n + 255) / 256) + (n+32)*4
+}
+
+// Corresponding to 32*4 extra bytes
+// from https://github.com/powturbo/TurboPFor-Integer-Compression/issues/59
+func DecodingSize(n int) int {
+	return n + 32*4
+}
+
 // KNOWN WORKING
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4nenc32(input []uint32) []byte {
-	n := len(input)
-	buffer := make([]byte, ((n+127)/128)+(n+32)*4)
+	buffer := make([]byte, EncodingSize(len(input)))
 	num := C.p4nenc32((*C.uint32_t)(&input[0]),
 		C.size_t(len(input)),
 		(*C.uchar)(&buffer[0]))
@@ -57,8 +68,7 @@ func P4nenc32(input []uint32) []byte {
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4enc32(input []uint32) []byte {
-	n := len(input)
-	buffer := make([]byte, ((n+127)/128)+(n+32)*4)
+	buffer := make([]byte, EncodingSize(len(input)))
 	num := C.myp4enc32((*C.uint32_t)(&input[0]),
 		C.unsigned(len(input)),
 		(*C.uchar)(&buffer[0]))
@@ -71,15 +81,10 @@ var bufPool = sync.Pool{
 	},
 }
 
-func Size(input []uint32) int {
-	n := len(input)
-	return ((n + 127) / 128) + (n+32)*4
-}
-
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4enc256v32(input []uint32, output []byte) int {
 	buffer := bufPool.Get().([]byte)
-	if sz := Size(input); cap(buffer) < sz {
+	if sz := EncodingSize(len(input)); cap(buffer) < sz {
 		buffer = make([]byte, sz)
 	}
 	num := C.myp4enc256v32((*C.uint32_t)(&input[0]),
@@ -92,8 +97,7 @@ func P4enc256v32(input []uint32, output []byte) int {
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4nenc256v32(input []uint32) []byte {
-	n := len(input)
-	buffer := make([]byte, ((n+127)/128)+(n+32)*4)
+	buffer := make([]byte, EncodingSize(len(input)))
 	num := C.p4nenc256v32((*C.uint32_t)(&input[0]),
 		C.size_t(len(input)),
 		(*C.uchar)(&buffer[0]))
@@ -102,8 +106,7 @@ func P4nenc256v32(input []uint32) []byte {
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4nzenc32(input []uint32) []byte {
-	n := len(input)
-	buffer := make([]byte, ((n+127)/128)+(n+32)*4)
+	buffer := make([]byte, EncodingSize(len(input)))
 	num := C.p4nzenc32((*C.uint32_t)(&input[0]),
 		C.size_t(len(input)),
 		(*C.uchar)(&buffer[0]))
@@ -112,8 +115,7 @@ func P4nzenc32(input []uint32) []byte {
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4nd1enc32(input []uint32) []byte {
-	n := len(input)
-	buffer := make([]byte, ((n+127)/128)+(n+32)*4)
+	buffer := make([]byte, EncodingSize(len(input)))
 	num := C.p4nd1enc32((*C.uint32_t)(&input[0]),
 		C.size_t(len(input)),
 		(*C.uchar)(&buffer[0]))

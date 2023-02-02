@@ -198,8 +198,7 @@ func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32,
 	// }
 
 	//var deltas []uint32
-	// TODO: figure out overhead. 128*1024 is wrong. might be 0, actually
-	if n := entries + 128*1024; n > cap(buffer.u) {
+	if n := turbopfor.DecodingSize(entries); n > cap(buffer.u) {
 		buffer.u = make([]uint32, 0, n)
 	}
 	//deltas := make([]uint32, entries, entries+128*1024)
@@ -235,7 +234,7 @@ type DeltaReader struct {
 
 func NewDeltaReader() *DeltaReader {
 	return &DeltaReader{
-		buf: make([]uint32, 256),
+		buf: make([]uint32, 256, turbopfor.DecodingSize(256)),
 	}
 }
 

@@ -32,7 +32,7 @@ func (pw *pforWriter) Offset() int64 {
 func (pw *pforWriter) PutUint32(u uint32) error {
 	pw.ints = append(pw.ints, u)
 	if len(pw.ints) == 256 {
-		if sz := turbopfor.Size(pw.ints); len(pw.buf) < sz {
+		if sz := turbopfor.EncodingSize(len(pw.ints)); len(pw.buf) < sz {
 			pw.buf = make([]byte, sz)
 		}
 		n := turbopfor.P4enc256v32(pw.ints, pw.buf)
