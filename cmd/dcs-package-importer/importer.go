@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
+	"sort"
 	"strings"
 	"time"
 
@@ -227,6 +228,7 @@ func packageNames() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(names)
 	filtered := make([]string, 0, len(names))
 	for _, n := range names {
 		if strings.HasSuffix(n, ".tmp") {
