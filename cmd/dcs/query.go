@@ -33,7 +33,7 @@ func query(args []string) error {
 	fset := flag.NewFlagSet("query", flag.ExitOnError)
 	fset.Usage = usage(fset, queryHelp)
 	var target string
-	fset.StringVar(&target, "target", "", "gRPC target address")
+	fset.StringVar(&target, "target", "codesearch.debian.net:443", "gRPC target address")
 	var insecure bool
 	fset.BoolVar(&insecure, "insecure", false, "skip TLS certificate verification")
 	var grpcEnableLog bool
