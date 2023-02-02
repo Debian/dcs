@@ -2,6 +2,7 @@
 package show
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/shardmapping"
-	"golang.org/x/net/context"
 )
 
 func Show(w http.ResponseWriter, r *http.Request) {

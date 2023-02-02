@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"hash/fnv"
@@ -28,7 +29,6 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/net/context"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/proto"
 )

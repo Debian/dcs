@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -23,7 +24,6 @@ import (
 	"github.com/Debian/dcs/internal/index"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
