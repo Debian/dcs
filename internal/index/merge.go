@@ -80,6 +80,13 @@ func readPosrelMeta(dir string, idx map[Trigram][]posrelMetaEntry, idxid uint32)
 	return nil
 }
 
+const debug = false
+
+var debugTrigram = func(trigram string) Trigram {
+	t := []byte(trigram)
+	return Trigram(uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2]))
+}("_op")
+
 func ConcatN(destdir string, srcdirs []string) error {
 	fDocidMap, err := os.Create(filepath.Join(destdir, "docid.map"))
 	if err != nil {
@@ -215,6 +222,12 @@ func ConcatN(destdir string, srcdirs []string) error {
 		meBuf := make([]byte, metaEntrySize)
 		dr := NewDeltaReader()
 		for _, t := range trigrams {
+			if debug {
+				if t != debugTrigram {
+					continue
+				}
+			}
+
 			//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 			//ctrl, data := dw.Offsets()
 			me := MetaEntry{
@@ -292,6 +305,11 @@ func ConcatN(destdir string, srcdirs []string) error {
 		cw := newCountingWriter(fposrel)
 		pw := newPosrelWriter(&cw)
 		for _, t := range trigrams {
+			if debug {
+				if t != debugTrigram {
+					continue
+				}
+			}
 			if t == 2105376 { // TODO: document: "   "?
 				continue
 			}
@@ -359,6 +377,12 @@ func ConcatN(destdir string, srcdirs []string) error {
 		dr := NewDeltaReader()
 		//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 		for _, t := range trigrams {
+			if debug {
+				if t != debugTrigram {
+					continue
+				}
+			}
+
 			if t == 2105376 { // TODO: document: "   "?
 				continue
 			}
