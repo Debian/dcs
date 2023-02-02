@@ -22,7 +22,7 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
-	"github.com/google/renameio"
+	"github.com/google/renameio/v2"
 )
 
 func FilterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.ResultPath {

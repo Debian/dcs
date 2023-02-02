@@ -20,7 +20,7 @@ import (
 	"github.com/Debian/dcs/internal/version"
 	"github.com/Debian/dcs/ranking"
 	_ "github.com/Debian/dcs/varz"
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 )
 
@@ -94,7 +94,7 @@ func main() {
 		UsePositionalIndex: *usePositionalIndex,
 	}
 
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
 		*tlsCertPath,
 		*tlsKeyPath,

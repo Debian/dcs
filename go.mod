@@ -6,7 +6,7 @@ require (
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/google/codesearch v1.2.0
 	github.com/google/go-cmp v0.5.9
-	github.com/google/renameio v1.0.1
+	github.com/google/renameio/v2 v2.0.0
 	github.com/gorilla/securecookie v1.1.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/prometheus/client_golang v1.14.0

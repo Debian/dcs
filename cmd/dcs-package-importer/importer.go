@@ -22,6 +22,7 @@ import (
 	"github.com/Debian/dcs/internal/filter"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
@@ -587,7 +588,7 @@ func packageImporter() error {
 	}
 	defer os.RemoveAll(tmpdir)
 
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 
 	return grpcutil.ListenAndServeTLS(*listenAddress,
 		*tlsCertPath,

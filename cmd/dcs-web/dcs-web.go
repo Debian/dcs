@@ -40,6 +40,7 @@ import (
 	_ "github.com/Debian/dcs/varz"
 	"github.com/gorilla/securecookie"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "golang.org/x/net/trace"
 	"golang.org/x/net/websocket"
 	"google.golang.org/protobuf/proto"
@@ -711,7 +712,7 @@ func main() {
 		}
 	})
 
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 
 	apiOpts := apikeys.Options{
 		HashKey:      hashKey,
