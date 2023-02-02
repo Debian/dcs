@@ -72,12 +72,19 @@ func hasManpageSuffix(filename string) bool {
 // • generated files
 // • non-source (but text) files, e.g. .doc, .svg, …
 func Ignored(info os.FileInfo, dir, filename string) error {
+	path := filepath.Join(dir, filename)
 	// Some filenames (e.g.
 	// "xblast-tnt-levels_20050106-2/reconstruct\xeeon2.xal") contain
 	// invalid UTF-8 and will break when sending them via JSON later
 	// on. Filter those out early to avoid breakage.
-	if path := filepath.Join(dir, filename); !utf8.ValidString(path) {
+	if !utf8.ValidString(path) {
 		return fmt.Errorf("path %q is not valid UTF-8", path)
+	}
+
+	if strings.ContainsRune(path, '\n') {
+		// e.g. s3cmd’s testsuite.tar.gz (which we unpack because it is a
+		// top-level archive) contains files with a newline in their name 😱
+		return fmt.Errorf("path %q contains a newline", path)
 	}
 
 	if info.IsDir() {
