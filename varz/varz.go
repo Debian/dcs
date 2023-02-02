@@ -16,7 +16,7 @@ import (
 
 var (
 	availFS = flag.String("varz_avail_fs",
-		"",
+		"/srv/dcs",
 		"If non-empty, /varz will contain the number of available bytes on the specified filesystem")
 )
 
