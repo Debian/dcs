@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -53,6 +54,17 @@ func Init(tlsCertPath, tlsKeyPath, staticPath string) {
 func loadTemplates() {
 	var err error
 	Templates = template.New("foo").Funcs(template.FuncMap{
+		"appendToQuery": func(unparsedURL, extra string) string {
+			u, err := url.Parse(unparsedURL)
+			if err != nil {
+				log.Printf("appendToQuery(%q) = %v", unparsedURL, err)
+				return unparsedURL
+			}
+			basequery := u.Query()
+			basequery.Set("q", basequery.Get("q")+extra)
+			u.RawQuery = basequery.Encode()
+			return u.String()
+		},
 		"eq": func(args ...interface{}) bool {
 			if len(args) == 0 {
 				return false

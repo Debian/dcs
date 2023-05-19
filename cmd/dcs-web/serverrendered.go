@@ -178,7 +178,6 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 	pagination := updatePagination(page, pages, baseurl.String())
 
 	basequery.Del("perpkg")
-	basequery.Del("q")
 	// Ensure the filterurl has at least one parameter, so that we can
 	// always concatenate with the & sign.
 	basequery.Set("_", "_")
@@ -331,7 +330,6 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	perpkgurl := baseurl.String()
 
 	basequery.Del("perpkg")
-	basequery.Del("q")
 	// Ensure the filterurl has at least one parameter, so that we can
 	// always concatenate with the & sign.
 	basequery.Set("_", "_")
