@@ -44,16 +44,26 @@ import (
 	"sync"
 )
 
-// Corresponding to #define P4NENC256_BOUND(n) ((n + 255) /256 + (n + 32) * sizeof(uint32_t))
-// from https://github.com/powturbo/TurboPFor-Integer-Compression/issues/59
+// Corresponding to p4nbound256v32:
+//
+// #define VP4BOUND(_n_, _esize_, _csize_) ((_esize_*_n_) + ((_n_+_csize_-1)/_csize_))
+// size_t p4nbound256v32(size_t n) { return VP4BOUND(n, 4, 256); }
+//
+// see also https://github.com/powturbo/TurboPFor-Integer-Compression/issues/59
 func EncodingSize(n int) int {
 	return ((n + 255) / 256) + (n+32)*4
 }
 
-// Corresponding to 32*4 extra bytes
-// from https://github.com/powturbo/TurboPFor-Integer-Compression/issues/59
+// Corresponding to p4nbound32:
+//
+// #define VP4BOUND(_n_, _esize_, _csize_) ((_esize_*_n_) + ((_n_+_csize_-1)/_csize_))
+// size_t p4nbound32(    size_t n) { return VP4BOUND(n, 4, 128); }
+//
+// see also https://github.com/powturbo/TurboPFor-Integer-Compression/issues/59
+//
+// see also https://github.com/powturbo/TurboPFor-Integer-Compression/issues/84
 func DecodingSize(n int) int {
-	return n + 32*4
+	return ((n + 127) / 128) + (n+32)*4
 }
 
 // KNOWN WORKING
@@ -123,6 +133,15 @@ func P4nd1enc32(input []uint32) []byte {
 }
 
 func P4dec32(input []byte, output []uint32) (read int) {
+	// TurboPFor (at least older versions? see
+	// https://github.com/powturbo/TurboPFor-Integer-Compression/issues/84) read
+	// past their input buffer, so verify that the input buffer has enough
+	// capacity and use a temporary buffer if needed:
+	if required := DecodingSize(len(output)); cap(input) < required {
+		buffer := make([]byte, len(input), required)
+		copy(buffer, input)
+		input = buffer
+	}
 	return int(C.myp4dec32((*C.uchar)(&input[0]),
 		C.unsigned(len(output)),
 		(*C.uint32_t)(&output[0])))
