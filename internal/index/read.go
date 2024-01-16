@@ -97,6 +97,10 @@ func newBufferPair() *bufferPair {
 }
 
 type PForReader struct {
+	// The dir field is unused in the code, but incredibly useful to keep around
+	// when looking at crash dumps in a debugger.
+	dir string
+
 	meta *mmap.File
 	data *mmap.File
 
@@ -104,7 +108,9 @@ type PForReader struct {
 }
 
 func newPForReader(dir, section string) (*PForReader, error) {
-	var sr PForReader
+	sr := PForReader{
+		dir: dir,
+	}
 	var err error
 	if sr.meta, err = mmap.Open(filepath.Join(dir, "posting."+section+".meta")); err != nil {
 		return nil, err
