@@ -3,8 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
-	"os/exec"
 
 	"github.com/Debian/dcs/internal/localdcs"
 )
@@ -18,9 +16,5 @@ func main() {
 	if instance.Addr == "" {
 		return // stopped
 	}
-	browser := exec.Command("google-chrome", "https://"+instance.Addr)
-	browser.Stderr = os.Stderr
-	if err := browser.Run(); err != nil {
-		log.Printf("%v: %v", browser.Args, err)
-	}
+	log.Printf("https://%s", instance.Addr)
 }
