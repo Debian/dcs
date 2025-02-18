@@ -4,13 +4,13 @@ go 1.24
 
 require (
 	github.com/antihax/optional v1.0.0
-	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/edsrzf/mmap-go v1.1.0
+	github.com/coreos/go-oidc v2.3.0+incompatible
+	github.com/edsrzf/mmap-go v1.2.0
 	github.com/google/codesearch v1.2.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/renameio/v2 v2.0.0
-	github.com/gorilla/securecookie v1.1.1
-	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
+	github.com/gorilla/securecookie v1.1.2
+	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/stapelberg/godebiancontrol v0.0.0-20180408134423-8c93e189186a
 	golang.org/x/net v0.35.0
@@ -36,5 +36,5 @@ require (
 	golang.org/x/crypto v0.33.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/genproto v0.0.0-20230202175211-008b39050e57 // indirect
-	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
+	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 )
