@@ -106,6 +106,7 @@ func query(args []string) error {
 				if err != nil {
 					return err
 				}
+				// TODO: implement before/after/context flags
 				fmt.Printf("%s:%d: %s\n",
 					match.GetPath(),
 					match.GetLine(),
