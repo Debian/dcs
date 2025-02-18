@@ -60,7 +60,10 @@ func TestEncode(t *testing.T) {
 		{
 			name:  "bitpack with big exceptions",
 			input: []uint32{7, 9, 3, 4, 5, 1, 3, 7, 3, 1, 2, 718238414},
-			want:  []byte{0x84, 0x1a, 0x0, 0x8, 0x2c, 0xf7, 0xac, 0x2, 0x97, 0x43, 0x15, 0x73, 0x13, 0xe2},
+			// Sometimes, I saw:
+			//                                                   0xfe
+			//                                                   0xf2
+			want: []byte{0x84, 0x1a, 0x0, 0x8, 0x2c, 0xf7, 0xac, 0x2, 0x97, 0x43, 0x15, 0x73, 0x13, 0xe2},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -69,7 +72,7 @@ func TestEncode(t *testing.T) {
 			padded = padded[:len(test.input)]
 			got := turbopfor.P4nenc32(padded)
 			if !bytes.Equal(got, test.want) {
-				t.Fatalf("got %x (%#v), want %x", got, got, test.want)
+				t.Fatalf("unexpected encoding result:\ngot  %x (%#v)\nwant %x (%#v)", got, got, test.want, test.want)
 			}
 		})
 	}
@@ -94,7 +97,7 @@ func TestDeltaEncode(t *testing.T) {
 			padded = padded[:len(test.input)]
 			got := turbopfor.P4nd1enc32(padded)
 			if !bytes.Equal(got, test.want) {
-				t.Fatalf("got %x, want %x", got, test.want)
+				t.Fatalf("unexpected encoding result:\ngot  %x (%#v)\nwant %x (%#v)", got, got, test.want, test.want)
 			}
 		})
 	}
