@@ -1,5 +1,7 @@
 module github.com/Debian/dcs
 
+go 1.24
+
 require (
 	github.com/antihax/optional v1.0.0
 	github.com/coreos/go-oidc v2.2.1+incompatible
@@ -37,5 +39,3 @@ require (
 	google.golang.org/genproto v0.0.0-20230202175211-008b39050e57 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 )
-
-go 1.20
