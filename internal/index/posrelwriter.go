@@ -9,6 +9,7 @@ type posrelWriter struct {
 	w       io.Writer
 	numbits int
 	current byte
+	buf1    [1]byte
 
 	Debug bool
 }
@@ -59,7 +60,8 @@ func (pw *posrelWriter) Flush() error {
 	if pw.Debug {
 		log.Printf("flushing %x, pw.current=%x, pw.numbits=%d", pw.current, pw.current, pw.numbits)
 	}
-	if _, err := pw.w.Write([]byte{pw.current}); err != nil {
+	pw.buf1[0] = pw.current
+	if _, err := pw.w.Write(pw.buf1[:]); err != nil {
 		return err
 	}
 	pw.current = 0
