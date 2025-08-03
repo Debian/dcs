@@ -225,6 +225,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 		meBuf := make([]byte, metaEntrySize)
 		dr := NewDeltaReader()
+		var meta MetaEntry
 		for _, t := range trigrams {
 			if debug {
 				if t != debugTrigram {
@@ -243,15 +244,14 @@ func ConcatN(destdir string, srcdirs []string) error {
 			var last uint32
 			for _, idxid := range idxDocid[t] {
 				idx := idxMetaDocid[idxid]
-				meta, err := idx.rd.metaEntry1(t)
-				if err != nil {
+				if err := idx.rd.metaEntry1(&meta, t); err != nil {
 					if err == errNotFound {
 						continue
 					}
 					return err
 				}
 				me.Entries += meta.Entries
-				dr.Reset(meta, idx.rd.data.Data)
+				dr.Reset(&meta, idx.rd.data.Data)
 				docids := dr.Read() // returns non-nil at least once
 				// Bump the first docid: it needs to be mapped from the old
 				// docid range [0, n) to the new docid range [base, base+n).
@@ -294,12 +294,12 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 	{
 		log.Printf("writing merged posrel")
-		fmeta, err := os.Create(filepath.Join(destdir, "posting.posrel.meta"))
+		fmetaf, err := os.Create(filepath.Join(destdir, "posting.posrel.meta"))
 		if err != nil {
 			return err
 		}
-		defer fmeta.Close()
-		bufwmeta := bufio.NewWriter(fmeta)
+		defer fmetaf.Close()
+		bufwmeta := bufio.NewWriter(fmetaf)
 
 		fposrel, err := os.Create(filepath.Join(destdir, "posting.posrel.data"))
 		if err != nil {
@@ -308,6 +308,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		defer fposrel.Close()
 		cw := newCountingWriter(fposrel)
 		pw := newPosrelWriter(&cw)
+		var fmeta, pmeta MetaEntry
 		for _, t := range trigrams {
 			if debug {
 				if t != debugTrigram {
@@ -327,16 +328,14 @@ func ConcatN(destdir string, srcdirs []string) error {
 			}
 			for _, idxid := range idxDocid[t] {
 				// TODO: refactor all metaEntry1 to use ,ok idiom, they only ever return errNotFound
-				fmeta, err := idxMetaPos[idxid].rd.metaEntry1(t)
-				if err != nil {
+				if err := idxMetaPos[idxid].rd.metaEntry1(&fmeta, t); err != nil {
 					if err == errNotFound {
 						continue
 					}
 					return err
 				}
 
-				pmeta, err := idxMetaPosrel[idxid].rd.metaEntry1(t)
-				if err != nil {
+				if err := idxMetaPosrel[idxid].rd.metaEntry1(&pmeta, t); err != nil {
 					if err == errNotFound {
 						continue
 					}
@@ -355,7 +354,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 		if err := bufwmeta.Flush(); err != nil {
 			return err
 		}
-		if err := fmeta.Close(); err != nil {
+		if err := fmetaf.Close(); err != nil {
 			return err
 		}
 		if err := cw.Close(); err != nil {
@@ -379,6 +378,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 		meBuf := make([]byte, metaEntrySize)
 		dr := NewDeltaReader()
+		var meta MetaEntry
 		//for _, t := range []trigram{trigram(6650227), trigram(7959906)} {
 		for _, t := range trigrams {
 			if debug {
@@ -401,15 +401,14 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 			for _, idxid := range idxDocid[t] {
 				idx := idxMetaPos[idxid]
-				meta, err := idx.rd.metaEntry1(t)
-				if err != nil {
+				if err := idx.rd.metaEntry1(&meta, t); err != nil {
 					if err == errNotFound {
 						continue
 					}
 					return err
 				}
 				me.Entries += meta.Entries
-				dr.Reset(meta, idx.rd.data.Data)
+				dr.Reset(&meta, idx.rd.data.Data)
 
 				for docids := dr.Read(); docids != nil; docids = dr.Read() {
 					for _, d := range docids {

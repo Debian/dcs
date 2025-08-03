@@ -156,7 +156,7 @@ func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error)
 	return &result, &next, nil
 }
 
-func (sr *PForReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
+func (sr *PForReader) metaEntry1(dest *MetaEntry, trigram Trigram) error {
 	num := len(sr.meta.Data) / metaEntrySize
 	d := sr.meta.Data
 	n := sort.Search(num, func(i int) bool {
@@ -164,14 +164,13 @@ func (sr *PForReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
 	if n >= num {
-		return nil, errNotFound
+		return errNotFound
 	}
-	var result MetaEntry
-	result.Unmarshal(d[n*metaEntrySize:])
-	if result.Trigram != trigram {
-		return nil, errNotFound
+	dest.Unmarshal(d[n*metaEntrySize:])
+	if dest.Trigram != trigram {
+		return errNotFound
 	}
-	return &result, nil
+	return nil
 }
 
 func (sr *PForReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
@@ -214,11 +213,11 @@ func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32,
 }
 
 func (sr *PForReader) deltasWithBuffer(t Trigram, buffer *reusableBuffer) ([]uint32, error) {
-	meta, err := sr.metaEntry1(t)
-	if err != nil {
+	var meta MetaEntry
+	if err := sr.metaEntry1(&meta, t); err != nil {
 		return nil, err
 	}
-	return sr.deltas(meta, buffer)
+	return sr.deltas(&meta, buffer)
 }
 
 func (sr *PForReader) Deltas(t Trigram) ([]uint32, error) {
@@ -289,7 +288,7 @@ func newPosrelReader(dir string) (*PosrelReader, error) {
 	return &pr, nil
 }
 
-func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
+func (pr *PosrelReader) metaEntry1(dest *MetaEntry, trigram Trigram) error {
 	// TODO: maybe de-duplicate with PForReader.metaEntry?
 
 	num := len(pr.meta.Data) / metaEntrySize
@@ -299,24 +298,25 @@ func (pr *PosrelReader) metaEntry1(trigram Trigram) (*MetaEntry, error) {
 		return Trigram(binary.LittleEndian.Uint32(d[i*metaEntrySize:])) >= trigram
 	})
 	if n >= num {
-		return nil, errNotFound
+		return errNotFound
 	}
-	var result MetaEntry
-	result.Unmarshal(d[n*metaEntrySize:])
-	if result.Trigram != trigram {
-		return nil, errNotFound
+	dest.Unmarshal(d[n*metaEntrySize:])
+	if dest.Trigram != trigram {
+		return errNotFound
 	}
 
-	return &result, nil
+	return nil
 }
 
 func (pr *PosrelReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
-	return pr.metaEntry1(trigram)
+	var meta MetaEntry
+	err := pr.metaEntry1(&meta, trigram)
+	return &meta, err
 }
 
 func (pr *PosrelReader) DataBytes(t Trigram) ([]byte, error) {
-	meta, err := pr.metaEntry1(t)
-	if err != nil {
+	var meta MetaEntry
+	if err := pr.metaEntry1(&meta, t); err != nil {
 		return nil, err
 	}
 	return pr.data.Data[meta.OffsetData:], nil
