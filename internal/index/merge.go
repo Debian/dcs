@@ -88,6 +88,10 @@ var debugTrigram = func(trigram string) Trigram {
 }("_op")
 
 func ConcatN(destdir string, srcdirs []string) error {
+	if err := os.MkdirAll(destdir, 0755); err != nil {
+		return err
+	}
+
 	fDocidMap, err := os.Create(filepath.Join(destdir, "docid.map"))
 	if err != nil {
 		return err
