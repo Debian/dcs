@@ -40,9 +40,6 @@ static int minlen(unsigned cnt) {
 }
 */
 import "C"
-import (
-	"sync"
-)
 
 // Corresponding to p4nbound256v32:
 //
@@ -85,33 +82,26 @@ func P4enc32(input []uint32) []byte {
 	return buffer[:int(num)]
 }
 
-var bufPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 4096) // TODO: tune
-	},
+// len(input) % 32 must be 0 (pad with 0x00 if necessary).
+func P4enc256v32(input []uint32, output []byte) int {
+	num := C.myp4enc256v32((*C.uint32_t)(&input[0]),
+		C.unsigned(len(input)),
+		(*C.uchar)(&output[0]))
+	return int(num)
 }
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
-func P4enc256v32(input []uint32, output []byte) int {
-	buffer := bufPool.Get().([]byte)
-	if sz := EncodingSize(len(input)); cap(buffer) < sz {
-		buffer = make([]byte, sz)
-	}
-	num := C.myp4enc256v32((*C.uint32_t)(&input[0]),
-		C.unsigned(len(input)),
+func P4nenc256v32Buf(buffer []byte, input []uint32) []byte {
+	num := C.p4nenc256v32((*C.uint32_t)(&input[0]),
+		C.size_t(len(input)),
 		(*C.uchar)(&buffer[0]))
-	copy(output, buffer[:int(num)])
-	bufPool.Put(buffer)
-	return int(num)
+	return buffer[:int(num)]
 }
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).
 func P4nenc256v32(input []uint32) []byte {
 	buffer := make([]byte, EncodingSize(len(input)))
-	num := C.p4nenc256v32((*C.uint32_t)(&input[0]),
-		C.size_t(len(input)),
-		(*C.uchar)(&buffer[0]))
-	return buffer[:int(num)]
+	return P4nenc256v32Buf(buffer, input)
 }
 
 // len(input) % 32 must be 0 (pad with 0x00 if necessary).

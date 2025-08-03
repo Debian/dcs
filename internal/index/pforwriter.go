@@ -59,7 +59,12 @@ func (pw *pforWriter) Flush() error {
 	if len(pw.ints) == 0 {
 		return nil
 	}
-	b := turbopfor.P4nenc256v32(pw.ints)
+
+	if sz := turbopfor.EncodingSize(len(pw.ints)); len(pw.buf) < sz {
+		pw.buf = make([]byte, sz)
+	}
+
+	b := turbopfor.P4nenc256v32Buf(pw.buf, pw.ints)
 	if _, err := pw.f.Write(b); err != nil {
 		return err
 	}
