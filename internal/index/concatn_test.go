@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -260,6 +261,61 @@ func TestConcatNMany(t *testing.T) {
 		if !strings.HasPrefix(result.Filename, "file_") ||
 			!strings.HasSuffix(result.Filename, ".txt") {
 			t.Errorf("Unexpected file name format: %q", result.Filename)
+		}
+	}
+}
+
+func BenchmarkConcatN(b *testing.B) {
+	const indexDir = "/srv/dcs/shard0/idx"
+
+	subsetSize := 10
+	if envSize := os.Getenv("DCS_CONCAT_BENCH_SIZE"); envSize != "" {
+		parsed, err := strconv.ParseInt(envSize, 0, 64)
+		if err != nil {
+			b.Fatalf("ParseInt(DCS_CONCAT_BENCH_SIZE): %v", err)
+		}
+		subsetSize = int(parsed)
+	}
+
+	entries, err := os.ReadDir(indexDir)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		idxPath := filepath.Join(indexDir, entry.Name())
+		dirs = append(dirs, idxPath)
+	}
+
+	// Select subset using modulo hashing
+	var selected []string
+	for i, dir := range dirs {
+		if i%subsetSize != 0 {
+			continue
+		}
+		selected = append(selected, dir)
+		if len(selected) >= subsetSize {
+			break
+		}
+	}
+
+	b.Logf("Selected %d indexes out of %d available (subset size: %d)", len(selected), len(dirs), subsetSize)
+
+	tmpDir := b.TempDir()
+	destDir := filepath.Join(tmpDir, "merged")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		os.RemoveAll(destDir)
+
+		if err := ConcatN(destDir, selected); err != nil {
+			b.Fatalf("ConcatN failed: %v", err)
 		}
 	}
 }
