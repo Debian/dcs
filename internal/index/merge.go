@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 )
 
 type indexMeta struct {
@@ -146,44 +147,25 @@ func ConcatN(destdir string, srcdirs []string) error {
 		return err
 	}
 
+	start := time.Now()
 	log.Printf("reading fileMetaEntries")
-
-	idxMetaPos := make([]indexMeta, len(srcdirs))
-	idxMetaPosrel := make([]posrelMeta, len(srcdirs))
 
 	idxDocid := make(map[Trigram][]uint32)
 	for idx, dir := range srcdirs {
-		base := bases[idx]
-
 		if err := readMeta(dir, "docid", idxDocid, uint32(idx)); err != nil {
 			return err
 		}
-
-		{
-			rd, err := newPForReader(dir, "pos")
-			if err != nil {
-				return err
-			}
-			defer rd.Close()
-			idxMetaPos[idx] = indexMeta{docidBase: base, rd: rd}
-		}
-
-		{
-			rd, err := newPosrelReader(dir)
-			if err != nil {
-				return err
-			}
-			defer rd.Close()
-
-			idxMetaPosrel[idx] = posrelMeta{rd: rd}
-		}
 	}
+	log.Printf("done! (in %v)", time.Since(start))
 
+	start = time.Now()
 	trigrams := make([]Trigram, 0, len(idxDocid))
 	for t := range idxDocid {
 		trigrams = append(trigrams, t)
 	}
 	slices.Sort(trigrams)
+	log.Printf("sorted trigrams in %v", time.Since(start))
+	start = time.Now()
 
 	{
 		idxMetaDocid := make([]indexMeta, len(srcdirs))
@@ -205,13 +187,53 @@ func ConcatN(destdir string, srcdirs []string) error {
 		}
 	}
 
-	if err := writePosrel(destdir, trigrams, idxDocid, idxMetaPos, idxMetaPosrel); err != nil {
-		return err
+	log.Printf("wrote docids in %v", time.Since(start))
+	start = time.Now()
+
+	idxMetaPos := make([]indexMeta, len(srcdirs))
+	for idx, dir := range srcdirs {
+		base := bases[idx]
+
+		rd, err := newPForReader(dir, "pos")
+		if err != nil {
+			return err
+		}
+		defer rd.Close()
+		idxMetaPos[idx] = indexMeta{docidBase: base, rd: rd}
 	}
 
+	{
+		idxMetaPosrel := make([]posrelMeta, len(srcdirs))
+
+		for idx, dir := range srcdirs {
+			rd, err := newPosrelReader(dir)
+			if err != nil {
+				return err
+			}
+			defer rd.Close()
+
+			idxMetaPosrel[idx] = posrelMeta{rd: rd}
+		}
+
+		if err := writePosrel(destdir, trigrams, idxDocid, idxMetaPos, idxMetaPosrel); err != nil {
+			return err
+		}
+		for _, meta := range idxMetaPosrel {
+			meta.rd.Close()
+		}
+
+		log.Printf("wrote posrel in %v", time.Since(start))
+		start = time.Now()
+	}
+
+	// TODO(performance): The following phase accumulates up to 20 GB (!) in memory mappings.
 	if err := writePos(destdir, trigrams, idxDocid, idxMetaPos); err != nil {
 		return err
 	}
+	for _, meta := range idxMetaPos {
+		meta.rd.Close()
+	}
+	log.Printf("wrote pos in %v", time.Since(start))
 
 	return nil
 }
