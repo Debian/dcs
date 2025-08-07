@@ -15,6 +15,7 @@ import (
 	"github.com/Debian/dcs/internal/mmap"
 	"github.com/Debian/dcs/internal/turbopfor"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 )
 
 var errNotFound = errors.New("not found")
@@ -115,8 +116,16 @@ func newPForReader(dir, section string) (*PForReader, error) {
 	if sr.meta, err = mmap.Open(filepath.Join(dir, "posting."+section+".meta")); err != nil {
 		return nil, err
 	}
+	if len(sr.meta.Data) > 0 {
+		unix.Madvise(sr.meta.Data, unix.MADV_RANDOM)
+	}
+
 	if sr.data, err = mmap.Open(filepath.Join(dir, "posting."+section+".turbopfor")); err != nil {
+		sr.meta.Close()
 		return nil, err
+	}
+	if len(sr.data.Data) > 0 {
+		unix.Madvise(sr.data.Data, unix.MADV_SEQUENTIAL)
 	}
 	return &sr, nil
 }
