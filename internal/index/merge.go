@@ -49,76 +49,100 @@ var debugTrigram = func(trigram string) Trigram {
 	return Trigram(uint32(t[0])<<16 | uint32(t[1])<<8 | uint32(t[2]))
 }("_op")
 
+type docidMapMerge struct {
+	bufr    *bufio.Reader // reused between merge() calls
+	dest    *countingWriter
+	offsets []uint32
+}
+
+func (m *docidMapMerge) merge(srcdir string) (uint32, error) {
+	f, err := os.Open(filepath.Join(srcdir, "docid.map"))
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	if _, err := f.Seek(-4, io.SeekEnd); err != nil {
+		return 0, err
+	}
+	// Locate index offset:
+	var indexOffset uint32
+	if err := binary.Read(f, binary.LittleEndian, &indexOffset); err != nil {
+		return 0, err
+	}
+
+	// TODO: detect |base| overflows
+	n := (uint32(st.Size()) - indexOffset - 4) / 4
+
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return 0, err
+	}
+	m.bufr.Reset(f)
+	// TODO(performance): measure whether using the index and incrementing
+	// the offsets is any faster than this method:
+	scanner := bufio.NewScanner(&io.LimitedReader{
+		R: m.bufr,
+		N: int64(indexOffset)})
+	for scanner.Scan() {
+		m.offsets = append(m.offsets, uint32(m.dest.offset))
+		m.dest.Write(scanner.Bytes())
+		m.dest.Write([]byte{'\n'})
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func mergeDocidMaps(destdir string, srcdirs []string) ([]uint32, error) {
+	fDocidMap, err := os.Create(filepath.Join(destdir, "docid.map"))
+	if err != nil {
+		return nil, err
+	}
+	defer fDocidMap.Close()
+	cw := newCountingWriter(fDocidMap)
+
+	m := &docidMapMerge{
+		bufr: bufio.NewReader(nil),
+		dest: &cw,
+	}
+
+	bases := make([]uint32, len(srcdirs))
+	var base uint32
+	for idx, srcdir := range srcdirs {
+		bases[idx] = base
+		n, err := m.merge(srcdir)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("%s (idx %d) contains %d docids", srcdir, idx, n)
+		base += n
+	}
+	indexStart := uint32(cw.offset)
+	if err := binary.Write(&cw, binary.LittleEndian, m.offsets); err != nil {
+		return nil, err
+	}
+	if err := binary.Write(&cw, binary.LittleEndian, indexStart); err != nil {
+		return nil, err
+	}
+
+	if err := cw.Close(); err != nil {
+		return nil, err
+	}
+
+	return bases, nil
+}
+
 func ConcatN(destdir string, srcdirs []string) error {
 	if err := os.MkdirAll(destdir, 0755); err != nil {
 		return err
 	}
 
-	fDocidMap, err := os.Create(filepath.Join(destdir, "docid.map"))
+	bases, err := mergeDocidMaps(destdir, srcdirs)
 	if err != nil {
-		return err
-	}
-	defer fDocidMap.Close()
-	cw := newCountingWriter(fDocidMap)
-
-	var (
-		base    uint32
-		offsets []uint32
-	)
-	bufr := bufio.NewReader(nil)
-	bases := make([]uint32, len(srcdirs))
-	for idx, dir := range srcdirs {
-		bases[idx] = base
-		f, err := os.Open(filepath.Join(dir, "docid.map"))
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		st, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		if _, err := f.Seek(-4, io.SeekEnd); err != nil {
-			return err
-		}
-		// Locate index offset:
-		var indexOffset uint32
-		if err := binary.Read(f, binary.LittleEndian, &indexOffset); err != nil {
-			return err
-		}
-
-		// TODO: detect |base| overflows
-		n := (uint32(st.Size()) - indexOffset - 4) / 4
-		log.Printf("%s (idx %d) contains %d docids", dir, idx, n)
-		base += n
-
-		if _, err := f.Seek(0, io.SeekStart); err != nil {
-			return err
-		}
-		bufr.Reset(f)
-		// TODO(performance): measure whether using the index and incrementing
-		// the offsets is any faster than this method:
-		scanner := bufio.NewScanner(&io.LimitedReader{
-			R: bufr,
-			N: int64(indexOffset)})
-		for scanner.Scan() {
-			offsets = append(offsets, uint32(cw.offset))
-			cw.Write(scanner.Bytes())
-			cw.Write([]byte{'\n'})
-		}
-		if err := scanner.Err(); err != nil {
-			return err
-		}
-	}
-	indexStart := uint32(cw.offset)
-	if err := binary.Write(&cw, binary.LittleEndian, offsets); err != nil {
-		return err
-	}
-	if err := binary.Write(&cw, binary.LittleEndian, indexStart); err != nil {
-		return err
-	}
-
-	if err := cw.Close(); err != nil {
 		return err
 	}
 
