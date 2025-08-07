@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 )
 
 type indexMeta struct {
@@ -169,7 +169,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 	for t := range idxDocid {
 		trigrams = append(trigrams, t)
 	}
-	sort.Slice(trigrams, func(i, j int) bool { return trigrams[i] < trigrams[j] })
+	slices.Sort(trigrams)
 
 	if err := writeDocids(destdir, trigrams, idxDocid, idxMetaDocid); err != nil {
 		return nil
