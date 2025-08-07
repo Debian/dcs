@@ -273,11 +273,8 @@ func writeDocids(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 		var last uint32
 		for _, idxid := range idxDocid[t] {
 			idx := idxMetaDocid[idxid]
-			if err := idx.rd.metaEntry1(&meta, t); err != nil {
-				if err == errNotFound {
-					continue
-				}
-				return err
+			if found := idx.rd.metaEntry1(&meta, t); !found {
+				continue
 			}
 			me.Entries += meta.Entries
 			dr.Reset(&meta, idx.rd.data.Data)
@@ -358,19 +355,12 @@ func writePosrel(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 			return err
 		}
 		for _, idxid := range idxDocid[t] {
-			// TODO: refactor all metaEntry1 to use ,ok idiom, they only ever return errNotFound
-			if err := idxMetaPos[idxid].rd.metaEntry1(&fmeta, t); err != nil {
-				if err == errNotFound {
-					continue
-				}
-				return err
+			if found := idxMetaPos[idxid].rd.metaEntry1(&fmeta, t); !found {
+				continue
 			}
 
-			if err := idxMetaPosrel[idxid].rd.metaEntry1(&pmeta, t); err != nil {
-				if err == errNotFound {
-					continue
-				}
-				return err
+			if found := idxMetaPosrel[idxid].rd.metaEntry1(&pmeta, t); !found {
+				continue
 			}
 			b := idxMetaPosrel[idxid].rd.data.Data[pmeta.OffsetData:]
 			if err := pw.Write(b, int(fmeta.Entries)); err != nil {
@@ -433,11 +423,8 @@ func writePos(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint32,
 
 		for _, idxid := range idxDocid[t] {
 			idx := idxMetaPos[idxid]
-			if err := idx.rd.metaEntry1(&meta, t); err != nil {
-				if err == errNotFound {
-					continue
-				}
-				return err
+			if found := idx.rd.metaEntry1(&meta, t); !found {
+				continue
 			}
 			me.Entries += meta.Entries
 			dr.Reset(&meta, idx.rd.data.Data)
