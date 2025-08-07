@@ -148,22 +148,12 @@ func ConcatN(destdir string, srcdirs []string) error {
 
 	log.Printf("reading fileMetaEntries")
 
-	idxMetaDocid := make([]indexMeta, len(srcdirs))
 	idxMetaPos := make([]indexMeta, len(srcdirs))
 	idxMetaPosrel := make([]posrelMeta, len(srcdirs))
 
 	idxDocid := make(map[Trigram][]uint32)
 	for idx, dir := range srcdirs {
 		base := bases[idx]
-
-		{
-			rd, err := newPForReader(dir, "docid")
-			if err != nil {
-				return err
-			}
-			defer rd.Close()
-			idxMetaDocid[idx] = indexMeta{docidBase: base, rd: rd}
-		}
 
 		if err := readMeta(dir, "docid", idxDocid, uint32(idx)); err != nil {
 			return err
@@ -195,8 +185,24 @@ func ConcatN(destdir string, srcdirs []string) error {
 	}
 	slices.Sort(trigrams)
 
-	if err := writeDocids(destdir, trigrams, idxDocid, idxMetaDocid); err != nil {
-		return nil
+	{
+		idxMetaDocid := make([]indexMeta, len(srcdirs))
+
+		for idx, dir := range srcdirs {
+			base := bases[idx]
+			rd, err := newPForReader(dir, "docid")
+			if err != nil {
+				return err
+			}
+			idxMetaDocid[idx] = indexMeta{docidBase: base, rd: rd}
+		}
+
+		if err := writeDocids(destdir, trigrams, idxDocid, idxMetaDocid); err != nil {
+			return err
+		}
+		for _, meta := range idxMetaDocid {
+			meta.rd.Close()
+		}
 	}
 
 	if err := writePosrel(destdir, trigrams, idxDocid, idxMetaPos, idxMetaPosrel); err != nil {
