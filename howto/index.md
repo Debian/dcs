@@ -75,9 +75,9 @@ more detail in the following sections:
 * posting.docid.meta
 * posting.docid.turbopfor
 * posting.pos.meta
+* posting.pos.turbopfor
 * posting.posrel.data
 * posting.posrel.meta
-* posting.pos.turbopfor
 
 ### docid.map (normalized file names)
 
@@ -145,7 +145,7 @@ The value is encoded into an uint32 for convenience. Storing only 24 bits would
 reduce the index by merely 30 MB, which does not matter in disk or RAM
 consumption.
 
-To locate the entry for a specific entry, you can use a binary search. During
+To locate the entry for a specific trigram, you can use a binary search. During
 the search, it is sufficient to read only the `trigram` field, i.e. the first 4
 bytes.
 
@@ -217,7 +217,7 @@ mapping to csearch sections:
 Each data structure used in the index format can be debugged with a dcs(1)
 subcommand:
 
-* `docids` prints docid.map’s content (wheres `matches` *uses* docid.map’s index)
+* `docids` prints docid.map’s content (whereas `matches` *uses* docid.map’s index)
 * `trigram` covers posting.docid.meta
 * `raw` displays a trigram’s data in a section (docid, pos, posrel)
 * `posting` decodes a trigram’s data in a section (docid, pos)
