@@ -10,20 +10,9 @@ import (
 	"sort"
 )
 
-type fileMetaEntry struct {
-	idxid   uint32
-	entries uint32
-	offset  int64
-}
-
 type indexMeta struct {
 	docidBase uint32
 	rd        *PForReader
-}
-
-type posrelMetaEntry struct {
-	idxid  uint32
-	offset int64
 }
 
 type posrelMeta struct {
@@ -49,33 +38,6 @@ func readMeta(dir, typ string, idx map[Trigram][]uint32, idxid uint32) error {
 		}
 		t := Trigram(binary.LittleEndian.Uint32(buf))
 		idx[t] = append(idx[t], idxid)
-	}
-	return nil
-}
-
-func readPosrelMeta(dir string, idx map[Trigram][]posrelMetaEntry, idxid uint32) error {
-	f, err := os.Open(filepath.Join(dir, "posting.posrel.meta"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return err
-	}
-	bufr := bufio.NewReader(f)
-
-	buf := make([]byte, metaEntrySize)
-	var entry MetaEntry
-	for i := 0; i < (int(st.Size()) / metaEntrySize); i++ {
-		if _, err := io.ReadFull(bufr, buf); err != nil {
-			return err
-		}
-		entry.Unmarshal(buf)
-		idx[entry.Trigram] = append(idx[entry.Trigram], posrelMetaEntry{
-			idxid:  idxid,
-			offset: entry.OffsetData,
-		})
 	}
 	return nil
 }
