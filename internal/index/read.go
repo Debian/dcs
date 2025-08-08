@@ -140,6 +140,24 @@ func (sr *PForReader) Close() error {
 	return nil
 }
 
+const pageSize = 4096
+const pagesPerAdvise = 128 // release every 512KB
+
+// maybeMadvise calls MADV_DONTNEED on processed pages to reduce RSS.
+func (sr *PForReader) maybeMadvise(offset int64) {
+	if page := int(offset) / pageSize; page > 0 && page%pagesPerAdvise == 0 {
+		sr.madviseDontNeed(page)
+	}
+}
+
+func (sr *PForReader) madviseDontNeed(page int) {
+	// release pages up to the current page-aligned offset
+	releaseUpTo := page * pageSize
+	if releaseUpTo <= len(sr.data.Data) {
+		unix.Madvise(sr.data.Data[:releaseUpTo], unix.MADV_DONTNEED)
+	}
+}
+
 func (sr *PForReader) metaEntry(trigram Trigram) (*MetaEntry, *MetaEntry, error) {
 	num := len(sr.meta.Data) / metaEntrySize
 	d := sr.meta.Data

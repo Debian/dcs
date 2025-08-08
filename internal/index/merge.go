@@ -238,7 +238,6 @@ func ConcatN(destdir string, srcdirs []string) error {
 		start = time.Now()
 	}
 
-	// TODO(performance): The following phase accumulates up to 20 GB (!) in memory mappings.
 	if err := writePos(destdir, trigrams, idxDocid, idxMetaPos); err != nil {
 		return err
 	}
@@ -466,6 +465,8 @@ func writePos(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint32,
 					}
 				}
 			}
+
+			idx.rd.maybeMadvise(meta.OffsetData)
 		}
 
 		if err := dw.Flush(); err != nil {
