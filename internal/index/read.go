@@ -182,6 +182,15 @@ func (sr *PForReader) metaEntry1(dest *MetaEntry, trigram Trigram) (found bool) 
 	return true
 }
 
+func (sr *PForReader) metaEntryAt(dest *MetaEntry, i int) (found bool) {
+	d := sr.meta.Data
+	if num := len(d) / metaEntrySize; i >= num {
+		return false
+	}
+	dest.Unmarshal(d[i*metaEntrySize:])
+	return true
+}
+
 func (sr *PForReader) MetaEntry(trigram Trigram) (*MetaEntry, error) {
 	e, _, err := sr.metaEntry(trigram)
 	return e, err

@@ -12,8 +12,20 @@ import (
 )
 
 type indexMeta struct {
-	docidBase uint32
-	rd        *PForReader
+	docidBase   uint32
+	rd          *PForReader
+	currentMeta int
+	nextMeta    MetaEntry
+}
+
+func newIndexMeta(docidBase uint32, rd *PForReader) indexMeta {
+	meta := indexMeta{
+		docidBase:   docidBase,
+		rd:          rd,
+		currentMeta: -1,
+	}
+	rd.metaEntryAt(&meta.nextMeta, 0)
+	return meta
 }
 
 type posrelMeta struct {
@@ -176,7 +188,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 			if err != nil {
 				return err
 			}
-			idxMetaDocid[idx] = indexMeta{docidBase: base, rd: rd}
+			idxMetaDocid[idx] = newIndexMeta(base, rd)
 		}
 
 		if err := writeDocids(destdir, trigrams, idxDocid, idxMetaDocid); err != nil {
@@ -199,7 +211,7 @@ func ConcatN(destdir string, srcdirs []string) error {
 			return err
 		}
 		defer rd.Close()
-		idxMetaPos[idx] = indexMeta{docidBase: base, rd: rd}
+		idxMetaPos[idx] = newIndexMeta(base, rd)
 	}
 
 	{
@@ -255,6 +267,7 @@ func writeDocids(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 	meBuf := make([]byte, metaEntrySize)
 	dr := NewDeltaReader()
 	var meta MetaEntry
+	var tmp MetaEntry
 	for _, t := range trigrams {
 		if debug {
 			if t != debugTrigram {
@@ -273,9 +286,31 @@ func writeDocids(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 		var last uint32
 		for _, idxid := range idxDocid[t] {
 			idx := idxMetaDocid[idxid]
-			if found := idx.rd.metaEntry1(&meta, t); !found {
+			// TODO(performance): check the next metaEntry instead of using
+			// binary search all over again.
+			foundInc := idx.nextMeta.Trigram == t
+			foundBin := idx.rd.metaEntry1(&tmp, t)
+			if foundInc != foundBin {
+				log.Fatalf("correctness bug: foundInc=%v, foundBin=%v (trigram %v). nextMeta=%v, tmp=%v", foundInc, foundBin, t, idx.nextMeta, tmp)
+			}
+			if idx.nextMeta.Trigram != t {
 				continue
 			}
+			meta = idx.nextMeta
+			idx.currentMeta++
+			if !idx.rd.metaEntryAt(&idx.nextMeta, idx.currentMeta+1) {
+				log.Printf("reached end of index %d", idxid)
+				// TODO(performance): close this index file after processing it
+			}
+			idxMetaDocid[idxid] = idx
+			if found := idx.rd.metaEntry1(&tmp, t); !found {
+				log.Fatalf("correctness bug: metaEntry1() disagrees for meta=%v", meta)
+			}
+			if tmp.Entries != meta.Entries ||
+				tmp.OffsetData != meta.OffsetData {
+				log.Fatalf("currentMeta=%d, tmp != meta: %v != %v", idx.currentMeta, tmp, meta)
+			}
+
 			me.Entries += meta.Entries
 			dr.Reset(&meta, idx.rd.data.Data)
 			docids := dr.Read() // returns non-nil at least once
