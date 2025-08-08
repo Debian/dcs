@@ -267,7 +267,6 @@ func writeDocids(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 	meBuf := make([]byte, metaEntrySize)
 	dr := NewDeltaReader()
 	var meta MetaEntry
-	var tmp MetaEntry
 	for _, t := range trigrams {
 		if debug {
 			if t != debugTrigram {
@@ -286,30 +285,17 @@ func writeDocids(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 		var last uint32
 		for _, idxid := range idxDocid[t] {
 			idx := idxMetaDocid[idxid]
-			// TODO(performance): check the next metaEntry instead of using
-			// binary search all over again.
-			foundInc := idx.nextMeta.Trigram == t
-			foundBin := idx.rd.metaEntry1(&tmp, t)
-			if foundInc != foundBin {
-				log.Fatalf("correctness bug: foundInc=%v, foundBin=%v (trigram %v). nextMeta=%v, tmp=%v", foundInc, foundBin, t, idx.nextMeta, tmp)
-			}
 			if idx.nextMeta.Trigram != t {
 				continue
 			}
 			meta = idx.nextMeta
 			idx.currentMeta++
 			if !idx.rd.metaEntryAt(&idx.nextMeta, idx.currentMeta+1) {
-				log.Printf("reached end of index %d", idxid)
-				// TODO(performance): close this index file after processing it
+				// We reached the end of the index.
+				// This happens for almost all indexes within the last few seconds,
+				// so it does not make sense to close the index early.
 			}
 			idxMetaDocid[idxid] = idx
-			if found := idx.rd.metaEntry1(&tmp, t); !found {
-				log.Fatalf("correctness bug: metaEntry1() disagrees for meta=%v", meta)
-			}
-			if tmp.Entries != meta.Entries ||
-				tmp.OffsetData != meta.OffsetData {
-				log.Fatalf("currentMeta=%d, tmp != meta: %v != %v", idx.currentMeta, tmp, meta)
-			}
 
 			me.Entries += meta.Entries
 			dr.Reset(&meta, idx.rd.data.Data)
@@ -458,9 +444,18 @@ func writePos(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint32,
 
 		for _, idxid := range idxDocid[t] {
 			idx := idxMetaPos[idxid]
-			if found := idx.rd.metaEntry1(&meta, t); !found {
+			if idx.nextMeta.Trigram != t {
 				continue
 			}
+			meta = idx.nextMeta
+			idx.currentMeta++
+			if !idx.rd.metaEntryAt(&idx.nextMeta, idx.currentMeta+1) {
+				// We reached the end of the index.
+				// This happens for almost all indexes within the last few seconds,
+				// so it does not make sense to close the index early.
+			}
+			idxMetaPos[idxid] = idx
+
 			me.Entries += meta.Entries
 			dr.Reset(&meta, idx.rd.data.Data)
 
