@@ -192,6 +192,7 @@ func feed(pkg, filename string, reader io.Reader) error {
 	if _, err := stream.CloseAndRecv(); err != nil {
 		return err
 	}
+	log.Printf("Import RPC done for pkg=%s filename=%s", pkg, filename)
 
 	if strings.HasSuffix(filename, ".dsc") {
 		requestMerge(shardIdx)
