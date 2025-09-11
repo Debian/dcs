@@ -81,6 +81,15 @@ func Ignored(info os.FileInfo, dir, filename string) error {
 		return fmt.Errorf("path %q is not valid UTF-8", path)
 	}
 
+	if strings.Contains(path, "third_party/llvm") {
+		return fmt.Errorf("skipping vendored copy of LLVM")
+	}
+
+	if strings.Contains(path, "chromium") &&
+		strings.Contains(path, "third_party") {
+		return fmt.Errorf("skipping chromium third_party sources (2.8 GB!)")
+	}
+
 	if strings.ContainsRune(path, '\n') {
 		// e.g. s3cmd’s testsuite.tar.gz (which we unpack because it is a
 		// top-level archive) contains files with a newline in their name 😱
