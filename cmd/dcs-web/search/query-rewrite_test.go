@@ -161,4 +161,27 @@ func TestRewriteQuery(t *testing.T) {
 	if seen != 2 {
 		t.Fatalf("Expected two elements in the hash of the -package keyword, saw %d", seen)
 	}
+
+	// Verify that filename: keyword is recognized
+	rewritten = rewrite(t, "/search?q=filename:CMakeLists.txt")
+	if filename := rewritten.Query().Get("filename"); filename != "CMakeLists.txt" {
+		t.Fatalf("Expected filename %q, got %q", "CMakeLists.txt", filename)
+	}
+
+	// Verify that filename: keyword with regex is parsed correctly
+	// Note: + is URL-encoded as %2B since + in URLs means space
+	rewritten = rewrite(t, "/search?q=filename:debian/.%2B\\.doc-base.*")
+	if filename := rewritten.Query().Get("filename"); filename != "debian/.+\\.doc-base.*" {
+		t.Fatalf("Expected filename %q, got %q", "debian/.+\\.doc-base.*", filename)
+	}
+
+	// Verify that filename: keyword can be combined with content search
+	rewritten = rewrite(t, "/search?q=searchterm+filename:Makefile")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
+	}
+	if filename := rewritten.Query().Get("filename"); filename != "Makefile" {
+		t.Fatalf("Expected filename %q, got %q", "Makefile", filename)
+	}
 }

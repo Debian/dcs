@@ -81,6 +81,27 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 	return dr.last.fn, nil
 }
 
+// ForEachFilename iterates over all filenames in the index and calls the
+// callback function for each one. If the callback returns an error, iteration
+// stops and the error is returned. The docid is passed along with each filename.
+func (dr *DocidReader) ForEachFilename(fn func(docid uint32, filename string) error) error {
+	data := dr.f.Data[:dr.indexOffset]
+	var docid uint32
+	start := 0
+	for i := 0; i < len(data); i++ {
+		if data[i] == '\n' {
+			filename := string(data[start:i])
+			if err := fn(docid, filename); err != nil {
+				return err
+			}
+			docid++
+			start = i + 1
+		}
+	}
+	return nil
+}
+
+
 type reusableBuffer struct {
 	u []uint32
 }

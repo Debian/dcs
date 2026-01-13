@@ -146,6 +146,51 @@ type Server struct {
 	UsePositionalIndex bool
 }
 
+// FilenameMatch represents a single filename match result
+type FilenameMatch struct {
+	Path        string  // Full path including package
+	PackageName string  // Source package name
+	Ranking     float32 // Ranking score for ordering results
+}
+
+// SearchFilenames searches for files matching the given filename pattern regex.
+// Returns all matching file paths without searching file contents.
+func (s *Server) SearchFilenames(pattern string) ([]FilenameMatch, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	filenameRegexp, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid filename pattern: %v", err)
+	}
+
+	var matches []FilenameMatch
+
+	err = s.Index.DocidMap.ForEachFilename(func(docid uint32, filename string) error {
+		if filenameRegexp.MatchString(filename, true, true) != -1 {
+			// Extract package name (first path component before /)
+			pkgName := filename
+			if idx := strings.Index(filename, "/"); idx != -1 {
+				pkgName = filename[:idx]
+			}
+
+			matches = append(matches, FilenameMatch{
+				Path:        filename,
+				PackageName: pkgName,
+				Ranking:     1.0, // Default ranking, could be enhanced based on match position
+			})
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return matches, nil
+}
+
+
 // Serves a single file for displaying it in /show
 func (s *Server) File(ctx context.Context, in *sourcebackendpb.FileRequest) (*sourcebackendpb.FileReply, error) {
 	log.Printf("requested filename *%s*\n", in.Path)
