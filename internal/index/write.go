@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -14,6 +15,11 @@ import (
 
 	"github.com/google/codesearch/sparse"
 )
+
+// defaultFlushThreshold is the maximum number of trigram entries that we
+// accumulate, afterwards we flush an intermediate index to disk and start
+// writing to a new index. Each trigram [entry] takes 8 bytes.
+const defaultFlushThreshold = 100_000_000 // ≈800 MB
 
 type countingWriter struct {
 	offset uint64
@@ -50,11 +56,12 @@ type entry struct {
 }
 
 type Writer struct {
-	dir   string
-	index map[Trigram][]entry
-	docs  []string
-	set   *sparse.Set // efficiently reset across AddFile calls
-	inbuf []byte
+	dir          string
+	index        map[Trigram][]entry
+	indexEntries int // total number of entries in [index]
+	docs         []string
+	set          *sparse.Set // efficiently reset across AddFile calls
+	inbuf        []byte
 }
 
 func Create(dir string) (*Writer, error) {
@@ -216,11 +223,84 @@ func (w *Writer) AddFile(fn, name string) error {
 		t := Trigram(e >> 32)
 		w.index[t] = append(w.index[t], entry{docid: docid, position: uint32(e)})
 	}
+	w.indexEntries += len(entries)
+	if w.indexEntries >= defaultFlushThreshold {
+		if err := w.intermediateFlush(); err != nil {
+			return fmt.Errorf("intermediate flush: %w", err)
+		}
+	}
+	return nil
+}
+
+// intermediateFlush flushes the current index to disk and starts a fresh one.
+// The intermediate index files will be merged before indexing completes.
+func (w *Writer) intermediateFlush() error {
+	if len(w.docs) == 0 {
+		return nil // nothing to flush
+	}
+
+	// Create a temp directory for this intermediate index
+	intermediate, err := filepath.Glob(filepath.Join(w.dir, "intermediate.*.tmp"))
+	if err != nil {
+		return err
+	}
+	tmpDir := fmt.Sprintf("%s/intermediate.%d.tmp", w.dir, len(intermediate))
+	log.Printf("flushing to intermediate index %s", tmpDir)
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return err
+	}
+
+	// Write the current index to the temp directory
+	if err := w.flushTo(tmpDir); err != nil {
+		os.RemoveAll(tmpDir)
+		return err
+	}
+
+	// Clear memory
+	w.index = make(map[Trigram][]entry)
+	w.docs = nil
+	w.indexEntries = 0
+
 	return nil
 }
 
 func (w *Writer) Flush() error {
-	if err := w.writeDocidMap(w.docs); err != nil {
+	intermediate, err := filepath.Glob(filepath.Join(w.dir, "intermediate.*.tmp"))
+	if err != nil {
+		return err
+	}
+
+	log.Printf("found %d intermediate index files in %s", len(intermediate), w.dir)
+
+	if len(intermediate) == 0 {
+		// Easy case: write from memory to disk directly.
+		return w.flushTo(w.dir)
+	}
+
+	if len(w.docs) > 0 {
+		// Flush remaining data before merging.
+		if err := w.intermediateFlush(); err != nil {
+			return err
+		}
+	}
+
+	// Merge all intermediate indexes into the final directory.
+	if err := ConcatN(w.dir, intermediate); err != nil {
+		return fmt.Errorf("merging intermediate indexes: %w", err)
+	}
+
+	for _, tmpDir := range intermediate {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// flushTo writes the current in-memory index to the specified directory.
+func (w *Writer) flushTo(dir string) error {
+	if err := w.writeDocidMap(dir, w.docs); err != nil {
 		return err
 	}
 
@@ -231,15 +311,15 @@ func (w *Writer) Flush() error {
 	}
 	sort.Slice(trigrams, func(i, j int) bool { return trigrams[i] < trigrams[j] })
 
-	if err := w.writeDocid(trigrams); err != nil {
+	if err := w.writeDocid(dir, trigrams); err != nil {
 		return err
 	}
 
-	if err := w.writePos(trigrams); err != nil {
+	if err := w.writePos(dir, trigrams); err != nil {
 		return err
 	}
 
-	if err := w.writePosrel(trigrams); err != nil {
+	if err := w.writePosrel(dir, trigrams); err != nil {
 		return err
 	}
 
@@ -250,8 +330,8 @@ func (w *Writer) Flush() error {
 // \n-separated strings (for easy printing by humans using less(1) or
 // strings(1)), followed by the byte offsets of each entry and, lastly, the
 // offset of the byte offsets (for fast lookup).
-func (w *Writer) writeDocidMap(filenames []string) error {
-	f, err := os.Create(filepath.Join(w.dir, "docid.map"))
+func (w *Writer) writeDocidMap(dir string, filenames []string) error {
+	f, err := os.Create(filepath.Join(dir, "docid.map"))
 	if err != nil {
 		return err
 	}
@@ -272,14 +352,14 @@ func (w *Writer) writeDocidMap(filenames []string) error {
 	return cw.Close()
 }
 
-func (w *Writer) writeDocid(trigrams []Trigram) error {
-	f, err := os.Create(filepath.Join(w.dir, "posting.docid.meta"))
+func (w *Writer) writeDocid(dir string, trigrams []Trigram) error {
+	f, err := os.Create(filepath.Join(dir, "posting.docid.meta"))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	bufw := bufio.NewWriter(f)
-	dw, err := newPForWriter(w.dir, "docid")
+	dw, err := newPForWriter(dir, "docid")
 	if err != nil {
 		return err
 	}
@@ -330,14 +410,14 @@ func (w *Writer) writeDocid(trigrams []Trigram) error {
 	return nil
 }
 
-func (w *Writer) writePos(trigrams []Trigram) error {
-	f, err := os.Create(filepath.Join(w.dir, "posting.pos.meta"))
+func (w *Writer) writePos(dir string, trigrams []Trigram) error {
+	f, err := os.Create(filepath.Join(dir, "posting.pos.meta"))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	bufw := bufio.NewWriter(f)
-	dw, err := newPForWriter(w.dir, "pos")
+	dw, err := newPForWriter(dir, "pos")
 	if err != nil {
 		return err
 	}
@@ -385,14 +465,14 @@ func (w *Writer) writePos(trigrams []Trigram) error {
 	return nil
 }
 
-func (w *Writer) writePosrel(trigrams []Trigram) error {
-	f, err := os.Create(filepath.Join(w.dir, "posting.posrel.meta"))
+func (w *Writer) writePosrel(dir string, trigrams []Trigram) error {
+	f, err := os.Create(filepath.Join(dir, "posting.posrel.meta"))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	bufw := bufio.NewWriter(f)
-	df, err := os.Create(filepath.Join(w.dir, "posting.posrel.data"))
+	df, err := os.Create(filepath.Join(dir, "posting.posrel.data"))
 	if err != nil {
 		return err
 	}
