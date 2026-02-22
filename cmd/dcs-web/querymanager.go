@@ -450,7 +450,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		return stats[i].Started.After(stats[j].Started)
 	})
 
-	if err := common.Templates.ExecuteTemplate(w, "queryz.html", map[string]interface{}{
+	if err := common.Templates.ExecuteTemplate(w, "queryz.html", map[string]any{
 		"queries": stats,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

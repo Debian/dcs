@@ -13,7 +13,7 @@ func TestMatchContextAfter(t *testing.T) {
 	buffer := make([]byte, bufferSize+len(contextAfterFold))
 
 	max := bufferSize - len("\nfnord\n")
-	for i := 0; i < max; i++ {
+	for i := range max {
 		buffer[i] = 'x'
 	}
 	buffer[max] = '\n'
@@ -74,7 +74,7 @@ func TestMatchContextBefore(t *testing.T) {
 	buffer := make([]byte, bufferSize+len(contextAfterFold))
 
 	max := bufferSize - len("\nfnord\nctx1\n")
-	for i := 0; i < max; i++ {
+	for i := range max {
 		buffer[i] = 'x'
 	}
 	buffer[max] = '\n'

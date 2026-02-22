@@ -472,10 +472,7 @@ func (g *Grep) Reader(r io.Reader, name string) []Match {
 			}
 			g.Match = true
 			lineStart := bytes.LastIndex(buf[chunkStart:m1], nl) + 1 + chunkStart
-			lineEnd := m1 + 1
-			if lineEnd > end {
-				lineEnd = end
-			}
+			lineEnd := min(m1+1, end)
 			//fmt.Printf("matching line: %s", buf[lineStart:lineEnd])
 
 			lineno += countNL(buf[chunkStart:lineStart])

@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
+
 	"log"
 	"net/url"
 	"os"
@@ -149,14 +149,11 @@ func verifyMatches(query string, files ranking.ResultPaths) (filesSearched int, 
 		}
 		close(work)
 	}()
-	numWorkers := 1000
-	if len(files) < numWorkers {
-		numWorkers = len(files)
-	}
+	numWorkers := min(len(files), 1000)
 	var matchesMu sync.Mutex
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go func() {
 			defer wg.Done()
 			buf := make([]byte, 0, 64*1024)
@@ -245,11 +242,8 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 		matchCnt   int
 		buf        = make([]byte, 0, 16384)
 	)
-	numWorkers := 1000
-	if len(files) < 1000 {
-		numWorkers = len(files)
-	}
-	for i := 0; i < numWorkers; i++ {
+	numWorkers := min(len(files), 1000)
+	for range numWorkers {
 		go func() {
 			re, err := regexp.Compile(query)
 			if err != nil {
@@ -281,10 +275,7 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 					if skipGrep {
 						if f, err := os.Open(file.Path); err == nil {
 							if st, err := f.Stat(); err == nil {
-								size := int(st.Size())
-								if cap(buf) < size {
-									size = cap(buf)
-								}
+								size := min(cap(buf), int(st.Size()))
 								io.ReadFull(f, buf[:size])
 							}
 							f.Close()
@@ -474,7 +465,7 @@ func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) er
 	if old {
 		si := &shardedOldIndex{}
 		const shards = 6
-		for i := 0; i < shards; i++ {
+		for i := range shards {
 			ix := oldindex.Open(filepath.Join(fmt.Sprintf("/srv/dcs-benchmark/shard%d/", i), "full.idx"))
 			defer ix.Close()
 			si.shards = append(si.shards, ix)
@@ -483,7 +474,7 @@ func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) er
 	} else {
 		si := &shardedNewIndex{}
 		const shards = 6
-		for i := 0; i < shards; i++ {
+		for i := range shards {
 			ix, err := index.Open(fmt.Sprintf("/home/michael/as/shard%d/", i))
 			if err != nil {
 				return err
@@ -493,7 +484,7 @@ func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) er
 		}
 		measurer = si
 	}
-	b, err := ioutil.ReadFile(logPath)
+	b, err := os.ReadFile(logPath)
 	if err != nil {
 		return err
 	}

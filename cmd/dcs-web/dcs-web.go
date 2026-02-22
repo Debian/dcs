@@ -657,7 +657,7 @@ func main() {
 			return
 		}
 
-		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]interface{}{
+		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
 			"host":        r.Host,
@@ -700,7 +700,7 @@ func main() {
 
 	// Used by the service worker.
 	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
-		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
+		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
 			"host":        r.Host,

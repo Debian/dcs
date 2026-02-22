@@ -13,7 +13,7 @@ package swagger
 import (
 	"context"
 	"github.com/antihax/optional"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -44,7 +44,7 @@ type SearchApiSearchOpts struct {
 func (a *SearchApiService) Search(ctx context.Context, query string, localVarOptionals *SearchApiSearchOpts) ([]SearchResult, *http.Response, error) {
 	var (
 		localVarHttpMethod  = strings.ToUpper("Get")
-		localVarPostBody    interface{}
+		localVarPostBody    any
 		localVarFileName    string
 		localVarFileBytes   []byte
 		localVarReturnValue []SearchResult
@@ -101,7 +101,7 @@ func (a *SearchApiService) Search(ctx context.Context, query string, localVarOpt
 		return localVarReturnValue, localVarHttpResponse, err
 	}
 
-	localVarBody, err := ioutil.ReadAll(localVarHttpResponse.Body)
+	localVarBody, err := io.ReadAll(localVarHttpResponse.Body)
 	localVarHttpResponse.Body.Close()
 	if err != nil {
 		return localVarReturnValue, localVarHttpResponse, err
@@ -154,7 +154,7 @@ type SearchApiSearchperpackageOpts struct {
 func (a *SearchApiService) Searchperpackage(ctx context.Context, query string, localVarOptionals *SearchApiSearchperpackageOpts) ([]PackageSearchResult, *http.Response, error) {
 	var (
 		localVarHttpMethod  = strings.ToUpper("Get")
-		localVarPostBody    interface{}
+		localVarPostBody    any
 		localVarFileName    string
 		localVarFileBytes   []byte
 		localVarReturnValue []PackageSearchResult
@@ -211,7 +211,7 @@ func (a *SearchApiService) Searchperpackage(ctx context.Context, query string, l
 		return localVarReturnValue, localVarHttpResponse, err
 	}
 
-	localVarBody, err := ioutil.ReadAll(localVarHttpResponse.Body)
+	localVarBody, err := io.ReadAll(localVarHttpResponse.Body)
 	localVarHttpResponse.Body.Close()
 	if err != nil {
 		return localVarReturnValue, localVarHttpResponse, err

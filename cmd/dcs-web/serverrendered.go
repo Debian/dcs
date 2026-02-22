@@ -112,10 +112,7 @@ func updatePagination(currentpage int, resultpages int, baseurl string) string {
 
 func readPackagesFile(queryid string) []string {
 	packages := state[queryid].allPackagesSorted
-	end := 100
-	if end > len(packages) {
-		end = len(packages)
-	}
+	end := min(100, len(packages))
 	return packages[:end]
 }
 
@@ -184,7 +181,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 	baseurl.RawQuery = basequery.Encode()
 	filterurl := baseurl.String()
 
-	if err := common.Templates.ExecuteTemplate(w, "perpackage-results.html", map[string]interface{}{
+	if err := common.Templates.ExecuteTemplate(w, "perpackage-results.html", map[string]any{
 		"criticalcss": common.CriticalCss,
 		"results":     results,
 		"filterurl":   filterurl,
@@ -261,7 +258,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
-		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]interface{}{
+		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"q":           r.Form.Get("q"),
 			"literal":     literal == "1",
@@ -336,7 +333,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 	baseurl.RawQuery = basequery.Encode()
 	filterurl := baseurl.String()
 
-	if err := common.Templates.ExecuteTemplate(w, "results.html", map[string]interface{}{
+	if err := common.Templates.ExecuteTemplate(w, "results.html", map[string]any{
 		"criticalcss": common.CriticalCss,
 		"perpkgurl":   perpkgurl,
 		"filterurl":   filterurl,

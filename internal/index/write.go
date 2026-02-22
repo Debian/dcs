@@ -10,7 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/google/codesearch/sparse"
@@ -309,7 +309,7 @@ func (w *Writer) flushTo(dir string) error {
 	for t := range w.index {
 		trigrams = append(trigrams, t)
 	}
-	sort.Slice(trigrams, func(i, j int) bool { return trigrams[i] < trigrams[j] })
+	slices.Sort(trigrams)
 
 	if err := w.writeDocid(dir, trigrams); err != nil {
 		return err

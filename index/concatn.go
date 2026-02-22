@@ -25,12 +25,12 @@ func (h *concatHeap) Len() int {
 	return len(*h)
 }
 
-func (h *concatHeap) Pop() (v interface{}) {
+func (h *concatHeap) Pop() (v any) {
 	*h, v = (*h)[:h.Len()-1], (*h)[h.Len()-1]
 	return
 }
 
-func (h *concatHeap) Push(v interface{}) {
+func (h *concatHeap) Push(v any) {
 	*h = append(*h, v.(postMapReader))
 }
 

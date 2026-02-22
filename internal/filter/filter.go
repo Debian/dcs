@@ -45,16 +45,16 @@ var (
 )
 
 func Init() {
-	for _, entry := range strings.Split(*ignoredDirnamesList, ",") {
+	for entry := range strings.SplitSeq(*ignoredDirnamesList, ",") {
 		ignoredDirnames[entry] = true
 	}
-	for _, entry := range strings.Split(*ignoredFilenamesList, ",") {
+	for entry := range strings.SplitSeq(*ignoredFilenamesList, ",") {
 		ignoredFilenames[entry] = true
 	}
-	for _, entry := range strings.Split(*ignoredSuffixesList, ",") {
+	for entry := range strings.SplitSeq(*ignoredSuffixesList, ",") {
 		ignoredSuffixes[entry] = true
 	}
-	for _, entry := range strings.Split(*onlySmallFilesSuffixesList, ",") {
+	for entry := range strings.SplitSeq(*onlySmallFilesSuffixesList, ",") {
 		onlySmallFilesSuffixes[entry] = true
 	}
 }

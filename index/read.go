@@ -170,11 +170,11 @@ func (ix *Index) NameBytes(fileid uint32) []byte {
 
 func (ix *Index) str(off uint32) []byte {
 	str := ix.slice(off, -1)
-	i := bytes.IndexByte(str, '\x00')
-	if i < 0 {
+	before, _, ok := bytes.Cut(str, []byte{'\x00'})
+	if !ok {
 		corrupt(ix.File)
 	}
-	return str[:i]
+	return before
 }
 
 // Name returns the name corresponding to the given fileid.

@@ -456,11 +456,8 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 		// should be 1 if the docid changes, 0 otherwise
 		// TODO: micro-benchmark the “read uint64s, use bits.TrailingZeros64(), mask u &= u-1” trick
 		pr := posrel[i/8]
-		rest := len(pos) - i
-		if rest > 8 {
-			rest = 8
-		}
-		for j := 0; j < rest; j++ {
+		rest := min(len(pos)-i, 8)
+		for range rest {
 			// TODO: exchange (uint(i) % 8) with j?
 			chg := int((pr >> (uint(i) % 8)) & 1)
 			docidIdx += chg

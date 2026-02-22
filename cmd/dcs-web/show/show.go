@@ -72,7 +72,7 @@ func Show(w http.ResponseWriter, r *http.Request) {
 		lineNumbers[idx] = idx + 1
 	}
 
-	err = common.Templates.ExecuteTemplate(w, "show.html", map[string]interface{}{
+	err = common.Templates.ExecuteTemplate(w, "show.html", map[string]any{
 		"line":     line,
 		"lines":    lines,
 		"numbers":  lineNumbers,

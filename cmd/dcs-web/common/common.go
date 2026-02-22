@@ -6,7 +6,9 @@ package common
 import (
 	"flag"
 	"html/template"
-	"io/ioutil"
+	"os"
+	"slices"
+
 	"log"
 	"net/url"
 	"path/filepath"
@@ -35,7 +37,7 @@ var Templates *template.Template
 // Must be called after flag.Parse()
 func Init(tlsCertPath, tlsKeyPath, staticPath string) {
 	loadTemplates()
-	b, err := ioutil.ReadFile(filepath.Join(staticPath, "critical.min.css"))
+	b, err := os.ReadFile(filepath.Join(staticPath, "critical.min.css"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,19 +67,14 @@ func loadTemplates() {
 			u.RawQuery = basequery.Encode()
 			return u.String()
 		},
-		"eq": func(args ...interface{}) bool {
+		"eq": func(args ...any) bool {
 			if len(args) == 0 {
 				return false
 			}
 			x := args[0]
 			switch x := x.(type) {
 			case string, int, int64, byte, float32, float64:
-				for _, y := range args[1:] {
-					if x == y {
-						return true
-					}
-				}
-				return false
+				return slices.Contains(args[1:], x)
 			}
 
 			for _, y := range args[1:] {

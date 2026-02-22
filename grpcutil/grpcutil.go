@@ -6,9 +6,9 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/Debian/dcs/internal/addrfd"
@@ -52,7 +52,7 @@ func DialTLS(addr, certFile, keyFile string, opts ...grpc.DialOption) (*grpc.Cli
 		return nil, err
 	}
 	roots := x509.NewCertPool()
-	contents, err := ioutil.ReadFile(certFile)
+	contents, err := os.ReadFile(certFile)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 		return err
 	}
 	roots := x509.NewCertPool()
-	contents, err := ioutil.ReadFile(certFile)
+	contents, err := os.ReadFile(certFile)
 	if err != nil {
 		return err
 	}

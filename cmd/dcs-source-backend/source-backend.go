@@ -4,7 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+
 	"log"
 	"math/rand"
 	"net/http"
@@ -67,7 +67,7 @@ func main() {
 
 	idx := *indexPath
 	if _, err := os.Stat(idx); os.IsNotExist(err) {
-		tmp, err := ioutil.TempDir("", "dcs-index-backend")
+		tmp, err := os.MkdirTemp("", "dcs-index-backend")
 		if err != nil {
 			log.Fatal(err)
 		}

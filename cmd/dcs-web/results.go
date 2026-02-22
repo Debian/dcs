@@ -31,10 +31,7 @@ func writeResults(queryid string, page int, results io.Writer, w http.ResponseWr
 		return nil
 	}
 	start := page * resultsPerPage
-	end := (page + 1) * resultsPerPage
-	if end > len(pointers) {
-		end = len(pointers)
-	}
+	end := min((page+1)*resultsPerPage, len(pointers))
 
 	if strings.HasSuffix(r.URL.Path, ".json") {
 		startJsonResponse(w)
@@ -58,10 +55,7 @@ func writePerPkgResults(queryid string, page int, results io.Writer, w http.Resp
 		return nil
 	}
 	start := page * packagesPerPage
-	end := (page + 1) * packagesPerPage
-	if end > len(packages) {
-		end = len(packages)
-	}
+	end := min((page+1)*packagesPerPage, len(packages))
 
 	if strings.HasSuffix(r.URL.Path, ".json") {
 		startJsonResponse(w)

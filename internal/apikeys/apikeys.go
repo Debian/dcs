@@ -182,7 +182,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 				log.Printf("could not decode cookie: %v", err)
 			}
 		}
-		if err := common.Templates.ExecuteTemplate(w, "apikeys.html", map[string]interface{}{
+		if err := common.Templates.ExecuteTemplate(w, "apikeys.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
 			"host":        r.Host,

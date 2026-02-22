@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/pprof"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -259,18 +260,12 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 	if err != nil {
 		return nil, err
 	}
-	found := false
-	for _, name := range names {
-		// Note that the logic is inverted in comparison to earlier in the
-		// code: for listPackages, we want to only return packages that have
-		// been unpacked and indexed (so we strip .idx), but for garbage
-		// collection, we also want to garbage collect packages that were not
-		// indexed for some reason, so we ignore .idx.
-		if name == pkg {
-			found = true
-			break
-		}
-	}
+	// Note that the logic is inverted in comparison to earlier in the
+	// code: for listPackages, we want to only return packages that have
+	// been unpacked and indexed (so we strip .idx), but for garbage
+	// collection, we also want to garbage collect packages that were not
+	// indexed for some reason, so we ignore .idx.
+	found := slices.Contains(names, pkg)
 
 	if !found {
 		return nil, fmt.Errorf("no such package")
@@ -582,7 +577,7 @@ func packageImporter() error {
 	filter.Init()
 
 	var err error
-	tmpdir, err = ioutil.TempDir("", "dcs-importer")
+	tmpdir, err = os.MkdirTemp("", "dcs-importer")
 	if err != nil {
 		return err
 	}

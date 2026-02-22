@@ -37,7 +37,7 @@ type event struct {
 	obsolete *bool
 }
 
-func addEvent(queryid string, data []byte, origdata interface{}) {
+func addEvent(queryid string, data []byte, origdata any) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
 	s := state[queryid]
@@ -61,7 +61,7 @@ func addEvent(queryid string, data []byte, origdata interface{}) {
 }
 
 // Like addEvent, but marshals data using encoding/json.
-func addEventMarshal(queryid string, data interface{}) {
+func addEventMarshal(queryid string, data any) {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		log.Fatal(err)

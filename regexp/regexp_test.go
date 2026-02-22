@@ -172,10 +172,7 @@ func grep(re *Regexp, b []byte) []int {
 			break
 		}
 		start := bytes.LastIndex(b[:i], nl) + 1
-		end := i + 1
-		if end > len(b) {
-			end = len(b)
-		}
+		end := min(i+1, len(b))
 		lineno += bytes.Count(b[:start], nl)
 		m = append(m, lineno)
 		if start < end && b[end-1] == '\n' {

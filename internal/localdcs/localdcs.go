@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -113,12 +112,12 @@ func kill() error {
 		return fmt.Errorf("-stop specified, but no localdcs instance found in -localdcs_path=%q", *localdcsPath)
 	}
 
-	pidsBytes, err := ioutil.ReadFile(pidsFile)
+	pidsBytes, err := os.ReadFile(pidsFile)
 	if err != nil {
 		return fmt.Errorf("Could not read %q: %v", pidsFile, err)
 	}
-	pids := strings.Split(string(pidsBytes), "\n")
-	for _, pidline := range pids {
+	pids := strings.SplitSeq(string(pidsBytes), "\n")
+	for pidline := range pids {
 		if pidline == "" {
 			continue
 		}
@@ -167,7 +166,7 @@ func launchInBackground(binary string, args ...string) (addr string, _ error) {
 	}
 
 	log.Printf("reading from pair[0]")
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return "", err
 	}
@@ -276,7 +275,7 @@ func importTestdata(packageImporterAddr string) error {
 
 	// Merge twice to always exercise the overwriting code path (localdcs is
 	// used by endtoend_test.go):
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if _, err := packageImporter.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
 			return err
 		}
@@ -442,7 +441,7 @@ func (i *Instance) httpClient() (*http.Client, error) {
 	}
 
 	// Load CA cert
-	caCert, err := ioutil.ReadFile(certFile)
+	caCert, err := os.ReadFile(certFile)
 	if err != nil {
 		return nil, err
 	}

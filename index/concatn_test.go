@@ -5,7 +5,6 @@
 package index
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -43,10 +42,10 @@ func TestConcatN(t *testing.T) {
 		"/latest2": "aaa makes the snoring armadillo",
 	}
 
-	f1, _ := ioutil.TempFile("", "index-test")
-	f2, _ := ioutil.TempFile("", "index-test")
-	f3, _ := ioutil.TempFile("", "index-test")
-	f4, _ := ioutil.TempFile("", "index-test")
+	f1, _ := os.CreateTemp("", "index-test")
+	f2, _ := os.CreateTemp("", "index-test")
+	f3, _ := os.CreateTemp("", "index-test")
+	f4, _ := os.CreateTemp("", "index-test")
 	defer os.Remove(f1.Name())
 	defer os.Remove(f2.Name())
 	defer os.Remove(f4.Name())

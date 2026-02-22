@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -26,7 +26,7 @@ import (
 )
 
 func TestEndToEnd(t *testing.T) {
-	temp, err := ioutil.TempDir("", "dcs-endtoend")
+	temp, err := os.MkdirTemp("", "dcs-endtoend")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got, want := resp.StatusCode, http.StatusNoContent; got != want {
-				b, _ := ioutil.ReadAll(resp.Body)
+				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
 					resp.Status,
 					strings.TrimSpace(string(b)),
@@ -182,7 +182,7 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
-				b, _ := ioutil.ReadAll(resp.Body)
+				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
 					resp.Status,
 					strings.TrimSpace(string(b)),
@@ -201,7 +201,7 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got, want := resp.StatusCode, http.StatusOK; got != want {
-				b, _ := ioutil.ReadAll(resp.Body)
+				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
 					resp.Status,
 					strings.TrimSpace(string(b)),
@@ -209,7 +209,7 @@ func TestEndToEnd(t *testing.T) {
 			}
 
 			var results []api.SearchResult
-			b, err := ioutil.ReadAll(resp.Body)
+			b, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -249,7 +249,7 @@ func TestEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 			if got, want := resp.StatusCode, http.StatusOK; got != want {
-				b, _ := ioutil.ReadAll(resp.Body)
+				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
 					resp.Status,
 					strings.TrimSpace(string(b)),
@@ -257,7 +257,7 @@ func TestEndToEnd(t *testing.T) {
 			}
 
 			var results []api.PerPackageResult
-			b, err := ioutil.ReadAll(resp.Body)
+			b, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatal(err)
 			}

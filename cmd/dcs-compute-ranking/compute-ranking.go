@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+
 	"log"
 	"net/http"
 	"os"
@@ -104,7 +104,7 @@ func main() {
 
 	for _, pkg := range sourcePackages {
 		rdepcount := float32(0)
-		for _, packageName := range strings.Split(pkg["Binary"], ",") {
+		for packageName := range strings.SplitSeq(pkg["Binary"], ",") {
 			packageName = strings.TrimSpace(packageName)
 			if packageName == "" {
 				continue
@@ -120,7 +120,7 @@ func main() {
 		rankings[srcpkg] = storedRanking{packageRank, rdepcount}
 	}
 
-	f, err := ioutil.TempFile(filepath.Dir(*outputPath), "dcs-compute-ranking")
+	f, err := os.CreateTemp(filepath.Dir(*outputPath), "dcs-compute-ranking")
 	if err != nil {
 		log.Fatal(err)
 	}

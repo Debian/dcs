@@ -156,7 +156,7 @@ func (s *Server) File(ctx context.Context, in *sourcebackendpb.FileRequest) (*so
 		return nil, fmt.Errorf("Path traversal is bad, mhkay?")
 	}
 
-	contents, err := ioutil.ReadFile(absPath)
+	contents, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, err
 	}
@@ -413,10 +413,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 	querystr := ranking.NewQueryStr(in.Query)
 
-	numWorkers := 1000
-	if len(files) < numWorkers {
-		numWorkers = len(files)
-	}
+	numWorkers := min(len(files), 1000)
 	var workerFn func()
 	if queryPos {
 		work := make(chan []ranking.ResultPath)
@@ -630,7 +627,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			}
 		}
 	}
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go workerFn()
 	}
 
