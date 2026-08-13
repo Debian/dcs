@@ -485,7 +485,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				b := buf[:n]
 
 				lastPos := -1
-				for _, fn := range bundle {
+				for idx, fn := range bundle {
 					progress <- 1
 					sourcePkgName := fn.Path[fn.SourcePkgIdx[0]:fn.SourcePkgIdx[1]]
 					if rankingopts.Pathmatch {
@@ -537,7 +537,13 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						// Drain the work channel, but without doing any work.
 						// This effectively exits the worker goroutine(s)
 						// cleanly.
-						for _ = range work {
+						for range bundle[idx+1:] {
+							progress <- 1
+						}
+						for bundle := range work {
+							for range bundle {
+								progress <- 1
+							}
 						}
 						break
 					}
@@ -614,7 +620,9 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						// Drain the work channel, but without doing any work.
 						// This effectively exits the worker goroutine(s)
 						// cleanly.
-						for _ = range work {
+						for range work {
+							progress <- 1
+							wg.Done()
 						}
 						break
 					}
@@ -622,7 +630,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				}
 
 				progress <- 1
-
 				wg.Done()
 			}
 		}
