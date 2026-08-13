@@ -380,6 +380,17 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 	var wg sync.WaitGroup
 
+	numWorkers := min(len(files), 1000)
+	// We add the additional 1 for the progress updater goroutine. It also
+	// needs to be done before we can return, otherwise it will try to use the
+	// (already closed) network connection, which is a fatal error.
+	const numProgressUpdater = 1
+	if queryPos {
+		wg.Add(numWorkers + numProgressUpdater)
+	} else {
+		wg.Add(len(files) + numProgressUpdater)
+	}
+
 	go func() {
 		cnt := 0
 		errorShown := false
@@ -413,7 +424,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 	querystr := ranking.NewQueryStr(in.Query)
 
-	numWorkers := min(len(files), 1000)
 	var workerFn func()
 	if queryPos {
 		work := make(chan []ranking.ResultPath)
@@ -435,11 +445,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			}
 			close(work)
 		}()
-
-		// We add the additional 1 for the progress updater goroutine. It also
-		// needs to be done before we can return, otherwise it will try to use the
-		// (already closed) network connection, which is a fatal error.
-		wg.Add(numWorkers + 1)
 
 		workerFn = func() {
 			defer wg.Done()
@@ -548,11 +553,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			}
 			close(work)
 		}()
-
-		// We add the additional 1 for the progress updater goroutine. It also
-		// needs to be done before we can return, otherwise it will try to use the
-		// (already closed) network connection, which is a fatal error.
-		wg.Add(len(files) + 1)
 
 		workerFn = func() {
 			re, err := regexp.Compile(in.Query)
