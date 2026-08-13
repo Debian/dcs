@@ -40,7 +40,10 @@ type event struct {
 func addEvent(queryid string, data []byte, origdata any) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	s := state[queryid]
+	s, ok := state[queryid]
+	if !ok {
+		return // defense in depth; prevent a panic
+	}
 	original, _ := origdata.(obsoletableEvent)
 	s.events = append(s.events, event{
 		data:     data,
@@ -73,16 +76,21 @@ func addEventMarshal(queryid string, data any) {
 		stateMu.Lock()
 		defer stateMu.Unlock()
 
+		s, ok := state[queryid]
+		if !ok {
+			return // query no longer exists
+		}
+
 		// We cannot obsolete events once the query is done, because then all
 		// events before the done marker may get obsoleted (e.g. all progress
 		// updates, for a query with 0 files).
-		if state[queryid].done {
+		if s.done {
 			return
 		}
 
 		// Consider all events before the just added event for obsoletion. At
 		// most one event will be obsoleted.
-		events := state[queryid].events
+		events := s.events
 		for i := len(events) - 2; i >= 0; i-- {
 			if events[i].original == nil {
 				continue
@@ -95,19 +103,29 @@ func addEventMarshal(queryid string, data any) {
 	}
 }
 
-func getEvent(queryid string, lastseen int) (event, int) {
+func getEvent(queryid string, lastseen int) (event, int, bool) {
 	// We need to prevent new events being added, otherwise we could deadlock.
 	stateMu.Lock()
-	s := state[queryid]
-	for lastseen+1 >= len(s.events) {
+	defer stateMu.Unlock()
+	s, ok := state[queryid]
+	for ok && lastseen+1 >= len(s.events) {
 		log.Printf("[%s] lastseen=%d, waiting\n", queryid, lastseen)
 		s.newEvent.Wait()
-		s = state[queryid]
+		s, ok = state[queryid]
 	}
-	stateMu.Unlock()
-	return s.events[lastseen+1], lastseen + 1
+	if !ok {
+		return event{}, 0, false
+	}
+	ev := s.events[lastseen+1]
+	return ev, lastseen + 1, true
 }
 
 func queryCompleted(queryid string) bool {
-	return state[queryid].done
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	s, ok := state[queryid]
+	if !ok {
+		return true // do not block indefinitely
+	}
+	return s.done
 }

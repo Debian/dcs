@@ -192,7 +192,11 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	lastseen := -1
 	sent := 0
 	for {
-		message, sequence := getEvent(identifier, lastseen)
+		message, sequence, ok := getEvent(identifier, lastseen)
+		if !ok {
+			log.Printf("[%s] query no longer exists", src)
+			return
+		}
 		lastseen = sequence
 		// This message was obsoleted by a more recent one, e.g. a more
 		// recent progress update obsoletes all earlier progress updates.
@@ -288,7 +292,12 @@ func InstantServer(ws *websocket.Conn) {
 
 		lastseen := -1
 		for {
-			message, sequence := getEvent(identifier, lastseen)
+			message, sequence, ok := getEvent(identifier, lastseen)
+			if !ok {
+				log.Printf("[%s] query no longer exists", src)
+				return
+			}
+
 			lastseen = sequence
 			// This message was obsoleted by a more recent one, e.g. a more
 			// recent progress update obsoletes all earlier progress updates.
@@ -441,7 +450,10 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 
 	lastseen := -1
 	for {
-		message, sequence := getEvent(identifier, lastseen)
+		message, sequence, ok := getEvent(identifier, lastseen)
+		if !ok {
+			return fmt.Errorf("query no longer exists")
+		}
 		lastseen = sequence
 		// This message was obsoleted by a more recent one, e.g. a more
 		// recent progress update obsoletes all earlier progress updates.

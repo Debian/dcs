@@ -139,7 +139,7 @@ func (rw *resultWriter) Close() error {
 	return nil
 }
 
-func perBackendFromState(state queryState) ([]mmap.MMap, error) {
+func perBackendFromState(state *queryState) ([]mmap.MMap, error) {
 	state.tempFilesMu.Lock()
 	perBackend := make([]mmap.MMap, len(state.perBackend))
 	for idx, state := range state.perBackend {
@@ -153,7 +153,7 @@ func perBackendFromState(state queryState) ([]mmap.MMap, error) {
 	return perBackend, nil
 }
 
-func resultWriterFor(w io.Writer, state queryState) (*resultWriter, error) {
+func resultWriterFor(w io.Writer, state *queryState) (*resultWriter, error) {
 	perBackend, err := perBackendFromState(state)
 	if err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ func resultWriterFor(w io.Writer, state queryState) (*resultWriter, error) {
 	}, nil
 }
 
-func writeSearchResults(w io.Writer, state queryState) error {
+func writeSearchResults(w io.Writer, state *queryState) error {
 	rw, err := resultWriterFor(w, state)
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func writeSearchResults(w io.Writer, state queryState) error {
 	return nil
 }
 
-func writePerPackageSearchResults(w io.Writer, state queryState) error {
+func writePerPackageSearchResults(w io.Writer, state *queryState) error {
 	rw, err := resultWriterFor(w, state)
 	if err != nil {
 		return err
@@ -214,7 +214,7 @@ type apiserver struct {
 	decoder *apikeys.Decoder
 }
 
-func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, queryState) error) error {
+func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, *queryState) error) error {
 	ctx := r.Context()
 
 	// Cross-Origin API requests are allowed. Like all other API requests,
@@ -292,8 +292,11 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	log.Printf("[%s] serving API results\n", queryid)
 
 	stateMu.RLock()
-	state := state[queryid]
+	state, exists := state[queryid]
 	stateMu.RUnlock()
+	if !exists {
+		return fmt.Errorf("BUG: query state for %q not found", queryid)
+	}
 
 	latency := time.Since(state.started)
 	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
