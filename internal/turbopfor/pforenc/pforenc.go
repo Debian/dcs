@@ -1,7 +1,10 @@
 // Package pforenc contains a Go TurboPFor encoder.
 package pforenc
 
-import "math/bits"
+import (
+	"encoding/binary"
+	"math/bits"
+)
 
 // largestP4 is the largest number of bytes our encoder will emit when encoding
 // 256 uint32 values in TurboPFor format (safe upper bound for buffers).
@@ -19,7 +22,9 @@ const (
 //
 // A zero value BlockEncoder is ready to use.
 // BlockEncoder is not safe for concurrent use by multiple goroutines.
-type BlockEncoder struct{}
+type BlockEncoder struct {
+	buf [4]byte
+}
 
 // EncodeN encodes len(vals) uint32s into dest, in TurboPFor blocks
 // of at most 256 values.
@@ -49,23 +54,28 @@ func (be *BlockEncoder) encodeRemainder(dest []byte, vals []uint32) []byte {
 }
 
 func (be *BlockEncoder) encode(dest []byte, vals []uint32, layout blockLayout) []byte {
-	bitWidth := maxBitWidth(vals)
-	dest = append(dest, byte(bitWidth))
+	or, and := scan(vals)
+	bitWidth := bits.Len32(or)
 	if bitWidth == 0 {
+		dest = append(dest, byte(bitWidth))
 		return dest
 	}
+	if or == and {
+		return be.encodeConstant(dest, vals, bitWidth)
+	}
+	dest = append(dest, byte(bitWidth))
 	if layout == interleaved {
 		return bitpack256v(dest, vals, bitWidth)
 	}
 	return bitpack(dest, vals, bitWidth)
 }
 
-func maxBitWidth(vals []uint32) int {
-	bitWidth := 0
-	for _, val := range vals {
-		bitWidth = max(bitWidth, bits.Len32(val))
-	}
-	return bitWidth
+func (be *BlockEncoder) encodeConstant(dest []byte, vals []uint32, bitWidth int) []byte {
+	hdr := byte(bitWidth)
+	hdr |= 1<<7 | 1<<6 // constant block
+	dest = append(dest, hdr)
+	binary.LittleEndian.PutUint32(be.buf[:], vals[0])
+	return append(dest, be.buf[:(bitWidth+7)/8]...)
 }
 
 // StreamEncoder accumulates uint32s until one full TurboPFor block,
