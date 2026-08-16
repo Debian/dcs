@@ -12,27 +12,6 @@ func exbitmapScalar(vals []uint32, bitWidth int, exmap []byte, high []uint32) in
 	return len(high)
 }
 
-func bitpack(dest []byte, vals []uint32, bitWidth int) []byte {
-	mask := uint32(1<<bitWidth - 1)
-	var acc uint64
-	var have int
-	for _, val := range vals {
-		acc |= uint64(val&mask) << have
-		have += bitWidth
-		for have >= 32 {
-			dest = binary.LittleEndian.AppendUint32(dest, uint32(acc))
-			acc >>= 32
-			have -= 32
-		}
-	}
-	for have > 0 {
-		dest = append(dest, byte(acc))
-		acc >>= 8
-		have -= 8
-	}
-	return dest
-}
-
 func bitpack256vScalar(dest []byte, vals []uint32, bitWidth int) []byte {
 	mask := uint32(1<<bitWidth - 1)
 	// NOTE: These [8]uint64 live on the stack, not in registers.
