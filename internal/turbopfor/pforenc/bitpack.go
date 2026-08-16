@@ -23,10 +23,10 @@ func bitpack(dest []byte, vals []uint32, bitWidth int) []byte {
 	return dest
 }
 
-func bitpack256v(dest []byte, vals []uint32, bitWidth int) []byte {
+func bitpack256vScalar(dest []byte, vals []uint32, bitWidth int) []byte {
 	mask := uint32(1<<bitWidth - 1)
 	// NOTE: These [8]uint64 live on the stack, not in registers.
-	// This is okay for now: A SIMD implementation follows later.
+	// SIMD implementations like bitpack256vSIMD use registers.
 	var acc [8]uint64
 	var have int
 	for idx := 0; idx < len(vals); idx += 8 {
