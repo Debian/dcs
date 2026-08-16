@@ -2,6 +2,7 @@ package pforenc
 
 import "math/bits"
 
+// Convention: the caller must provide a zeroed stats.
 type stats struct {
 	or, and uint32
 	// cnt[n] = how many values where bits.Len32(val)>n,
@@ -10,7 +11,7 @@ type stats struct {
 	cnt [32 + 24]uint32
 }
 
-func scan(output *stats, vals []uint32) {
+func scanScalar(output *stats, vals []uint32) {
 	or := uint32(0)
 	and := ^uint32(0)
 	var hist [33]uint32 // hist[n] = how many values where bits.Len32(val)==n
