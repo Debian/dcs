@@ -34,6 +34,7 @@ const (
 type BlockEncoder struct {
 	buf   [4]byte
 	exmap [32]byte    // exception bitmap
+	exidx [256]byte   // exception index (vb)
 	high  [256]uint32 // exception high bits
 }
 
@@ -75,14 +76,58 @@ func (be *BlockEncoder) encode(dest []byte, vals []uint32, layout blockLayout) [
 	bestType := blockBitpacking
 	bestB := bitWidth
 	best := priceBitpack(n, bitWidth, layout)
-	nex := n - int(stats.hist[0])
-	for b := range bitWidth {
-		if b > 0 {
-			nex -= int(stats.hist[b]) // the b-bit values now fit
-		}
+
+	// Walk from high bitWidths to low: to break ties, we prefer
+	// the encoding with fewer exceptions (for faster decoding).
+	for b := bitWidth - 1; b >= 0; b-- {
+		nex := int(stats.cnt[b])
 		size := priceBitpackExceptions(n, b, bitWidth, nex, layout)
 		if size < best {
 			bestType = blockBitpackingExceptions
+			bestB = b
+			best = size
+		}
+		// Over-approximate the number of VB bytes.
+		vb := nex + // exceptions using 1, 2, 3, 4, or 5 VB bytes
+			int(stats.cnt[b+7]+ // exceptions using 2, 3, 4, or 5 VB bytes
+				stats.cnt[b+14]+ // exceptions using 3, 4, or 5 VB bytes
+				stats.cnt[b+19]+ // exceptions using 4 or 5 VB bytes
+				stats.cnt[b+24]) // exceptions using 5 VB bytes
+		size = headerBytes + headerExBytes + payloadBytes(n, b, layout) + vb + nex
+		if size < best {
+			// NOTE: nex=256 (unrepresentable in the TurboPFor header)
+			// can never end up here in the VB exceptions branch:
+			//
+			// If nex=256, we started (above the loop) with:
+			//
+			//   best := priceBitpack() = 1 + 32*bitWidth
+			//
+			// In this loop iteration, we are evaluating VB(b):
+			//
+			//   VB(b) >= 2 + 32*b + 256 /* index */ + 256 /* VB */
+			//   i.e. VB(b) >= 2 + 32*b + 512
+			//
+			// VB(b) has a smaller size than bitpacking, so:
+			//
+			//   2 + 32*b + 512 <= VB(b) < 1 + 32*bitWidth = bitpack(bitWidth)
+			//   i.e. 513 < 32*(bitWidth-b)
+			//   i.e. bitWidth-b >= 17
+			//
+			// So when evaluating VB(b), the earlier VB(b+14) was also checked,
+			// and it is always strictly cheaper:
+			//
+			//   VB(b+14) uses 32*14 extra payload bytes,
+			//   but each exception saves >= 2 VB bytes
+			//   (values with <= b+14 bits fit now (saving index + VB bytes),
+			//    values with > b+14 bits keep a rest 14 bits shorter,
+			//    i.e. 2 bytes shorter in our variable byte cost model).
+			//   i.e. VB(b+14) <= VB(b) + 32*14 - 256*2
+			//   i.e. VB(b+14) <= VB(b) + 448 - 512
+			//   i.e. VB(b+14) <= VB(b)-64
+			//
+			// So VB(b) is never the minimum: nex <= 255 whenever we get here.
+			// (Remainder blocks have <= 255 values, so nex is always <= 255.)
+			bestType = blockBitpackingVBExceptions
 			bestB = b
 			best = size
 		}
@@ -92,6 +137,8 @@ func (be *BlockEncoder) encode(dest []byte, vals []uint32, layout blockLayout) [
 		return be.encodeBitpack(dest, vals, layout, bitWidth)
 	case blockBitpackingExceptions:
 		return be.encodeBitpackExc(dest, vals, layout, bestB, bitWidth-bestB)
+	case blockBitpackingVBExceptions:
+		return be.encodeBitpackVBExc(dest, vals, layout, bestB, int(stats.cnt[bestB]))
 	default:
 		panic("BUG: bestType not implemented")
 	}
@@ -114,7 +161,7 @@ func (be *BlockEncoder) encodeBitpackExc(dest []byte, vals []uint32, layout bloc
 	for idx, val := range vals {
 		if rest := val >> bitWidth; rest != 0 {
 			be.exmap[idx/8] |= 1 << (idx % 8) // set bit in the exception bitmap
-			high = append(high, rest)         //store high bytes
+			high = append(high, rest)         // store high bits
 		}
 	}
 	dest = append(dest, be.exmap[:(len(vals)+7)/8]...)
@@ -123,6 +170,34 @@ func (be *BlockEncoder) encodeBitpackExc(dest []byte, vals []uint32, layout bloc
 		return bitpack256v(dest, vals, bitWidth)
 	}
 	return bitpack(dest, vals, bitWidth)
+}
+
+func (be *BlockEncoder) encodeBitpackVBExc(dest []byte, vals []uint32, layout blockLayout, bitWidth, nex int) []byte {
+	hdr := byte(bitWidth)
+	hdr |= 1 << 6 // bitpacking with variable byte exceptions
+	dest = append(dest, hdr, byte(nex))
+	exidx := be.exidx[:cap(be.exidx)]
+	high := be.high[:cap(be.high)]
+	n := 0
+	for idx, val := range vals {
+		if rest := val >> bitWidth; rest != 0 {
+			exidx[n] = byte(idx)
+			high[n] = rest
+			n++
+		}
+	}
+	exidx = exidx[:n]
+	high = high[:n]
+
+	if layout == interleaved {
+		dest = bitpack256v(dest, vals, bitWidth)
+	} else {
+		dest = bitpack(dest, vals, bitWidth)
+	}
+	for _, val := range high {
+		dest = vbenc32(dest, val)
+	}
+	return append(dest, exidx...)
 }
 
 func (be *BlockEncoder) encodeConstant(dest []byte, vals []uint32, bitWidth int) []byte {

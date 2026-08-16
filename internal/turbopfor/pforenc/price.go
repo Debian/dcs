@@ -6,6 +6,7 @@ package pforenc
 // Every TurboPFor block starts with a header byte,
 // indicating block type (high 2 bits) and bit width.
 const headerBytes = 1
+const headerExBytes = 1
 
 func priceBitpack(n, bitWidth int, layout blockLayout) int {
 	return headerBytes + payloadBytes(n, bitWidth, layout)
@@ -19,7 +20,6 @@ func payloadBytes(n, bitWidth int, layout blockLayout) int {
 }
 
 func priceBitpackExceptions(n, bitWidth, maxBitWidth, nex int, layout blockLayout) int {
-	const headerExBytes = 1
 	bitWidthEx := maxBitWidth - bitWidth
 	return headerBytes +
 		headerExBytes + priceExceptionsBitmap(n) + priceEncodedExceptions(nex, bitWidthEx) +
