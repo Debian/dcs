@@ -2,6 +2,16 @@ package pforenc
 
 import "encoding/binary"
 
+func exbitmapScalar(vals []uint32, bitWidth int, exmap []byte, high []uint32) int {
+	for idx, val := range vals {
+		if rest := val >> bitWidth; rest != 0 {
+			exmap[idx/8] |= 1 << (idx % 8) // set bit in the exception bitmap
+			high = append(high, rest)      // store high bits
+		}
+	}
+	return len(high)
+}
+
 func bitpack(dest []byte, vals []uint32, bitWidth int) []byte {
 	mask := uint32(1<<bitWidth - 1)
 	var acc uint64

@@ -157,13 +157,7 @@ func (be *BlockEncoder) encodeBitpackExc(dest []byte, vals []uint32, layout bloc
 	hdr |= 1 << 7 // bitpacking with exceptions
 	dest = append(dest, hdr, byte(bitWidthEx))
 	clear(be.exmap[:])
-	high := be.high[:0]
-	for idx, val := range vals {
-		if rest := val >> bitWidth; rest != 0 {
-			be.exmap[idx/8] |= 1 << (idx % 8) // set bit in the exception bitmap
-			high = append(high, rest)         // store high bits
-		}
-	}
+	high := be.high[:exbitmap(vals, bitWidth, be.exmap[:], be.high[:0])]
 	dest = append(dest, be.exmap[:(len(vals)+7)/8]...)
 	dest = bitpack(dest, high, bitWidthEx)
 	if layout == interleaved {
