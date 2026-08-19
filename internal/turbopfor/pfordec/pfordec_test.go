@@ -1,4 +1,4 @@
-package pforenc
+package pfordec
 
 import (
 	"fmt"
@@ -8,38 +8,41 @@ import (
 	"testing"
 
 	"github.com/Debian/dcs/internal/turbopfor"
+	"github.com/Debian/dcs/internal/turbopfor/pforenc"
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestEncodeBlock(t *testing.T) {
-	var be BlockEncoder
-	var out [LargestP4]byte
+func TestDecodeBlock(t *testing.T) {
+	var be pforenc.BlockEncoder
+	var bd BlockDecoder
+	var out [pforenc.LargestP4]byte
 	vals := []uint32{0x2342, 1111, 19, math.MaxUint32}
 	decoded := make([]uint32, len(vals), turbopfor.DecodingSize(len(vals)))
 	encoded := be.EncodeBlock(out[:0], vals)
-	n := turbopfor.P4ndec32(encoded, decoded)
+	n := bd.DecodeBlock(encoded, decoded)
 	if n != len(encoded) {
-		t.Fatalf("P4ndec32() = %d, want len(encoded)=%d", n, len(encoded))
+		t.Fatalf("DecodeN() = %d, want len(encoded)=%d", n, len(encoded))
 	}
 	if diff := cmp.Diff(vals, decoded); diff != "" {
-		t.Fatalf("EncodeBlock() does not round-trip through P4ndec32: diff (-decoded +vals):\n%s", diff)
+		t.Fatalf("EncodeBlock() does not round-trip through DecodeN: diff (-decoded +vals):\n%s", diff)
 	}
 }
 
 func TestEncodeN(t *testing.T) {
-	var be BlockEncoder
-	var out [10 * LargestP4]byte
+	var be pforenc.BlockEncoder
+	var bd BlockDecoder
+	var out [10 * pforenc.LargestP4]byte
 	vals := []uint32{0x2342, 1111, 19, math.MaxUint32}
 	vals1Block := slices.Repeat(vals, 256/len(vals))
 	vals5Blocks := slices.Repeat(vals1Block, 5)
 	decoded := make([]uint32, len(vals5Blocks), turbopfor.DecodingSize(len(vals5Blocks)))
 	encoded := be.EncodeN(out[:0], vals5Blocks)
-	n := turbopfor.P4ndec256v32(encoded, decoded)
+	n := bd.DecodeN(encoded, decoded)
 	if n != len(encoded) {
-		t.Fatalf("P4ndec256v32() = %d, want len(encoded)=%d", n, len(encoded))
+		t.Fatalf("DecodeN() = %d, want len(encoded)=%d", n, len(encoded))
 	}
 	if diff := cmp.Diff(vals5Blocks, decoded); diff != "" {
-		t.Fatalf("EncodeBlock() does not round-trip through P4ndec32: diff (-decoded +vals):\n%s", diff)
+		t.Fatalf("EncodeBlock() does not round-trip through DecodeN: diff (-decoded +vals):\n%s", diff)
 	}
 }
 
@@ -195,7 +198,8 @@ func allBenchCases() []testCase {
 }
 
 func TestRoundTrip(t *testing.T) {
-	var be BlockEncoder
+	var be pforenc.BlockEncoder
+	var bd BlockDecoder
 	for _, tc := range allTestCases() {
 		n := len(tc.vals)
 		t.Run(fmt.Sprintf("n=%d/vals=%s", n, tc.name), func(t *testing.T) {
@@ -205,7 +209,7 @@ func TestRoundTrip(t *testing.T) {
 			out := make([]byte, 0, turbopfor.DecodingSize(n))
 			encoded := be.EncodeN(out, tc.vals)
 			decoded := make([]uint32, n, turbopfor.DecodingSize(n))
-			read := turbopfor.P4ndec256v32(encoded, decoded)
+			read := bd.DecodeN(encoded, decoded)
 			if read != len(encoded) {
 				t.Fatalf("P4ndec256v32() = %d, want len(encoded)=%d", read, len(encoded))
 			}
@@ -217,51 +221,58 @@ func TestRoundTrip(t *testing.T) {
 }
 
 // reportMetrics adds Mval/s and encoded-bytes metrics to all benchmarks.
-func reportMetrics(b *testing.B, n int, nencoded int) {
-	b.ReportMetric(float64(nencoded), "encoded-bytes")
+func reportMetrics(b *testing.B, n int) {
 	b.ReportMetric(float64(b.N*n)/1e6/b.Elapsed().Seconds(), "Mval/s")
 }
 
-// BenchmarkEncode/n=<N>/vals=<testcase>/impl=<c|go|go-stream>
+// BenchmarkDecode/n=<N>/vals=<testcase>/impl=<c|go|go-stream>
 //
-// e.g. BenchmarkEncode/n=2048/vals=one-constant/impl=go-stream
-func BenchmarkEncode(b *testing.B) {
+// e.g. BenchmarkDecode/n=2048/vals=one-constant/impl=go-stream
+func BenchmarkDecode(b *testing.B) {
 	for _, tc := range allBenchCases() {
 		n := len(tc.vals)
 		b.Run(fmt.Sprintf("n=%d/vals=%s", n, tc.name), func(b *testing.B) {
 			b.Run("impl=c", func(b *testing.B) {
 				b.ReportAllocs()
-				var encoded []byte
-				buf := make([]byte, turbopfor.EncodingSize(n))
+				var be pforenc.BlockEncoder
+				buf := make([]byte, 0, turbopfor.EncodingSize(n))
+				encoded := be.EncodeN(buf, tc.vals)
+				decoded := make([]uint32, n, turbopfor.DecodingSize(n))
 				for b.Loop() {
-					encoded = turbopfor.P4nenc256v32Buf(buf, tc.vals)
+					_ = turbopfor.P4ndec256v32(encoded, decoded)
 				}
-				reportMetrics(b, n, len(encoded))
+				reportMetrics(b, n)
 			})
 			b.Run("impl=go", func(b *testing.B) {
 				b.ReportAllocs()
-				var be BlockEncoder
-				var encoded []byte
+				var be pforenc.BlockEncoder
+				var bd BlockDecoder
 				buf := make([]byte, 0, turbopfor.EncodingSize(n))
+				encoded := be.EncodeN(buf, tc.vals)
+				output := make([]uint32, n)
 				for b.Loop() {
-					encoded = be.EncodeN(buf, tc.vals)
+					_ = bd.DecodeN(encoded, output)
 				}
-				reportMetrics(b, n, len(encoded))
+				reportMetrics(b, n)
 			})
 			b.Run("impl=go-stream", func(b *testing.B) {
 				b.ReportAllocs()
-				var se StreamEncoder
-				var encoded int
+				var be pforenc.BlockEncoder
+				dest := make([]byte, 0, ((len(tc.vals)/256)+1)*pforenc.LargestP4)
+				input := be.EncodeN(dest[:], tc.vals)
+
+				var sd StreamDecoder
 				for b.Loop() {
-					encoded = 0
-					for _, val := range tc.vals {
-						if se.Add(val) {
-							encoded += len(se.EncodeBlock())
-						}
+					encoded := input
+					remaining := n
+					for remaining > 0 {
+						chunk := min(256, remaining)
+						_, read := sd.DecodeBlock(encoded, chunk)
+						encoded = encoded[read:]
+						remaining -= chunk
 					}
-					encoded += len(se.EncodeBlock())
 				}
-				reportMetrics(b, n, encoded)
+				reportMetrics(b, n)
 			})
 		})
 	}

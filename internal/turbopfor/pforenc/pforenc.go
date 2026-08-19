@@ -6,9 +6,9 @@ import (
 	"math/bits"
 )
 
-// largestP4 is the largest number of bytes our encoder will emit when encoding
+// LargestP4 is the largest number of bytes our encoder will emit when encoding
 // 256 uint32 values in TurboPFor format (safe upper bound for buffers).
-const largestP4 = 1025
+const LargestP4 = 1025
 
 type blockLayout int
 
@@ -211,7 +211,7 @@ type StreamEncoder struct {
 	be   BlockEncoder
 	vals [256]uint32     // filled by Add
 	n    int             // how many vals
-	out  [largestP4]byte // filled by EncodeBlock
+	out  [LargestP4]byte // filled by EncodeBlock
 }
 
 // Add stores val in the StreamEncoder's buffer.

@@ -3,6 +3,11 @@ internal/turbopfor/pforenc/bench.txt
 internal/turbopfor/pforenc/perf.data
 internal/turbopfor/pforenc/perf.data.old
 internal/turbopfor/pforenc/pforenc.test
+internal/turbopfor/pfordec/baseline.txt
+internal/turbopfor/pfordec/bench.txt
+internal/turbopfor/pfordec/perf.data
+internal/turbopfor/pfordec/perf.data.old
+internal/turbopfor/pfordec/pfordec.test
 cmd/index-backend/index-backend
 cmd/source-backend/source-backend
 cmd/dcs-web/dcs-web
