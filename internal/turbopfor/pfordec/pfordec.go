@@ -95,7 +95,7 @@ func (bd *BlockDecoder) decode(input []byte, output []uint32, layout blockLayout
 		if layout == interleaved {
 			return 1 + bitunpack256v32(input, output, bitWidth)
 		}
-		return 1 + bitunpack(input, output, bitWidth)
+		return 1 + bitunpack(input, output, int(bitWidth))
 
 	case blockBitpackingExceptions:
 		bx, input := input[0], input[1:]
@@ -124,7 +124,7 @@ func (bd *BlockDecoder) decode(input []byte, output []uint32, layout blockLayout
 		if layout == interleaved {
 			input = input[bitunpack256v32(input, output, bitWidth):]
 		} else {
-			input = input[bitunpack(input, output, bitWidth):]
+			input = input[bitunpack(input, output, int(bitWidth)):]
 		}
 
 		j := 0
@@ -156,7 +156,7 @@ func (bd *BlockDecoder) decode(input []byte, output []uint32, layout blockLayout
 		if layout == interleaved {
 			input = input[bitunpack256v32(input, output, bitWidth):]
 		} else {
-			input = input[bitunpack(input, output, bitWidth):]
+			input = input[bitunpack(input, output, int(bitWidth)):]
 		}
 
 		exceptions := bd.scratch[:nex]
