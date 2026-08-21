@@ -16,8 +16,17 @@ import "encoding/binary"
 //	        101 10001
 //
 // 00001011
-func bitunpack(input []byte, output []uint32, bitWidth int) (read int) {
+func bitunpackScalar(input []byte, output []uint32, bitWidth int) (read int) {
+	if bitWidth == 0 {
+		clear(output)
+		return 0
+	}
 	orig := len(input)
+	for len(output) >= 32 {
+		bitunpack32(input, (*[32]uint32)(output), bitWidth)
+		input = input[4*bitWidth:]
+		output = output[32:]
+	}
 	var have int   // remaining bits
 	var acc uint64 // accumulator
 	for op := 0; op < len(output); {
