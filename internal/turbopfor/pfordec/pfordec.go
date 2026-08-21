@@ -120,31 +120,10 @@ func (bd *BlockDecoder) decode(input []byte, output []uint32, layout blockLayout
 		exceptions := bd.scratch[:nex]
 		input = input[bitunpack(input, exceptions, int(bx)):]
 		if layout == interleaved {
-			input = input[bitunpack256v32(input, output, bitWidth):]
+			input = input[bitunpack256v32Ex(input, output, bitWidth, (*[32]byte)(exmap), &bd.scratch):]
 		} else {
 			input = input[bitunpack(input, output, int(bitWidth)):]
-		}
-
-		j := 0
-		i = 0
-		for ; i+64 <= n; i += 64 {
-			xm8 := binary.LittleEndian.Uint64(exmap[i/8:])
-			// Visit the set bits within this chunk of 8 bytes.
-			for xm8 != 0 {
-				// Find the lowest set bit (little endian),
-				// i.e. walk in exception order.
-				lowest := bits.TrailingZeros64(xm8)
-				output[i+lowest] += exceptions[j] << bitWidth
-				j++
-				// Clear the lowest set bit.
-				xm8 &= xm8 - 1
-			}
-		}
-		for ; i < n; i++ {
-			if exmap[i/8]&(1<<uint(i%8)) != 0 {
-				output[i] += exceptions[j] << bitWidth
-				j++
-			}
+			applyBitmapExceptionsScalar(output, exmap, exceptions, bitWidth)
 		}
 
 		return before - len(input)

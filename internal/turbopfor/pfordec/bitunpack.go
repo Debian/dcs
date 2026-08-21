@@ -1,6 +1,9 @@
 package pfordec
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"math/bits"
+)
 
 // bitpacking 7 bit uses little endian:
 // 1 0101010   10 011100
@@ -93,4 +96,35 @@ func bitunpack256v32Scalar(fullinput []byte, fulloutput []uint32, bitWidth int) 
 		have -= uint(bitWidth)
 	}
 	return n
+}
+
+func bitunpack256v32ExScalar(fullinput []byte, fulloutput []uint32, nbits int, exmap *[32]byte, exceptions *[256]uint32) (read int) {
+	read = bitunpack256v32(fullinput, fulloutput, nbits)
+	applyBitmapExceptionsScalar(fulloutput[:256], exmap[:], exceptions[:], nbits)
+	return read
+}
+
+func applyBitmapExceptionsScalar(output []uint32, exmap []byte, exceptions []uint32, b int) {
+	n := len(output)
+	j := 0
+	i := 0
+	for ; i+64 <= n; i += 64 {
+		xm8 := binary.LittleEndian.Uint64(exmap[i/8:])
+		// Visit the set bits within this chunk of 8 bytes.
+		for xm8 != 0 {
+			// Find the lowest set bit (little endian),
+			// i.e. walk in exception order.
+			lowest := bits.TrailingZeros64(xm8)
+			output[i+lowest] += exceptions[j] << b
+			j++
+			// Clear the lowest set bit.
+			xm8 &= xm8 - 1
+		}
+	}
+	for ; i < n; i++ {
+		if exmap[i/8]&(1<<uint(i%8)) != 0 {
+			output[i] += exceptions[j] << b
+			j++
+		}
+	}
 }

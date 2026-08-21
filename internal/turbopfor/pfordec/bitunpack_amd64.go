@@ -3,8 +3,11 @@
 package pfordec
 
 import (
+	"math/bits"
 	"simd/archsimd"
 )
+
+var hasAVX512 = archsimd.X86.AVX512()
 
 // seqUnpackConsts are the per-lane constants of bitunpackSIMD for one
 // bit width. This allows keeping the dispatch unit busy with vector
@@ -97,22 +100,83 @@ func bitunpack256v32(fullinput []byte, fulloutput []uint32, nbits int) (read int
 	input := fullinput[:n] // tell the Go compiler how long the input is
 	mask8 := archsimd.BroadcastUint32x8(uint32(1)<<nbits - 1)
 	acc8 := archsimd.LoadUint8x32(input[0:32]).ReshapeToUint32s()
-	bits := 32
+	have := 32
 	pos := 32
 	for op := 0; op < 256; op += 8 {
 		vals8 := acc8
-		if bits < int(nbits) {
+		if have < int(nbits) {
 			// read 8 more uint32s
 			next := archsimd.LoadUint8x32(input[pos : pos+32]).ReshapeToUint32s()
 			pos += 32
-			vals8 = acc8.Or(next.ShiftAllLeft(uint64(bits)))
-			acc8 = next.ShiftAllRight(uint64(int(nbits) - bits))
-			bits += 32
+			vals8 = acc8.Or(next.ShiftAllLeft(uint64(have)))
+			acc8 = next.ShiftAllRight(uint64(int(nbits) - have))
+			have += 32
 		} else {
 			acc8 = acc8.ShiftAllRight(uint64(nbits))
 		}
-		bits -= int(nbits)
+		have -= int(nbits)
 		vals8.And(mask8).Store(output[op : op+8])
 	}
 	return n
+}
+
+// bitunpack256v32Ex is like bitunpack256v32, but with exception decoding fused
+// into the same loop (instead of a separate pass).
+func bitunpack256v32Ex(fullinput []byte, fulloutput []uint32, nbits int, exmap *[32]byte, exceptions *[256]uint32) (read int) {
+	if hasAVX512 {
+		return bitunpack256v32ExSIMD(fullinput, fulloutput, nbits, exmap, exceptions)
+	}
+	return bitunpack256v32ExScalar(fullinput, fulloutput, nbits, exmap, exceptions)
+}
+
+func bitunpack256v32ExSIMD(fullinput []byte, fulloutput []uint32, nbits int, exmap *[32]byte, exceptions *[256]uint32) (read int) {
+	output := fulloutput[:256]
+	if nbits == 0 {
+		j := 0
+		for g := range 32 {
+			m := exmap[g]
+			gatherExceptions(exceptions, j, m).Store(output[g*8 : g*8+8])
+			// Go compiles OnesCount32 into an intrinsic,
+			// but not OnesCount8, so we convert to uint32:
+			j += bits.OnesCount32(uint32(m))
+		}
+		return 0
+	}
+	n := 32 * int(nbits)
+	input := fullinput[:n] // tell the Go compiler how long the input is
+	mask8 := archsimd.BroadcastUint32x8(uint32(1)<<nbits - 1)
+	acc8 := archsimd.LoadUint8x32(input[0:32]).ReshapeToUint32s()
+	have := 32
+	pos := 32
+	j := 0
+	for op := 0; op < 256; op += 8 {
+		vals8 := acc8
+		if have < int(nbits) {
+			// read 8 more uint32s
+			next := archsimd.LoadUint8x32(input[pos : pos+32]).ReshapeToUint32s()
+			pos += 32
+			vals8 = acc8.Or(next.ShiftAllLeft(uint64(have)))
+			acc8 = next.ShiftAllRight(uint64(int(nbits) - have))
+			have += 32
+		} else {
+			acc8 = acc8.ShiftAllRight(uint64(nbits))
+		}
+		have -= int(nbits)
+		// the following lines are no longer identical to bitunpack256v32SIMD:
+		// this function also does exception decoding.
+		m := exmap[op/8]
+		vals8.And(mask8).Or(gatherExceptions(exceptions, j, m).ShiftAllLeft(uint64(nbits))).Store(output[op : op+8])
+		// Go compiles OnesCount32 into an intrinsic,
+		// but not OnesCount8, so we convert to uint32:
+		j += bits.OnesCount32(uint32(m))
+	}
+	return n
+}
+
+// gatherExceptions loads 8 exceptions at offset j, per bitmask m.
+func gatherExceptions(exceptions *[256]uint32, j int, m byte) archsimd.Uint32x8 {
+	// VPEXPANDD has a false dependency on Zen 4 and Zen 5 (at least).
+	// Xor(zero) is a workaround; the Go compiler should do this.
+	var zero archsimd.Uint32x8
+	return archsimd.LoadUint32x8Array((*[8]uint32)(exceptions[j : j+8])).Xor(zero).Expand(archsimd.Mask32x8FromBits(m))
 }
