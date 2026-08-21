@@ -86,9 +86,7 @@ func (bd *BlockDecoder) decode(input []byte, output []uint32, layout blockLayout
 		if bitWidth < 32 {
 			u &= ((1 << bitWidth) - 1)
 		}
-		for i := range output {
-			output[i] = u
-		}
+		fillConstant(output, u)
 		return 1 + (int(bitWidth)+7)/8
 
 	case blockBitpacking:
