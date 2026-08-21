@@ -37,7 +37,7 @@ func bitunpack(input []byte, output []uint32, bitWidth int) (read int) {
 	return orig - len(input)
 }
 
-func bitunpack256v32(fullinput []byte, fulloutput []uint32, bitWidth int) (read int) {
+func bitunpack256v32Scalar(fullinput []byte, fulloutput []uint32, bitWidth int) (read int) {
 	output := fulloutput[:256]
 	if bitWidth == 0 {
 		clear(output)
