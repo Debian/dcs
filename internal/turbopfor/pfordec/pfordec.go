@@ -101,19 +101,28 @@ func (bd *BlockDecoder) decode(input []byte, output []uint32, layout blockLayout
 
 		exmap := input
 		nex := 0 // number of exceptions
-		i := 0
-		for ; i+8 <= n/8; i += 8 {
-			xm8 := binary.LittleEndian.Uint64(exmap[i:])
-			nex += bits.OnesCount64(xm8)
-		}
-		for ; i < (n+7)/8; i++ {
-			xmb := exmap[i]
-			if rem := n - i*8; rem < 8 {
-				xmb &= 1<<rem - 1
+		if layout == interleaved {
+			// Fully unrolled exception counting.
+			xm := (*[32]byte)(exmap)
+			nex = bits.OnesCount64(binary.LittleEndian.Uint64(xm[0:8])) +
+				bits.OnesCount64(binary.LittleEndian.Uint64(xm[8:16])) +
+				bits.OnesCount64(binary.LittleEndian.Uint64(xm[16:24])) +
+				bits.OnesCount64(binary.LittleEndian.Uint64(xm[24:32]))
+		} else {
+			i := 0
+			for ; i+8 <= n/8; i += 8 {
+				xm8 := binary.LittleEndian.Uint64(exmap[i:])
+				nex += bits.OnesCount64(xm8)
 			}
-			// Go compiles OnesCount32 into an intrinsic,
-			// but not OnesCount8, so we convert to uint32:
-			nex += bits.OnesCount32(uint32(xmb))
+			for ; i < (n+7)/8; i++ {
+				xmb := exmap[i]
+				if rem := n - i*8; rem < 8 {
+					xmb &= 1<<rem - 1
+				}
+				// Go compiles OnesCount32 into an intrinsic,
+				// but not OnesCount8, so we convert to uint32:
+				nex += bits.OnesCount32(uint32(xmb))
+			}
 		}
 		input = input[(n+7)/8:]
 
