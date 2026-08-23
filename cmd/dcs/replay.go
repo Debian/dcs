@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp/syntax"
 	"sort"
 	"strings"
@@ -18,7 +17,6 @@ import (
 	"time"
 
 	dcssearch "github.com/Debian/dcs/cmd/dcs-web/search"
-	oldindex "github.com/Debian/dcs/index"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/sourcebackend"
 	"github.com/Debian/dcs/ranking"
@@ -27,8 +25,8 @@ import (
 
 const replayHelp = `replay - replay a query log
 
-Runs queries (one per line) from a logfile one by one against either the old or
-the new index implementation.
+Runs queries (one per line) from a logfile one by one against the index
+implementation and prints one JSON measurement per query.
 
 Example:
   % dcs replay -log=/home/michael/dcs-logs/2018-03-15/one-query-per-line.txt
@@ -42,83 +40,6 @@ type measurement struct {
 	Matches       int    `json:"matches"`
 	QueryPos      bool   `json:"query_pos"`
 	TotalNano     int64  `json:"total_nano"`
-}
-
-type shardedOldIndex struct {
-	shards []*oldindex.Index
-}
-
-func (si *shardedOldIndex) doPostingQuery(query *oldindex.Query) []string {
-	var (
-		wg       sync.WaitGroup
-		prefixed = make([][]string, len(si.shards))
-	)
-	for i := range si.shards {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
-			prefix := fmt.Sprintf("/srv/dcs-benchmark/shard%d/", i)
-			ix := si.shards[i]
-			post := ix.PostingQuery(query)
-			possible := make([]string, len(post))
-			for idx, fileid := range post {
-				possible[idx] = prefix + ix.Name(fileid)
-			}
-			prefixed[i] = possible
-		}(i)
-	}
-	wg.Wait()
-	var possible []string
-	for i := range si.shards {
-		possible = append(possible, prefixed[i]...)
-	}
-	return possible
-}
-
-func (si *shardedOldIndex) measure(idx int, query string, _, skipFile, skipGrep bool) (measurement, error) {
-	m := measurement{
-		Index: idx,
-		Query: query,
-	}
-	// Rewrite the query into a query for source backends.
-	fakeUrl, err := url.Parse("?q=" + query)
-	if err != nil {
-		return m, err
-	}
-	rewritten := dcssearch.RewriteQuery(*fakeUrl)
-	//log.Printf("rewritten: %q, query = %v", rewritten.String(), rewritten.Query())
-
-	// Parse the (rewritten) URL to extract all ranking options/keywords.
-	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
-	//log.Printf("rankingopts: %+v", rankingopts)
-
-	// query all index files
-	re, err := regexp.Compile(rewritten.Query().Get("q"))
-	if err != nil {
-		return m, fmt.Errorf("regexp.Compile: %s\n", err)
-	}
-	// if s := re.Syntax.Simplify(); s.Op == syntax.OpLiteral {
-	// 	return m, fmt.Errorf("positional skipped")
-	// }
-	start := time.Now()
-	possible := si.doPostingQuery(oldindex.RegexpQuery(re.Syntax))
-
-	// Rank all the paths.
-	files := make(ranking.ResultPaths, 0, len(possible))
-	for _, filename := range possible {
-		result := ranking.ResultPath{Path: filename}
-		result.Rank(&rankingopts)
-		if result.Ranking > -1 {
-			files = append(files, result)
-		}
-	}
-	files = sourcebackend.FilterByKeywords(&rewritten, files)
-	m.FilesSearched = len(files)
-	m.PostingNano = int64(time.Since(start))
-	m.Matches = grep(rewritten.Query().Get("q"), files, rankingopts, skipFile, skipGrep)
-	m.TotalNano = int64(time.Since(start))
-
-	return m, nil
 }
 
 // TODO: refactor to verifyBundle(), use bcmills concurrency pattern
@@ -300,11 +221,11 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 	return matchCnt
 }
 
-type shardedNewIndex struct {
+type shardedIndex struct {
 	shards []*index.Index
 }
 
-func (si *shardedNewIndex) doPostingQuery(query *index.Query) []string {
+func (si *shardedIndex) doPostingQuery(query *index.Query) []string {
 	log.Printf("doPostingQuery(%s)", query)
 	var (
 		wg       sync.WaitGroup
@@ -344,7 +265,7 @@ type entry struct {
 	pos uint32
 }
 
-func (si *shardedNewIndex) doPostingQueryPos(query string) []entry {
+func (si *shardedIndex) doPostingQueryPos(query string) []entry {
 	log.Printf("doPostingQueryPos(%q)", query)
 	var (
 		wg       sync.WaitGroup
@@ -385,7 +306,7 @@ func (si *shardedNewIndex) doPostingQueryPos(query string) []entry {
 	return possible
 }
 
-func (si *shardedNewIndex) measure(idx int, query string, pos, skipFile, skipGrep bool) (measurement, error) {
+func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep bool) (measurement, error) {
 	m := measurement{
 		Index: idx,
 		Query: query,
@@ -456,33 +377,16 @@ func (si *shardedNewIndex) measure(idx int, query string, pos, skipFile, skipGre
 	return m, nil
 }
 
-type measurer interface {
-	measure(idx int, query string, pos, skipFile, skipGrep bool) (measurement, error)
-}
-
-func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) error {
-	var measurer measurer
-	if old {
-		si := &shardedOldIndex{}
-		const shards = 6
-		for i := range shards {
-			ix := oldindex.Open(filepath.Join(fmt.Sprintf("/srv/dcs-benchmark/shard%d/", i), "full.idx"))
-			defer ix.Close()
-			si.shards = append(si.shards, ix)
+func logic(logPath string, pos bool, debug int, skipFile, skipGrep bool) error {
+	si := &shardedIndex{}
+	const shards = 6
+	for i := range shards {
+		ix, err := index.Open(fmt.Sprintf("/home/michael/as/shard%d/", i))
+		if err != nil {
+			return err
 		}
-		measurer = si
-	} else {
-		si := &shardedNewIndex{}
-		const shards = 6
-		for i := range shards {
-			ix, err := index.Open(fmt.Sprintf("/home/michael/as/shard%d/", i))
-			if err != nil {
-				return err
-			}
-			defer ix.Close()
-			si.shards = append(si.shards, ix)
-		}
-		measurer = si
+		defer ix.Close()
+		si.shards = append(si.shards, ix)
 	}
 	b, err := os.ReadFile(logPath)
 	if err != nil {
@@ -495,7 +399,7 @@ func logic(logPath string, old, pos bool, debug int, skipFile, skipGrep bool) er
 		}
 
 		log.Printf("query: %s", query)
-		m, err := measurer.measure(idx, query, pos, skipFile, skipGrep)
+		m, err := si.measure(idx, query, pos, skipFile, skipGrep)
 		if err != nil {
 			log.Printf("query %q failed: %v", query, err)
 			continue
@@ -514,8 +418,6 @@ func replay(args []string) error {
 
 	var logPath string
 	fset.StringVar(&logPath, "log", "", "path to the query log file to replay (1 query per line)")
-	var old bool
-	fset.BoolVar(&old, "old", false, "use the old index")
 	var pos bool
 	fset.BoolVar(&pos, "pos", false, "use the pos index")
 	var debug int
@@ -533,5 +435,5 @@ func replay(args []string) error {
 		os.Exit(1)
 	}
 
-	return logic(logPath, old, pos, debug, skipFile, skipGrep)
+	return logic(logPath, pos, debug, skipFile, skipGrep)
 }
