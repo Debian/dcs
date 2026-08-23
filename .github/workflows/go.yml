@@ -25,10 +25,6 @@ jobs:
       run: |
         [ "$(gofmt -l $(find . -name '*.go') 2>&1)" = "" ]
 
-    - name: Install Linux package dependencies
-      run: |
-        sudo apt update && sudo apt install -y --no-install-recommends slimit yui-compressor zopfli
-
     - name: Go Vet
       run: |
         go vet
