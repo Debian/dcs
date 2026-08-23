@@ -1,6 +1,6 @@
 module github.com/Debian/dcs
 
-go 1.26
+go 1.27
 
 require (
 	github.com/antihax/optional v1.0.0
