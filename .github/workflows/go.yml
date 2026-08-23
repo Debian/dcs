@@ -12,16 +12,14 @@ jobs:
     name: CI
     runs-on: ubuntu-latest
     steps:
+    - name: Check out code into the Go module directory
+      uses: actions/checkout@v4
 
     - name: Set up Go 1.x
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v5
       with:
-        # Run on the latest minor release of Go 1.19:
-        go-version: '^1.19'
-      id: go
-
-    - name: Check out code into the Go module directory
-      uses: actions/checkout@v2
+        # Latest stable version of Go, e.g. 1.26.6
+        go-version: 'stable'
 
     - name: Ensure all files were formatted as per gofmt
       run: |
@@ -30,10 +28,6 @@ jobs:
     - name: Install Linux package dependencies
       run: |
         sudo apt update && sudo apt install -y --no-install-recommends slimit yui-compressor zopfli
-
-    - name: Get dependencies
-      run: |
-        go get -v -t -d ./...
 
     - name: Go Vet
       run: |
@@ -44,5 +38,12 @@ jobs:
         go build -v ./cmd/...
 
     - name: Test
+      run: |
+        go test -v ./...
+
+    - name: Test (SIMD)
+      env:
+        GOEXPERIMENT: simd
+        GOAMD64: v3
       run: |
         go test -v ./...
