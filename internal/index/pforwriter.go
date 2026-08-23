@@ -1,17 +1,15 @@
 package index
 
 import (
-	"log"
 	"os"
 	"path/filepath"
 
-	"github.com/Debian/dcs/internal/turbopfor"
+	"github.com/Debian/dcs/internal/turbopfor/pforenc"
 )
 
 type pforWriter struct {
-	f    countingWriter
-	ints []uint32
-	buf  []byte
+	f   countingWriter
+	enc pforenc.StreamEncoder
 }
 
 func newPForWriter(dir, typ string) (*pforWriter, error) {
@@ -20,8 +18,7 @@ func newPForWriter(dir, typ string) (*pforWriter, error) {
 		return nil, err
 	}
 	return &pforWriter{
-		f:    newCountingWriter(f),
-		ints: make([]uint32, 0, 256+32),
+		f: newCountingWriter(f),
 	}, nil
 }
 
@@ -29,51 +26,23 @@ func (pw *pforWriter) Offset() int64 {
 	return int64(pw.f.offset)
 }
 
-func (pw *pforWriter) putUint32flush() error {
-	if sz := turbopfor.EncodingSize(len(pw.ints)); len(pw.buf) < sz {
-		pw.buf = make([]byte, sz)
-	}
-	n := turbopfor.P4enc256v32(pw.ints, pw.buf)
-	if _, err := pw.f.Write(pw.buf[:n]); err != nil {
-		return err
-	}
-	pw.ints = pw.ints[:0]
-	return nil
-}
-
 func (pw *pforWriter) PutUint32(u uint32) error {
-	pw.ints = append(pw.ints, u)
-	if len(pw.ints) == 256 {
-		return pw.putUint32flush()
+	if full := pw.enc.Add(u); full {
+		if _, err := pw.f.Write(pw.enc.EncodeBlock()); err != nil {
+			return err
+		}
 	}
-	return nil
-}
-
-func (pw *pforWriter) PrintFlush() error {
-	log.Printf("encoding (256) %v", pw.ints)
-	b := turbopfor.P4nenc256v32(pw.ints)
-	log.Printf("b = %x (len %d)", b, len(b))
-	if _, err := pw.f.Write(b); err != nil {
-		return err
-	}
-	pw.ints = pw.ints[:0]
 	return nil
 }
 
 func (pw *pforWriter) Flush() error {
-	if len(pw.ints) == 0 {
+	b := pw.enc.EncodeBlock()
+	if len(b) == 0 {
 		return nil
 	}
-
-	if sz := turbopfor.EncodingSize(len(pw.ints)); len(pw.buf) < sz {
-		pw.buf = make([]byte, sz)
-	}
-
-	b := turbopfor.P4nenc256v32Buf(pw.buf, pw.ints)
 	if _, err := pw.f.Write(b); err != nil {
 		return err
 	}
-	pw.ints = pw.ints[:0]
 	return nil
 }
 

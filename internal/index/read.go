@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/Debian/dcs/internal/mmap"
-	"github.com/Debian/dcs/internal/turbopfor"
+	"github.com/Debian/dcs/internal/turbopfor/pfordec"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 )
@@ -82,7 +82,8 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 }
 
 type reusableBuffer struct {
-	u []uint32
+	u  []uint32
+	bd pfordec.BlockDecoder
 }
 
 type bufferPair struct {
@@ -232,19 +233,10 @@ func (sr *PForReader) deltas(meta *MetaEntry, buffer *reusableBuffer) ([]uint32,
 	entries := int(meta.Entries)
 	d := sr.data.Data
 
-	// DEBUG: pure-go verification
-	// rd := NewDeltaReader()
-	// rd.Reset(meta, d)
-	// for rd.Read() != nil {
-	// }
-
-	//var deltas []uint32
-	if n := turbopfor.DecodingSize(entries); n > cap(buffer.u) {
-		buffer.u = make([]uint32, 0, n)
+	if entries > cap(buffer.u) {
+		buffer.u = make([]uint32, 0, entries)
 	}
-	//deltas := make([]uint32, entries, entries+128*1024)
-	turbopfor.P4ndec256v32(d[meta.OffsetData:], buffer.u[:entries])
-	//goturbopfor.P4ndec256v32(d[meta.OffsetData:], buffer.u[:entries])
+	buffer.bd.DecodeN(d[meta.OffsetData:], buffer.u[:entries])
 	return buffer.u[:entries], nil
 }
 
@@ -270,13 +262,11 @@ type DeltaReader struct {
 	entries int
 	n       int
 	data    []byte
-	buf     []uint32
+	sd      pfordec.StreamDecoder
 }
 
 func NewDeltaReader() *DeltaReader {
-	return &DeltaReader{
-		buf: make([]uint32, 256, turbopfor.DecodingSize(256)),
-	}
+	return &DeltaReader{}
 }
 
 // Reset positions the reader on a posting list.
@@ -293,16 +283,16 @@ func (dr *DeltaReader) Reset(meta *MetaEntry, data []byte) {
 // The first Read call after Reset returns a non-nil result.
 func (dr *DeltaReader) Read() []uint32 {
 	if dr.n+256 <= dr.entries {
-		dr.data = dr.data[turbopfor.P4dec256v32(dr.data, dr.buf):]
-		//dr.data = dr.data[goturbopfor.P4ndec256v32(dr.data, dr.buf):]
+		vals, read := dr.sd.DecodeBlock(dr.data, 256)
+		dr.data = dr.data[read:]
 		dr.n += 256
-		return dr.buf
+		return vals
 	}
 	if remaining := dr.entries - dr.n; remaining > 0 {
-		turbopfor.P4dec32(dr.data, dr.buf[:remaining])
-		//goturbopfor.P4dec32(dr.data, dr.buf[:remaining])
+		vals, read := dr.sd.DecodeBlock(dr.data, remaining)
+		dr.data = dr.data[read:]
 		dr.n += remaining
-		return dr.buf[:remaining]
+		return vals
 	}
 	return nil
 }
