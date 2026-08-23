@@ -7,39 +7,41 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Debian/dcs/internal/turbopfor"
+	"github.com/Debian/dcs/internal/turbopfor/pfordec"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestEncodeBlock(t *testing.T) {
 	var be BlockEncoder
+	var bd pfordec.BlockDecoder
 	var out [LargestP4]byte
 	vals := []uint32{0x2342, 1111, 19, math.MaxUint32}
-	decoded := make([]uint32, len(vals), turbopfor.DecodingSize(len(vals)))
+	decoded := make([]uint32, len(vals))
 	encoded := be.EncodeBlock(out[:0], vals)
-	n := turbopfor.P4ndec32(encoded, decoded)
+	n := bd.DecodeBlock(encoded, decoded)
 	if n != len(encoded) {
-		t.Fatalf("P4ndec32() = %d, want len(encoded)=%d", n, len(encoded))
+		t.Fatalf("DecodeBlock() = %d, want len(encoded)=%d", n, len(encoded))
 	}
 	if diff := cmp.Diff(vals, decoded); diff != "" {
-		t.Fatalf("EncodeBlock() does not round-trip through P4ndec32: diff (-decoded +vals):\n%s", diff)
+		t.Fatalf("EncodeBlock() does not round-trip through DecodeBlock: diff (-decoded +vals):\n%s", diff)
 	}
 }
 
 func TestEncodeN(t *testing.T) {
 	var be BlockEncoder
+	var bd pfordec.BlockDecoder
 	var out [10 * LargestP4]byte
 	vals := []uint32{0x2342, 1111, 19, math.MaxUint32}
 	vals1Block := slices.Repeat(vals, 256/len(vals))
 	vals5Blocks := slices.Repeat(vals1Block, 5)
-	decoded := make([]uint32, len(vals5Blocks), turbopfor.DecodingSize(len(vals5Blocks)))
+	decoded := make([]uint32, len(vals5Blocks))
 	encoded := be.EncodeN(out[:0], vals5Blocks)
-	n := turbopfor.P4ndec256v32(encoded, decoded)
+	n := bd.DecodeN(encoded, decoded)
 	if n != len(encoded) {
-		t.Fatalf("P4ndec256v32() = %d, want len(encoded)=%d", n, len(encoded))
+		t.Fatalf("DecodeN() = %d, want len(encoded)=%d", n, len(encoded))
 	}
 	if diff := cmp.Diff(vals5Blocks, decoded); diff != "" {
-		t.Fatalf("EncodeBlock() does not round-trip through P4ndec32: diff (-decoded +vals):\n%s", diff)
+		t.Fatalf("EncodeBlock() does not round-trip through DecodeN: diff (-decoded +vals):\n%s", diff)
 	}
 }
 
@@ -120,12 +122,10 @@ type testCase struct {
 	vals []uint32
 }
 
-const cOverread = 32
-
 func testCases(nvals int) []testCase {
 	var cases []testCase
 	for _, sb := range testCaseGenerators {
-		vals := make([]uint32, 0, nvals+cOverread)
+		vals := make([]uint32, 0, nvals)
 		for val := range nvals {
 			vals = append(vals, sb.gen(val%256))
 		}
@@ -149,7 +149,7 @@ func debianWeightedMix(nvals int) testCase {
 		genAllConstant,
 		genBitpackingExcBW(8),
 	}
-	vals := make([]uint32, 0, nvals+cOverread)
+	vals := make([]uint32, 0, nvals)
 	for val := range nvals {
 		gen := debianMixGens[(val/256)%len(debianMixGens)]
 		vals = append(vals, gen(val%256))
@@ -196,18 +196,19 @@ func allBenchCases() []testCase {
 
 func TestRoundTrip(t *testing.T) {
 	var be BlockEncoder
+	var bd pfordec.BlockDecoder
 	for _, tc := range allTestCases() {
 		n := len(tc.vals)
 		t.Run(fmt.Sprintf("n=%d/vals=%s", n, tc.name), func(t *testing.T) {
 			if tc.vals == nil {
 				t.Skipf("C does not like empty inputs")
 			}
-			out := make([]byte, 0, turbopfor.DecodingSize(n))
+			out := make([]byte, 0, (n/256+1)*LargestP4)
 			encoded := be.EncodeN(out, tc.vals)
-			decoded := make([]uint32, n, turbopfor.DecodingSize(n))
-			read := turbopfor.P4ndec256v32(encoded, decoded)
+			decoded := make([]uint32, n)
+			read := bd.DecodeN(encoded, decoded)
 			if read != len(encoded) {
-				t.Fatalf("P4ndec256v32() = %d, want len(encoded)=%d", read, len(encoded))
+				t.Fatalf("DecodeN() = %d, want len(encoded)=%d", read, len(encoded))
 			}
 			if diff := cmp.Diff(tc.vals, decoded); diff != "" {
 				t.Fatalf("Go encoder does not round-trip through C decoder: diff (-decoded +vals):\n%s", diff)
@@ -229,20 +230,11 @@ func BenchmarkEncode(b *testing.B) {
 	for _, tc := range allBenchCases() {
 		n := len(tc.vals)
 		b.Run(fmt.Sprintf("n=%d/vals=%s", n, tc.name), func(b *testing.B) {
-			b.Run("impl=c", func(b *testing.B) {
-				b.ReportAllocs()
-				var encoded []byte
-				buf := make([]byte, turbopfor.EncodingSize(n))
-				for b.Loop() {
-					encoded = turbopfor.P4nenc256v32Buf(buf, tc.vals)
-				}
-				reportMetrics(b, n, len(encoded))
-			})
 			b.Run("impl=go", func(b *testing.B) {
 				b.ReportAllocs()
 				var be BlockEncoder
 				var encoded []byte
-				buf := make([]byte, 0, turbopfor.EncodingSize(n))
+				buf := make([]byte, 0, (n/256+1)*LargestP4)
 				for b.Loop() {
 					encoded = be.EncodeN(buf, tc.vals)
 				}
