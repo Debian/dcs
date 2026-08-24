@@ -29,7 +29,6 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/stringpool"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -368,7 +367,7 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 
 	dir := filepath.Join(*queryResultsPath, queryid)
 	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-		return false, xerrors.Errorf("could not create %q: %w", dir, err)
+		return false, fmt.Errorf("could not create %q: %w", dir, err)
 	}
 
 	for i := 0; i < len(common.SourceBackendStubs); i++ {
@@ -376,7 +375,7 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 		path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
 		f, err := os.Create(path)
 		if err != nil {
-			return false, xerrors.Errorf("could not create %q: %w", path, err)
+			return false, fmt.Errorf("could not create %q: %w", path, err)
 		}
 		querystate.perBackend[i] = &perBackendState{
 			packagePool:    stringpool.NewStringPool(),
