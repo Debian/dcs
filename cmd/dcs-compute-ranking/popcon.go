@@ -10,25 +10,25 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stapelberg/godebiancontrol"
+	"pault.ag/go/debian/control"
 )
 
 var (
 	asciiMatch = regexp.MustCompile(`^(?P<package>[A-Za-z0-9-.+_]+)(:(?P<arch>[a-z0-9]+))?$`)
 )
 
-func popconInstallations(binaryPackages []godebiancontrol.Paragraph) (map[string]float32, error) {
+func popconInstallations(binaryPackages []control.Paragraph) (map[string]float32, error) {
 	binaryToSource := make(map[string]string)
 	for _, pkg := range binaryPackages {
-		source, ok := pkg["Source"]
+		source, ok := pkg.Values["Source"]
 		if !ok {
-			source = pkg["Package"]
+			source = pkg.Values["Package"]
 		}
 		idx := strings.Index(source, " ")
 		if idx > -1 {
 			source = source[:idx]
 		}
-		binaryToSource[pkg["Package"]] = source
+		binaryToSource[pkg.Values["Package"]] = source
 	}
 
 	installations := make(map[string]float32)

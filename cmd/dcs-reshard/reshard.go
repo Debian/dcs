@@ -8,13 +8,14 @@ import (
 	"crypto/md5"
 	"flag"
 	"fmt"
-	"github.com/stapelberg/godebiancontrol"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+
+	"pault.ag/go/debian/control"
 )
 
 var (
@@ -62,7 +63,12 @@ func main() {
 	}
 	defer reader.Close()
 
-	sourcePackages, err := godebiancontrol.Parse(reader)
+	pr, err := control.NewParagraphReader(reader, nil)
+	if err != nil {
+		log.Printf("Could not parse Sources.gz: %v\n", err)
+		return
+	}
+	sourcePackages, err := pr.All()
 	if err != nil {
 		log.Printf("Could not parse Sources.gz: %v\n", err)
 		return
@@ -79,7 +85,7 @@ func main() {
 
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
 	for _, pkg := range sourcePackages {
-		p := pkg["Package"] + "_" + pkg["Version"]
+		p := pkg.Values["Package"] + "_" + pkg.Values["Version"]
 		oldIdx := taskIdxForPackage(p, len(oldShards))
 		newIdx := taskIdxForPackage(p, len(newShards))
 		log.Printf("oldidx = %d, newidx = %d\n", oldIdx, newIdx)

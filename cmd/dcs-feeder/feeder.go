@@ -32,7 +32,7 @@ import (
 	"github.com/Debian/dcs/shardmapping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/stapelberg/godebiancontrol"
+	"pault.ag/go/debian/control"
 	"pault.ag/go/debian/version"
 
 	_ "net/http/pprof"
@@ -277,11 +277,16 @@ func lookfor(dscName string) {
 		var dscContents bytes.Buffer
 		// Store a copy of the content in dscContents.
 		reader := io.TeeReader(resp.Body, &dscContents)
-		// Strip the PGP signature. The worst thing that can happen is that an
-		// attacker gives us bad source code to index and serve. Verifying PGP
-		// signatures is harder since we need an up-to-date debian-keyring.
-		reader = godebiancontrol.PGPSignatureStripper(reader)
-		paragraphs, err := godebiancontrol.Parse(reader)
+		// Passing a nil keyring strips the PGP signature without verifying
+		// it. The worst thing that can happen is that an attacker gives us
+		// bad source code to index and serve. Verifying PGP signatures is
+		// harder since we need an up-to-date debian-keyring.
+		pr, err := control.NewParagraphReader(reader, nil)
+		if err != nil {
+			log.Printf("Invalid dsc file: %v\n", err)
+			return
+		}
+		paragraphs, err := pr.All()
 		if err != nil {
 			log.Printf("Invalid dsc file: %v\n", err)
 			return
@@ -292,9 +297,9 @@ func lookfor(dscName string) {
 		}
 		pkg := paragraphs[0]
 
-		for _, line := range strings.Split(pkg["Files"], "\n") {
+		for _, line := range strings.Split(pkg.Values["Files"], "\n") {
 			parts := strings.Split(strings.TrimSpace(line), " ")
-			// pkg["Files"] has a newline at the end, so we get one empty line.
+			// pkg.Values["Files"] has a newline at the end, so we get one empty line.
 			if len(parts) < 3 {
 				continue
 			}
@@ -345,7 +350,7 @@ func checkSources() {
 		log.Printf("shard %q has %d packages currently\n", importer.shard, len(resp.SourcePackage))
 	}
 
-	var sourcePackages []godebiancontrol.Paragraph
+	var sourcePackages []control.Paragraph
 	for _, section := range []string{"main", "contrib"} {
 		sourcesSuffix := "/dists/" + *dist + "/" + section + "/source/Sources.gz"
 		resp, err := http.Get(*mirrorUrl + sourcesSuffix)
@@ -361,7 +366,12 @@ func checkSources() {
 		}
 		defer reader.Close()
 
-		tmp, err := godebiancontrol.Parse(reader)
+		pr, err := control.NewParagraphReader(reader, nil)
+		if err != nil {
+			log.Printf("Could not parse Sources.gz: %v\n", err)
+			return
+		}
+		tmp, err := pr.All()
 		if err != nil {
 			log.Printf("Could not parse Sources.gz: %v\n", err)
 			return
@@ -370,18 +380,18 @@ func checkSources() {
 	}
 
 	// Only keep the most recent version for each source package:
-	mostRecent := make(map[string]godebiancontrol.Paragraph)
+	mostRecent := make(map[string]control.Paragraph)
 	for _, pkg := range sourcePackages {
-		n := pkg["Package"]
+		n := pkg.Values["Package"]
 		if current, ok := mostRecent[n]; ok {
-			old, err := version.Parse(current["Version"])
+			old, err := version.Parse(current.Values["Version"])
 			if err != nil {
-				log.Printf("version %q: %v", current["Version"], err)
+				log.Printf("version %q: %v", current.Values["Version"], err)
 				return
 			}
-			new, err := version.Parse(pkg["Version"])
+			new, err := version.Parse(pkg.Values["Version"])
 			if err != nil {
-				log.Printf("version %q: %v", pkg["Version"], err)
+				log.Printf("version %q: %v", pkg.Values["Version"], err)
 				return
 			}
 			if version.Compare(new, old) > 0 {
@@ -397,16 +407,16 @@ func checkSources() {
 
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
 	for _, pkg := range mostRecent {
-		if strings.HasSuffix(pkg["Package"], "-data") {
+		if strings.HasSuffix(pkg.Values["Package"], "-data") {
 			continue
 		}
-		if pkg["Package"] == "kicad-packages3d" {
+		if pkg.Values["Package"] == "kicad-packages3d" {
 			continue // TODO: should this have been called -data?
 		}
-		if strings.HasPrefix(pkg["Package"], "sagemath-database-") {
+		if strings.HasPrefix(pkg.Values["Package"], "sagemath-database-") {
 			continue
 		}
-		p := pkg["Package"] + "_" + pkg["Version"]
+		p := pkg.Values["Package"] + "_" + pkg.Values["Version"]
 		shardIdx := shardmapping.TaskIdxForPackage(p, len(packageImporters))
 		importer := packageImporters[shardIdx]
 		// Skip shards that are offline (= for which we have no package list).
@@ -414,7 +424,7 @@ func checkSources() {
 			continue
 		}
 		status := packages[importer.shard][p]
-		needRefeed := needRefeed(pkg["Package"])
+		needRefeed := needRefeed(pkg.Values["Package"])
 		// log.Printf("package %s: shard %d, status %v, need refeed? %v\n", p, shardIdx, status, needRefeed)
 		if status == Present && !needRefeed {
 			packages[importer.shard][p] = Confirmed
@@ -424,13 +434,13 @@ func checkSources() {
 				packages[importer.shard][p] = NotPresent
 			}
 			var pkgfiles []string
-			for _, line := range strings.Split(pkg["Files"], "\n") {
+			for _, line := range strings.Split(pkg.Values["Files"], "\n") {
 				parts := strings.Split(strings.TrimSpace(line), " ")
-				// pkg["Files"] has a newline at the end, so we get one empty line.
+				// pkg.Values["Files"] has a newline at the end, so we get one empty line.
 				if len(parts) < 3 {
 					continue
 				}
-				url := *mirrorUrl + "/" + pkg["Directory"] + "/" + parts[2]
+				url := *mirrorUrl + "/" + pkg.Values["Directory"] + "/" + parts[2]
 
 				// Append the .dsc to the end, prepend the other files.
 				if strings.HasSuffix(url, ".dsc") {

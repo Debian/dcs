@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/stapelberg/godebiancontrol"
+	"pault.ag/go/debian/control"
 )
 
 var (
@@ -30,7 +30,7 @@ var (
 		"Path to store the resulting ranking JSON data at. Will be overwritten atomically using rename(2), which also implies that TMPDIR= must point to a directory on the same file system as -output_path.")
 )
 
-func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
+func mustLoadMirroredControlFile(name string) []control.Paragraph {
 	url := fmt.Sprintf("%s/dists/sid/main/%s", *mirrorUrl, name)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -45,7 +45,11 @@ func mustLoadMirroredControlFile(name string) []godebiancontrol.Paragraph {
 	if err != nil {
 		log.Fatal(err)
 	}
-	contents, err := godebiancontrol.Parse(reader)
+	pr, err := control.NewParagraphReader(reader, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	contents, err := pr.All()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,7 +84,7 @@ func main() {
 		dependsOn := make(map[string]bool)
 		// NB: This differs from what apt-cache rdepends spit out. apt-cache
 		// also considers the Replaces field.
-		allDeps := pkg["Depends"] + "," + pkg["Suggests"] + "," + pkg["Recommends"] + "," + pkg["Enhances"]
+		allDeps := pkg.Values["Depends"] + "," + pkg.Values["Suggests"] + "," + pkg.Values["Recommends"] + "," + pkg.Values["Enhances"]
 		for _, dep := range strings.FieldsFunc(allDeps, func(r rune) bool {
 			return r == ',' || r == '|'
 		}) {
@@ -104,14 +108,14 @@ func main() {
 
 	for _, pkg := range sourcePackages {
 		rdepcount := float32(0)
-		for packageName := range strings.SplitSeq(pkg["Binary"], ",") {
+		for packageName := range strings.SplitSeq(pkg.Values["Binary"], ",") {
 			packageName = strings.TrimSpace(packageName)
 			if packageName == "" {
 				continue
 			}
 			rdepcount += float32(reverseDeps[packageName])
 		}
-		srcpkg := pkg["Package"]
+		srcpkg := pkg.Values["Package"]
 		packageRank := popconInstSrc[srcpkg]
 		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
 		if *verbose {
