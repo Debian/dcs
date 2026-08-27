@@ -1,5 +1,5 @@
 # Required for the Go compiler to intrinsify LZCNT, for example.
-export GOAMD64=v3
+export GOAMD64=v4
 # Required for SIMD support with Go 1.27.
 # Always set (even before adding SIMD code) so the baseline is stable.
 export GOEXPERIMENT=simd

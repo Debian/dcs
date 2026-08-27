@@ -2,12 +2,14 @@
 
 package pfordec
 
-import "simd/archsimd"
+import (
+	"simd/archsimd"
 
-var hasAVX2 = archsimd.X86.AVX2()
+	"github.com/Debian/dcs/internal/turbopfor"
+)
 
 func fillConstant(output []uint32, val uint32) {
-	if !hasAVX2 {
+	if !turbopfor.HasAVX2 {
 		fillConstantScalar(output, val)
 		return
 	}

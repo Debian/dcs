@@ -7,15 +7,12 @@ import (
 	"math/bits"
 	"simd/archsimd"
 	"slices"
-)
 
-var (
-	hasAVX2   = archsimd.X86.AVX2()
-	hasAVX512 = archsimd.X86.AVX512()
+	"github.com/Debian/dcs/internal/turbopfor"
 )
 
 func bitpack256v(dest []byte, vals []uint32, bitWidth int) []byte {
-	if !hasAVX2 {
+	if !turbopfor.HasAVX2 {
 		return bitpack256vScalar(dest, vals, bitWidth)
 	}
 	size := 32 * bitWidth
@@ -52,7 +49,7 @@ func bitpack256vInPlace(dest []byte, vals []uint32, bitWidth int) {
 }
 
 func exbitmap(vals []uint32, bitWidth int, exmap []byte, high []uint32) int {
-	if !hasAVX512 {
+	if !turbopfor.HasAVX512 {
 		return exbitmapScalar(vals, bitWidth, exmap, high)
 	}
 	fits := archsimd.BroadcastUint32x16(uint32(1)<<bitWidth - 1)

@@ -5,12 +5,14 @@ package pfordec
 import (
 	"math/bits"
 	"simd/archsimd"
+
+	"github.com/Debian/dcs/internal/turbopfor"
 )
 
 // bitunpack256v32Ex is like bitunpack256v32, but with exception decoding fused
 // into the same loop (instead of a separate pass).
 func bitunpack256v32Ex(input []byte, fulloutput []uint32, nbits int, exmap *[32]byte, exceptions *[256]uint32) (read int) {
-	if !hasAVX512 {
+	if !turbopfor.HasAVX512 {
 		return bitunpack256v32ExScalar(input, fulloutput, nbits, exmap, exceptions)
 	}
 	output := (*[256]uint32)(fulloutput[:256])

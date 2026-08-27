@@ -4,9 +4,9 @@ package pfordec
 
 import (
 	"simd/archsimd"
-)
 
-var hasAVX512 = archsimd.X86.AVX512()
+	"github.com/Debian/dcs/internal/turbopfor"
+)
 
 // seqUnpackConsts are the per-lane constants of bitunpackSIMD for one
 // bit width. This allows keeping the dispatch unit busy with vector
@@ -32,7 +32,7 @@ var precomputed = func() (t [33]seqUnpackConsts) {
 }()
 
 func bitunpack(input []byte, output []uint32, bitWidth int) (read int) {
-	if !hasAVX2 {
+	if !turbopfor.HasAVX2 {
 		return bitunpackScalar(input, output, bitWidth)
 	}
 	if bitWidth == 0 {

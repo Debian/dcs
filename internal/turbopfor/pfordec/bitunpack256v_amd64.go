@@ -2,10 +2,14 @@
 
 package pfordec
 
-import "simd/archsimd"
+import (
+	"simd/archsimd"
+
+	"github.com/Debian/dcs/internal/turbopfor"
+)
 
 func bitunpack256v32(fullinput []byte, fulloutput []uint32, nbits int) (read int) {
-	if !hasAVX2 {
+	if !turbopfor.HasAVX2 {
 		return bitunpack256v32Scalar(fullinput, fulloutput, nbits)
 	}
 	output := (*[256]uint32)(fulloutput[:256])
