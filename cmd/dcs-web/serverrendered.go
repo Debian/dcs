@@ -20,8 +20,8 @@ import (
 	"strings"
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
+	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/version"
-	dcsregexp "github.com/Debian/dcs/regexp"
 )
 
 // XXX: Using a dcsregexp.Match anonymous struct member doesn’t work,

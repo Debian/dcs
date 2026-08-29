@@ -9,7 +9,7 @@ package ranking
 import (
 	"unicode"
 
-	"github.com/Debian/dcs/regexp"
+	"github.com/Debian/dcs/internal/regexp"
 )
 
 //var packageLocation *regexp.Regexp = regexp.MustCompile(`debian-source-mirror/unpacked/([^/]+)_`)

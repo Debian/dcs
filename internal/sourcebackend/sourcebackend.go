@@ -21,7 +21,7 @@ import (
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/ranking"
-	"github.com/Debian/dcs/regexp"
+	"github.com/Debian/dcs/internal/regexp"
 	"github.com/google/renameio/v2"
 )
 
