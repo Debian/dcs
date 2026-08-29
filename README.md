@@ -1,6 +1,14 @@
 [![GitHub Actions CI](https://github.com/Debian/dcs/actions/workflows/go.yml/badge.svg)](https://github.com/Debian/dcs/actions/workflows/go.yml)
 
-Please read http://codesearch.debian.net/research/bsc-thesis.pdf first!
+Context:
+
+* [Debian Code Search: Bachelor Thesis (2012)](https://codesearch.debian.net/research/bsc-thesis.pdf)
+* [Announcing the new Debian Code Search Instant (2014)](https://michael.stapelberg.ch/posts/2014-12-03-debian-code-search-instant/)
+  * [Debian Code Search: taming the latency tail (2014)](https://michael.stapelberg.ch/posts/2014-12-23-code-search-taming-the-latency-tail/)
+* [Debian Code Search: improving client-side latency (2016)](https://michael.stapelberg.ch/posts/2016-08-08-debian-codesearch-latency/)
+* [Debian Code Search: positional index, TurboPFor-compressed (2019)](https://michael.stapelberg.ch/posts/2019-09-29-dcs-positional-turbopfor-index/)
+  * [TurboPFor: an analysis (2019)](https://michael.stapelberg.ch/posts/2019-02-05-turbopfor-analysis/)
+* [Debian Code Search: OpenAPI now available (2021)](https://michael.stapelberg.ch/posts/2021-03-06-debian-code-search-openapi/)
 
 cmd/
     dcs-unpack - tool to unpack a debian source mirror
