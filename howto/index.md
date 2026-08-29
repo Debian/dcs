@@ -7,7 +7,7 @@ We used to use
 following points motivated switching the index format:
 
 * instead of storing posting lists as varint-encoded deltas, they are encoded
-  using TurboPFor (specifically the `p4nenc256v32` function, via cgo)
+  using TurboPFor (using the `internal/turbopfor/pforenc` Go SIMD encoder)
 
   * This reduces the file size of the merged index used for querying from 9G
     (varint) to 6G (TurboPFor), which results in more caching. Note that the
