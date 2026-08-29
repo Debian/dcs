@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Debian/dcs/grpcutil"
+	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/ranking"

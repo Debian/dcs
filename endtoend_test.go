@@ -16,8 +16,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/api"
+	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/localdcs"
 	"github.com/Debian/dcs/internal/proto/dcspb"
 	"github.com/google/go-cmp/cmp"

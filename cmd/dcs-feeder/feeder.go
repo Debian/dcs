@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Debian/dcs/grpcutil"
+	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/internal/shardmapping"
 	"github.com/prometheus/client_golang/prometheus"

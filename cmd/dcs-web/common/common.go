@@ -17,7 +17,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/Debian/dcs/grpcutil"
+	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 )
 

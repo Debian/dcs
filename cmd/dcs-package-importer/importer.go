@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/filter"
+	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
