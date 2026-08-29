@@ -13,7 +13,7 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
-	"github.com/Debian/dcs/shardmapping"
+	"github.com/Debian/dcs/internal/shardmapping"
 )
 
 func Show(w http.ResponseWriter, r *http.Request) {
