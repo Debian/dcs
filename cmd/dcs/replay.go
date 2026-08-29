@@ -18,8 +18,8 @@ import (
 
 	dcssearch "github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/internal/index"
+	"github.com/Debian/dcs/internal/ranking"
 	"github.com/Debian/dcs/internal/sourcebackend"
-	"github.com/Debian/dcs/ranking"
 	"github.com/Debian/dcs/regexp"
 )
 
