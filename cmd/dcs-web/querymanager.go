@@ -27,7 +27,7 @@ import (
 	"github.com/Debian/dcs/dpkgversion"
 	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
-	"github.com/Debian/dcs/stringpool"
+	"github.com/Debian/dcs/internal/stringpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
