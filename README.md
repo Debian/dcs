@@ -10,25 +10,18 @@ Context:
   * [TurboPFor: an analysis (2019)](https://michael.stapelberg.ch/posts/2019-02-05-turbopfor-analysis/)
 * [Debian Code Search: OpenAPI now available (2021)](https://michael.stapelberg.ch/posts/2021-03-06-debian-code-search-openapi/)
 
-cmd/
-    dcs-unpack - tool to unpack a debian source mirror
-    dcs-index - tool to create an index from a debian source mirror
-    compute-ranking - computes the ranking of each package/file
-    dcs-web  - the code search web application itself
-    index-backend - simple server which provides (a shard) of the index to dcs-web
-    source-backend - simple server which provides the debian source to dcs-web
+Guide to this repository:
 
-debian/
-    The Debian packaging, which currently is very hacky due to Go packaging
-    being hard in Debian currently. Patches welcome.
+* `cmd/dcs` is the swiss-army knife tool for Debian Code Search, displaying index files in a variety of ways.
+* `cmd/dcs-localdcs` runs a local development instance of Debian Code Search.
 
-index/
-    Copied from code.google.com/p/codesearch. Parts were re-written in
-    hand-optimized C code (posting list decoding).
+The service itself consists of the following services / jobs:
 
-regexp/
-    Copied from code.google.com/p/codesearch. Returns results in a data
-    structure instead of printing them to stdout.
+* `cmd/dcs-compute-ranking` generates `ranking.json` based on the Debian Popularity Contest (popcon).
+* `cmd/dcs-feeder` feeds packages to multiple `dcs-package-importer` shards.
+* `cmd/dcs-web` is the web server which runs searches on multiple `dcs-source-backend` shards.
 
-static/
-    Static assets + HTML files (FAQ etc.)
+Each shard (codesearch.debian.net uses 6 shards) runs:
+
+* A `cmd/dcs-package-importer` to receive, unpack and index Debian packages for this shard.
+* A `cmd/dcs-source-backend` to run actual searches over imported source code.
