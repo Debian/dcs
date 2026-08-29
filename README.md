@@ -10,6 +10,11 @@ Context:
   * [TurboPFor: an analysis (2019)](https://michael.stapelberg.ch/posts/2019-02-05-turbopfor-analysis/)
 * [Debian Code Search: OpenAPI now available (2021)](https://michael.stapelberg.ch/posts/2021-03-06-debian-code-search-openapi/)
 
+Documentation:
+
+* [Setting up a small instance of DCS for hacking](https://github.com/Debian/dcs/blob/main/howto/hacking.md)
+* [Debian Code Search Index format](https://github.com/Debian/dcs/blob/main/howto/index.md)
+
 Guide to this repository:
 
 * `cmd/dcs` is the swiss-army knife tool for Debian Code Search, displaying index files in a variety of ways.
