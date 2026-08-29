@@ -26,7 +26,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/shardmapping"
@@ -587,7 +586,6 @@ func main() {
 	}()
 
 	http.HandleFunc("/lookfor", lookforHandler)
-	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.Handle("/metrics", promhttp.Handler())
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))

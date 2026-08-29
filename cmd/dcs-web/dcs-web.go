@@ -29,7 +29,6 @@ import (
 	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/cmd/dcs-web/show"
-	"github.com/Debian/dcs/goroutinez"
 	"github.com/Debian/dcs/grpcutil"
 	"github.com/Debian/dcs/internal/apikeys"
 	"github.com/Debian/dcs/internal/index"
@@ -679,7 +678,6 @@ func main() {
 		}
 	})
 	http.HandleFunc("/favicon.ico", http.NotFound)
-	http.HandleFunc("/goroutinez", goroutinez.Goroutinez)
 	http.HandleFunc("/show", show.Show)
 	http.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("writing memprof")
