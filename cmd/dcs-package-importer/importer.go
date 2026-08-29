@@ -32,7 +32,7 @@ import (
 
 	_ "net/http/pprof"
 
-	_ "github.com/Debian/dcs/varz"
+	_ "github.com/Debian/dcs/internal/varz"
 	_ "golang.org/x/net/trace"
 )
 

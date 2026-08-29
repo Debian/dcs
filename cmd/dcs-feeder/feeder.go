@@ -36,7 +36,7 @@ import (
 
 	_ "net/http/pprof"
 
-	_ "github.com/Debian/dcs/varz"
+	_ "github.com/Debian/dcs/internal/varz"
 )
 
 type mergeState struct {

@@ -18,8 +18,8 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/ranking"
 	"github.com/Debian/dcs/internal/sourcebackend"
+	_ "github.com/Debian/dcs/internal/varz"
 	"github.com/Debian/dcs/internal/version"
-	_ "github.com/Debian/dcs/varz"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
 )
