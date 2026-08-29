@@ -24,7 +24,7 @@ import (
 
 	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/cmd/dcs-web/search"
-	"github.com/Debian/dcs/dpkgversion"
+	"github.com/Debian/dcs/internal/dpkgversion"
 	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/stringpool"
