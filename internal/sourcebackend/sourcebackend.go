@@ -474,6 +474,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 					buf = make([]byte, 0, max)
 				}
 				n, err := f.Read(buf[:max])
+				f.Close()
 				if err != nil {
 					log.Printf("%s %v", logprefix, err)
 					for range bundle {
@@ -481,7 +482,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 					}
 					continue
 				}
-				f.Close()
 				b := buf[:n]
 
 				lastPos := -1
