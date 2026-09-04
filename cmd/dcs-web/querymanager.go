@@ -215,6 +215,7 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 	}()
 
 	ctx, cancelfunc := context.WithCancel(ctx)
+	defer cancelfunc()
 	stream, err := backend.Search(ctx, searchRequest)
 	if err != nil {
 		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", queryid, src, err)
