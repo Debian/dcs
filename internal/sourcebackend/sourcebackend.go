@@ -485,8 +485,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				b := buf[:n]
 
 				lastPos := -1
-				for idx, fn := range bundle {
-					progress <- 1
+				for _, fn := range bundle {
 					sourcePkgName := fn.Path[fn.SourcePkgIdx[0]:fn.SourcePkgIdx[1]]
 					if rankingopts.Pathmatch {
 						fn.Ranking += querystr.Match(&fn.Path)
@@ -537,7 +536,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						// Drain the work channel, but without doing any work.
 						// This effectively exits the worker goroutine(s)
 						// cleanly.
-						for range bundle[idx+1:] {
+						for range bundle {
 							progress <- 1
 						}
 						for bundle := range work {
@@ -545,9 +544,13 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 								progress <- 1
 							}
 						}
-						break
+						return
 					}
 					connMu.Unlock()
+				}
+				// Only send progress after all matches are sent
+				for range bundle {
+					progress <- 1
 				}
 			}
 		}
