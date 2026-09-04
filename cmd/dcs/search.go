@@ -82,5 +82,4 @@ func search(args []string) error {
 		}
 		fmt.Printf("%s:%d\n", unpacked+msg.Match.Path, msg.Match.Line)
 	}
-	return nil
 }

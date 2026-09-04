@@ -577,7 +577,6 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 			},
 		}, nil
 	}
-	return nil, fmt.Errorf("unhandled type %q (data %q)", messageType.Type, string(data))
 }
 
 func main() {
