@@ -18,7 +18,7 @@ func newPosrelWriter(w io.Writer) *posrelWriter {
 	return &posrelWriter{w: w}
 }
 
-func (pw *posrelWriter) WriteByte(bits byte, n int) error {
+func (pw *posrelWriter) Write1(bits byte, n int) error {
 	if pw.Debug {
 		log.Printf("WriteByte(%x, %d), pw.current=%x, pw.numbits=%d", bits, n, pw.current, pw.numbits)
 	}
@@ -42,12 +42,12 @@ func (pw *posrelWriter) WriteByte(bits byte, n int) error {
 
 func (pw *posrelWriter) Write(b []byte, n int) error {
 	for i := 0; i < (n / 8); i++ {
-		if err := pw.WriteByte(b[i], 8); err != nil {
+		if err := pw.Write1(b[i], 8); err != nil {
 			return err
 		}
 	}
 	if rest := n % 8; rest > 0 {
-		return pw.WriteByte(b[n/8], rest)
+		return pw.Write1(b[n/8], rest)
 	}
 
 	return nil
