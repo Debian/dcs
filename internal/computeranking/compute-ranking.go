@@ -1,12 +1,10 @@
-// vim:ts=4:sw=4:noexpandtab
-package main
+package computeranking
 
 import (
 	"compress/gzip"
 	"encoding/json"
 	"flag"
 	"fmt"
-
 	"log"
 	"net/http"
 	"os"
@@ -16,25 +14,11 @@ import (
 	"pault.ag/go/debian/control"
 )
 
-var (
-	mirrorUrl = flag.String("mirror_url",
-		"http://deb.debian.org/debian",
-		"URL to the debian mirror to use")
-
-	verbose = flag.Bool("verbose",
-		false,
-		"Print ranking information about every package")
-
-	outputPath = flag.String("output_path",
-		"/var/dcs/ranking.json",
-		"Path to store the resulting ranking JSON data at. Will be overwritten atomically using rename(2), which also implies that TMPDIR= must point to a directory on the same file system as -output_path.")
-)
-
-func mustLoadMirroredControlFile(name string) []control.Paragraph {
-	url := fmt.Sprintf("%s/dists/sid/main/%s", *mirrorUrl, name)
+func loadMirroredControlFile(mirrorURL, name string) ([]control.Paragraph, error) {
+	url := fmt.Sprintf("%s/dists/sid/main/%s", mirrorURL, name)
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	if resp.StatusCode != 200 {
 		log.Fatalf("URL %q resulted in %v\n", url, resp.Status)
@@ -43,29 +27,35 @@ func mustLoadMirroredControlFile(name string) []control.Paragraph {
 
 	reader, err := gzip.NewReader(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	pr, err := control.NewParagraphReader(reader, nil)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	contents, err := pr.All()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return contents
+	return contents, nil
 }
 
-func main() {
+func Main(mirrorURL, outputPath string, verbose bool) error {
 	flag.Parse()
 
-	sourcePackages := mustLoadMirroredControlFile("source/Sources.gz")
-	binaryPackages := mustLoadMirroredControlFile("binary-amd64/Packages.gz")
-
-	popconInstSrc, err := popconInstallations(binaryPackages)
+	sourcePackages, err := loadMirroredControlFile(mirrorURL, "source/Sources.gz")
 	if err != nil {
-		log.Fatal(err)
+		return err
+	}
+	binaryPackages, err := loadMirroredControlFile(mirrorURL, "binary-amd64/Packages.gz")
+	if err != nil {
+		return err
+	}
+
+	popconInstSrc, err := popconInstallations(binaryPackages, verbose)
+	if err != nil {
+		return err
 	}
 	// Normalize the installation count.
 	var totalInstallations float32
@@ -118,26 +108,28 @@ func main() {
 		srcpkg := pkg.Values["Package"]
 		packageRank := popconInstSrc[srcpkg]
 		rdepcount = 1.0 - (1.0 / float32(rdepcount+1))
-		if *verbose {
+		if verbose {
 			fmt.Printf("%f %f %s\n", packageRank, rdepcount, srcpkg)
 		}
 		rankings[srcpkg] = storedRanking{packageRank, rdepcount}
 	}
 
-	f, err := os.CreateTemp(filepath.Dir(*outputPath), "dcs-compute-ranking")
+	f, err := os.CreateTemp(filepath.Dir(outputPath), "dcs-compute-ranking")
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err := json.NewEncoder(f).Encode(rankings); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if err := f.Close(); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	if err := os.Rename(f.Name(), *outputPath); err != nil {
-		log.Fatal(err)
+	if err := os.Rename(f.Name(), outputPath); err != nil {
+		return err
 	}
+
+	return nil
 }

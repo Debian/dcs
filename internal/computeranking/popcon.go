@@ -1,4 +1,4 @@
-package main
+package computeranking
 
 import (
 	"bufio"
@@ -17,7 +17,7 @@ var (
 	asciiMatch = regexp.MustCompile(`^(?P<package>[A-Za-z0-9-.+_]+)(:(?P<arch>[a-z0-9]+))?$`)
 )
 
-func popconInstallations(binaryPackages []control.Paragraph) (map[string]float32, error) {
+func popconInstallations(binaryPackages []control.Paragraph, verbose bool) (map[string]float32, error) {
 	binaryToSource := make(map[string]string)
 	for _, pkg := range binaryPackages {
 		source, ok := pkg.Values["Source"]
@@ -72,7 +72,7 @@ func popconInstallations(binaryPackages []control.Paragraph) (map[string]float32
 		}
 		matches := asciiMatch.FindStringSubmatch(fields[1])
 		if len(matches) == 0 {
-			if *verbose {
+			if verbose {
 				fmt.Printf("%q is not a valid package name, skipping\n", fields[1])
 			}
 			continue
@@ -81,7 +81,7 @@ func popconInstallations(binaryPackages []control.Paragraph) (map[string]float32
 
 		sourcePackage, ok := binaryToSource[binaryPackage]
 		if !ok {
-			if *verbose {
+			if verbose {
 				fmt.Printf("Could not find package %q in binary→source mapping, skipping\n", binaryPackage)
 			}
 			continue
