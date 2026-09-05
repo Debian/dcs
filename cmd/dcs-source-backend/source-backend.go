@@ -7,12 +7,10 @@ import (
 	"net"
 
 	"log"
-	"math/rand"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/index"
@@ -56,7 +54,6 @@ func main() {
 		return
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	if !strings.HasSuffix(*unpackedPath, "/") {
 		*unpackedPath = *unpackedPath + "/"
 	}
