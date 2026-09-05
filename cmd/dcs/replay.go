@@ -222,7 +222,8 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 }
 
 type shardedIndex struct {
-	shards []*index.Index
+	shards     []*index.Index
+	rankingMap ranking.StoredRankingMap
 }
 
 func (si *shardedIndex) doPostingQuery(query *index.Query) []string {
@@ -340,7 +341,7 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 				Path:     entry.fn,
 				Position: int(entry.pos),
 			}
-			result.Rank(&rankingopts)
+			result.Rank(si.rankingMap, &rankingopts)
 			if result.Ranking > -1 {
 				files = append(files, result)
 			}
@@ -363,7 +364,7 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 		files := make(ranking.ResultPaths, 0, len(possible))
 		for _, filename := range possible {
 			result := ranking.ResultPath{Path: filename}
-			result.Rank(&rankingopts)
+			result.Rank(si.rankingMap, &rankingopts)
 			if result.Ranking > -1 {
 				files = append(files, result)
 			}
@@ -377,8 +378,13 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 	return m, nil
 }
 
-func logic(logPath string, pos bool, debug int, skipFile, skipGrep bool) error {
+func logic(logPath, rankingPath string, pos bool, debug int, skipFile, skipGrep bool) error {
 	si := &shardedIndex{}
+	var err error
+	si.rankingMap, err = ranking.ReadRankingData(rankingPath)
+	if err != nil {
+		return err
+	}
 	const shards = 6
 	for i := range shards {
 		ix, err := index.Open(fmt.Sprintf("/home/michael/as/shard%d/", i))
@@ -418,6 +424,8 @@ func replay(args []string) error {
 
 	var logPath string
 	fset.StringVar(&logPath, "log", "", "path to the query log file to replay (1 query per line)")
+	var rankingPath string
+	fset.StringVar(&rankingPath, "ranking", "", "path to the ranking json file")
 	var pos bool
 	fset.BoolVar(&pos, "pos", false, "use the pos index")
 	var debug int
@@ -435,5 +443,5 @@ func replay(args []string) error {
 		os.Exit(1)
 	}
 
-	return logic(logPath, pos, debug, skipFile, skipGrep)
+	return logic(logPath, rankingPath, pos, debug, skipFile, skipGrep)
 }

@@ -144,6 +144,7 @@ type Server struct {
 	UnpackedPath       string
 	IndexPath          string
 	UsePositionalIndex bool
+	RankingMap         ranking.StoredRankingMap
 }
 
 // Serves a single file for displaying it in /show
@@ -327,7 +328,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				Path:     entry.fn,
 				Position: int(entry.pos),
 			}
-			result.Rank(&rankingopts)
+			result.Rank(s.RankingMap, &rankingopts)
 			if result.Ranking > -1 {
 				files = append(files, result)
 			}
@@ -342,7 +343,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 		files = make(ranking.ResultPaths, 0, len(possible))
 		for _, filename := range possible {
 			result := ranking.ResultPath{Path: filename}
-			result.Rank(&rankingopts)
+			result.Rank(s.RankingMap, &rankingopts)
 			if result.Ranking > -1 {
 				files = append(files, result)
 			}

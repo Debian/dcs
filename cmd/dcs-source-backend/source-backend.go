@@ -59,7 +59,8 @@ func main() {
 	}
 	fmt.Printf("Debian Code Search source-backend %s\n", version.Read())
 
-	if err := ranking.ReadRankingData(*rankingDataPath); err != nil {
+	rankingMap, err := ranking.ReadRankingData(*rankingDataPath)
+	if err != nil {
 		log.Fatal(err)
 	}
 
@@ -90,6 +91,7 @@ func main() {
 		UnpackedPath:       *unpackedPath,
 		IndexPath:          *indexPath,
 		UsePositionalIndex: *usePositionalIndex,
+		RankingMap:         rankingMap,
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

@@ -25,20 +25,25 @@ type StoredRanking struct {
 	Rdep float32
 }
 
+type StoredRankingMap map[string]StoredRanking
+
 // Consumes a few hundred kilobytes of memory
 // ((sizeof(StoredRanking) = 8) * ≈ 17000).
-var storedRanking = make(map[string]StoredRanking)
 
 // ReadRankingData reads the pre-computed rankings from |path|. It must be
 // called before ResultPath.Rank() is called, otherwise Rank() won’t return
 // meaningful results.
-func ReadRankingData(path string) error {
+func ReadRankingData(path string) (StoredRankingMap, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer f.Close()
-	return json.NewDecoder(f).Decode(&storedRanking)
+	result := make(StoredRankingMap)
+	if err := json.NewDecoder(f).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // The regular expression trigram index provides us a path to a potential
@@ -51,7 +56,7 @@ type ResultPath struct {
 	Ranking      float32
 }
 
-func (rp *ResultPath) Rank(opts *RankingOpts) {
+func (rp *ResultPath) Rank(storedRanking StoredRankingMap, opts *RankingOpts) {
 	// No ranking at all: 807ms
 	// query.Match(&rp.Path): 4.96s
 	// query.Match(&rp.Path) * query.Match(&sourcePackage): 6.7s
