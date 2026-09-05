@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -585,7 +586,11 @@ func packageImporter() error {
 
 	http.Handle("/metrics", promhttp.Handler())
 
-	return grpcutil.ListenAndServeTLS(*listenAddress,
+	ln, err := net.Listen("tcp", *listenAddress)
+	if err != nil {
+		return err
+	}
+	return grpcutil.ListenAndServeTLS(ln,
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {

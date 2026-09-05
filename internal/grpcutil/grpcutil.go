@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/Debian/dcs/internal/addrfd"
-	"github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/trace"
 	"google.golang.org/grpc"
@@ -71,12 +71,7 @@ func DialTLS(addr, certFile, keyFile string, opts ...grpc.DialOption) (*grpc.Cli
 		}, opts...)...)
 }
 
-func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Server)) error {
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-
+func ListenAndServeTLS(ln net.Listener, certFile, keyFile string, register func(s *grpc.Server)) error {
 	auth, err := credentials.NewServerTLSFromFile(certFile, keyFile)
 	if err != nil {
 		return err
@@ -91,7 +86,6 @@ func ListenAndServeTLS(addr, certFile, keyFile string, register func(s *grpc.Ser
 	reflection.Register(s)
 
 	srv := http.Server{
-		Addr:    addr,
 		Handler: grpcHandlerFunc(s, http.DefaultServeMux),
 	}
 	if err := http2.ConfigureServer(&srv, nil); err != nil {

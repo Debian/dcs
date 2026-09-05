@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 
 	"log"
 	"math/rand"
@@ -95,7 +96,11 @@ func main() {
 	}
 
 	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+	ln, err := net.Listen("tcp", *listenAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal(grpcutil.ListenAndServeTLS(ln,
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {

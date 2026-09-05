@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	_ "net/http/pprof"
@@ -771,7 +772,11 @@ func main() {
 		}()
 	}
 
-	log.Fatal(grpcutil.ListenAndServeTLS(*listenAddress,
+	ln, err := net.Listen("tcp", *listenAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal(grpcutil.ListenAndServeTLS(ln,
 		*tlsCertPath,
 		*tlsKeyPath,
 		func(s *grpc.Server) {
