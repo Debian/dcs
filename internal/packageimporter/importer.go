@@ -563,7 +563,7 @@ type Opts struct {
 	DebugSkip         bool
 }
 
-func (o *Opts) Main() error {
+func (o *Opts) Main(ln net.Listener) error {
 	if err := os.MkdirAll(o.ShardPath, 0755); err != nil {
 		return err
 	}
@@ -590,10 +590,6 @@ func (o *Opts) Main() error {
 		tlsKeyPath:        o.TLSKeyPath,
 	}
 
-	ln, err := net.Listen("tcp", o.ListenAddress)
-	if err != nil {
-		return err
-	}
 	return grpcutil.ListenAndServeTLS(ln,
 		o.TLSCertPath,
 		o.TLSKeyPath,

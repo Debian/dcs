@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 
 	"github.com/Debian/dcs/internal/packageimporter"
 )
@@ -36,7 +37,12 @@ func main() {
 
 	flag.Parse()
 
-	if err := opts.Main(); err != nil {
+	ln, err := net.Listen("tcp", opts.ListenAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := opts.Main(ln); err != nil {
 		log.Fatal(err)
 	}
 }

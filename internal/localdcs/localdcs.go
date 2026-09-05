@@ -24,6 +24,7 @@ import (
 	"github.com/Debian/dcs/internal/computeranking"
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/index"
+	"github.com/Debian/dcs/internal/packageimporter"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/ranking"
@@ -415,19 +416,25 @@ func Start(args ...string) (*Instance, error) {
 	log.Printf("dcs-source-backend running at https://%s\n", sourceBackend)
 
 	// Start package importer and import testdata/
-	packageImporter, err := launchInBackground(
-		"dcs-package-importer",
-		"-source_backend="+sourceBackend,
-		"-debug_skip",
-		"-varz_avail_fs=",
-		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
-		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-shard_path="+*shardPath,
-		"-listen_address="+*listenPackageImporter,
-		"-tls_require_client_auth=false")
+	impOpts := packageimporter.Opts{
+		SourceBackendAddr: sourceBackend,
+		DebugSkip:         true,
+		TLSCertPath:       filepath.Join(*localdcsPath, "cert.pem"),
+		TLSKeyPath:        filepath.Join(*localdcsPath, "key.pem"),
+		ListenAddress:     *listenPackageImporter,
+		ShardPath:         *shardPath,
+	}
+
+	impLn, err := net.Listen("tcp", impOpts.ListenAddress)
 	if err != nil {
 		return nil, err
 	}
+	packageImporter := impLn.Addr().String()
+
+	go func() {
+		log.Fatal(impOpts.Main(impLn))
+	}()
+
 	if err := importTestdata(packageImporter); err != nil {
 		return nil, fmt.Errorf("Could not import testdata/: %v", err)
 	}
