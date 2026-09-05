@@ -17,4 +17,5 @@ func main() {
 		return // stopped
 	}
 	log.Printf("https://%s", instance.Addr)
+	select {} // run until cancelled
 }

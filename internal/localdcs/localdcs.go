@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -22,7 +23,11 @@ import (
 
 	"github.com/Debian/dcs/internal/computeranking"
 	"github.com/Debian/dcs/internal/grpcutil"
+	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
+	"github.com/Debian/dcs/internal/ranking"
+	"github.com/Debian/dcs/internal/sourcebackend"
 )
 
 var (
@@ -356,20 +361,54 @@ func Start(args ...string) (*Instance, error) {
 		log.Printf("Recent-enough rankings file %q found, not re-generating (delete to force)\n", rankingPath)
 	}
 
-	sourceBackend, err := launchInBackground(
-		"dcs-source-backend",
-		"-index_path="+filepath.Join(*shardPath, "full"),
-		"-varz_avail_fs=",
-		"-unpacked_path="+filepath.Join(*shardPath, "src"),
-		"-ranking_data_path="+rankingPath,
-		"-tls_cert_path="+filepath.Join(*localdcsPath, "cert.pem"),
-		"-tls_key_path="+filepath.Join(*localdcsPath, "key.pem"),
-		"-listen_address="+*listenSourceBackend,
-		"-tls_require_client_auth=false",
-		"-use_positional_index")
+	rankingMap, err := ranking.ReadRankingData(rankingPath)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
+
+	indexPath := filepath.Join(*shardPath, "full")
+	openPath := indexPath
+	if _, err := os.Stat(openPath); os.IsNotExist(err) {
+		tmp, err := os.MkdirTemp("", "dcs-index-backend")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer os.Remove(tmp)
+		openPath = tmp
+		ix, err := index.Create(openPath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if err := ix.Flush(); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	ix, err := index.Open(openPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	srv := &sourcebackend.Server{
+		Index:              ix,
+		UnpackedPath:       filepath.Join(*shardPath, "src"),
+		IndexPath:          indexPath,
+		UsePositionalIndex: true,
+		RankingMap:         rankingMap,
+	}
+	ln, err := net.Listen("tcp", *listenSourceBackend)
+	if err != nil {
+		log.Fatal(err)
+	}
+	sourceBackend := ln.Addr().String()
+	go func() {
+		log.Fatal(grpcutil.ListenAndServeTLS(ln,
+			filepath.Join(*localdcsPath, "cert.pem"),
+			filepath.Join(*localdcsPath, "key.pem"),
+			func(s *grpc.Server) {
+				sourcebackendpb.RegisterSourceBackendServer(s, srv)
+			}))
+	}()
 
 	// TODO: check for healthiness
 
