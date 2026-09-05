@@ -1,9 +1,8 @@
 // Accepts Debian packages via HTTP, unpacks, strips and indexes them.
-package main
+package packageimporter
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,26 +37,6 @@ import (
 )
 
 var (
-	listenAddress = flag.String("listen_address",
-		":21010",
-		"listen address ([host]:port)")
-
-	sourceBackendAddr = flag.String("source_backend",
-		"localhost:28081",
-		"source backend host:port address")
-
-	shardPath = flag.String("shard_path",
-		"/srv/dcs/shard0",
-		"Path to the shard directory (containing src, idx, full)")
-
-	cpuProfile = flag.String("cpuprofile",
-		"",
-		"write cpu profile to this file")
-
-	debugSkip = flag.Bool("debug_skip",
-		false,
-		"Print log messages when files are skipped")
-
 	tmpdir string
 
 	failedDpkgSourceExtracts = prometheus.NewCounter(
@@ -107,9 +86,6 @@ var (
 			Name: "index_files",
 			Help: "Number of files in the index.",
 		})
-
-	tlsCertPath = flag.String("tls_cert_path", "", "Path to a .pem file containing the TLS certificate.")
-	tlsKeyPath  = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 )
 
 func init() {
@@ -126,6 +102,13 @@ func init() {
 type server struct {
 	// For forward compatibility
 	packageimporterpb.UnimplementedPackageImporterServer
+
+	shardPath         string
+	cpuProfile        string
+	sourceBackendAddr string
+	tlsCertPath       string
+	tlsKeyPath        string
+	debugSkip         bool
 
 	unpacksem chan struct{} // semaphore for unpackAndIndex
 	mergesem  chan struct{} // semaphore for merge
@@ -191,7 +174,7 @@ func (s *server) Import(stream packageimporterpb.PackageImporter_ImportServer) e
 	if strings.HasSuffix(filename, ".dsc") {
 		s.unpacksem <- struct{}{}        // acquire
 		defer func() { <-s.unpacksem }() // release
-		if err := unpackAndIndex(path); err != nil {
+		if err := s.unpackAndIndex(path); err != nil {
 			return err
 		}
 	}
@@ -208,16 +191,16 @@ func (s *server) Merge(context.Context, *packageimporterpb.MergeRequest) (*packa
 		return nil, fmt.Errorf("Merge already in progress, please try again later.")
 	}
 	defer func() { <-s.mergesem }() // release
-	if err := mergeToShard(); err != nil {
+	if err := s.mergeToShard(); err != nil {
 		return nil, err
 	}
 	return &packageimporterpb.MergeReply{}, nil
 }
 
-func packageNames() ([]string, error) {
+func (s *server) packageNames() ([]string, error) {
 	var names []string
 
-	file, err := os.Open(filepath.Join(*shardPath, "idx"))
+	file, err := os.Open(filepath.Join(s.shardPath, "idx"))
 	// If the directory does not yet exist, we just return an empty list of
 	// packages.
 	if err != nil {
@@ -244,7 +227,7 @@ func packageNames() ([]string, error) {
 }
 
 func (s *server) Packages(ctx context.Context, req *packageimporterpb.PackagesRequest) (*packageimporterpb.PackagesReply, error) {
-	names, err := packageNames()
+	names, err := s.packageNames()
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +240,7 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		return nil, fmt.Errorf("no source_package provided")
 	}
 
-	names, err := packageNames()
+	names, err := s.packageNames()
 	if err != nil {
 		return nil, err
 	}
@@ -272,11 +255,11 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		return nil, fmt.Errorf("no such package")
 	}
 
-	if err := os.RemoveAll(filepath.Join(*shardPath, "src", pkg)); err != nil {
+	if err := os.RemoveAll(filepath.Join(s.shardPath, "src", pkg)); err != nil {
 		return nil, err
 	}
 
-	if err := os.RemoveAll(filepath.Join(*shardPath, "idx", pkg)); err != nil {
+	if err := os.RemoveAll(filepath.Join(s.shardPath, "idx", pkg)); err != nil {
 		return nil, err
 	}
 
@@ -284,12 +267,12 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 	return &packageimporterpb.GarbageCollectReply{}, nil
 }
 
-func cleanupUnsuccessfulMerges() error {
-	fis, err := ioutil.ReadDir(*shardPath)
+func (s *server) cleanupUnsuccessfulMerges() error {
+	fis, err := ioutil.ReadDir(s.shardPath)
 	if err != nil {
 		return err
 	}
-	link, err := filepath.EvalSymlinks(filepath.Join(*shardPath, "full"))
+	link, err := filepath.EvalSymlinks(filepath.Join(s.shardPath, "full"))
 	if err != nil {
 		return err
 	}
@@ -298,7 +281,7 @@ func cleanupUnsuccessfulMerges() error {
 		if !strings.HasPrefix(fi.Name(), "full.") {
 			continue
 		}
-		abs := filepath.Join(*shardPath, fi.Name())
+		abs := filepath.Join(s.shardPath, fi.Name())
 		if abs == link {
 			log.Printf("keeping %q (symlink destination)", fi.Name())
 			continue
@@ -312,14 +295,14 @@ func cleanupUnsuccessfulMerges() error {
 }
 
 // Merges all packages in *unpackedPath into a big index shard.
-func mergeToShard() error {
-	names, err := packageNames()
+func (s *server) mergeToShard() error {
+	names, err := s.packageNames()
 	if err != nil {
 		return err
 	}
 	indexFiles := make([]string, len(names))
 	for idx, name := range names {
-		indexFiles[idx] = filepath.Join(*shardPath, "idx", name)
+		indexFiles[idx] = filepath.Join(s.shardPath, "idx", name)
 	}
 
 	filesInIndex.Set(float64(len(indexFiles)))
@@ -328,17 +311,17 @@ func mergeToShard() error {
 		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
 
-	if err := cleanupUnsuccessfulMerges(); err != nil {
+	if err := s.cleanupUnsuccessfulMerges(); err != nil {
 		log.Printf("cleanupUnsuccessfulMerges: %v", err)
 	}
 
-	tmpIndexPath := filepath.Join(*shardPath, fmt.Sprintf("full.%d", time.Now().Unix()))
+	tmpIndexPath := filepath.Join(s.shardPath, fmt.Sprintf("full.%d", time.Now().Unix()))
 	if err := os.MkdirAll(tmpIndexPath, 0755); err != nil {
 		return err
 	}
 
-	if *cpuProfile != "" {
-		f, err := os.Create(*cpuProfile)
+	if s.cpuProfile != "" {
+		f, err := os.Create(s.cpuProfile)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -365,9 +348,9 @@ func mergeToShard() error {
 
 	successfulMerges.Inc()
 
-	conn, err := grpcutil.DialTLS(*sourceBackendAddr, *tlsCertPath, *tlsKeyPath)
+	conn, err := grpcutil.DialTLS(s.sourceBackendAddr, s.tlsCertPath, s.tlsKeyPath)
 	if err != nil {
-		log.Fatalf("could not connect to %q: %v", *sourceBackendAddr, err)
+		log.Fatalf("could not connect to %q: %v", s.sourceBackendAddr, err)
 	}
 	defer conn.Close()
 	sourceBackend := sourcebackendpb.NewSourceBackendClient(conn)
@@ -385,17 +368,17 @@ func mergeToShard() error {
 	return nil
 }
 
-func indexPackage(pkg string) error {
+func (s *server) indexPackage(pkg string) error {
 	log.Printf("Indexing %s\n", pkg)
 	unpacked := filepath.Join(tmpdir, pkg, pkg)
-	if err := os.MkdirAll(filepath.Join(*shardPath, "idx"), os.FileMode(0755)); err != nil {
+	if err := os.MkdirAll(filepath.Join(s.shardPath, "idx"), os.FileMode(0755)); err != nil {
 		return err
 	}
 
 	// Write to a temporary file first so that merges can happen at the same
 	// time. If we don’t do that, merges will try to use incomplete index
 	// files, which are interpreted as corrupted.
-	tmpIndexPath := filepath.Join(*shardPath, "idx", pkg+".tmp")
+	tmpIndexPath := filepath.Join(s.shardPath, "idx", pkg+".tmp")
 	index, err := index.Create(tmpIndexPath)
 	if err != nil {
 		return err
@@ -408,7 +391,7 @@ func indexPackage(pkg string) error {
 		filepath.Join(tmpdir, pkg)+"/",
 		filter.Ignored,
 		func(path string, info os.FileInfo, err error) error {
-			if *debugSkip {
+			if s.debugSkip {
 				log.Printf("skipping %q: %v", path, err)
 			}
 			// TODO: isn’t everything in |unpacked| deleted later on anyway?
@@ -419,7 +402,7 @@ func indexPackage(pkg string) error {
 		},
 		func(path string, info os.FileInfo) error {
 			// Copy this file out of /tmp to our unpacked directory.
-			outputPath := filepath.Join(*shardPath, "src", path[stripLen:])
+			outputPath := filepath.Join(s.shardPath, "src", path[stripLen:])
 			if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
 				return fmt.Errorf("Could not create directory: %v\n", err)
 			}
@@ -445,9 +428,9 @@ func indexPackage(pkg string) error {
 		return err
 	}
 
-	finalIndexPath := filepath.Join(*shardPath, "idx", pkg)
+	finalIndexPath := filepath.Join(s.shardPath, "idx", pkg)
 	// Move the old index out of the way, if present
-	oldIndexPath := filepath.Join(*shardPath, "idx", "O."+pkg)
+	oldIndexPath := filepath.Join(s.shardPath, "idx", "O."+pkg)
 	if err := os.Rename(finalIndexPath, oldIndexPath); err != nil {
 		if os.IsNotExist(err) {
 		} else {
@@ -520,7 +503,7 @@ func unpack(dscPath, unpacked string) error {
 
 // unpackAndIndex unpacks a .dsc file, indexes its contents and deletes the .dsc
 // and referenced files.
-func unpackAndIndex(dscPath string) error {
+func (s *server) unpackAndIndex(dscPath string) error {
 	pkg := filepath.Dir(dscPath)
 	unpacked := filepath.Join(tmpdir, pkg, pkg)
 	log.Printf("Unpacking source package %s into %s", pkg, unpacked)
@@ -536,7 +519,7 @@ func unpackAndIndex(dscPath string) error {
 	}
 
 	successfulDpkgSourceExtracts.Inc()
-	if err := indexPackage(pkg); err != nil {
+	if err := s.indexPackage(pkg); err != nil {
 		return err
 	}
 
@@ -570,8 +553,18 @@ func unpackAndIndex(dscPath string) error {
 	return os.RemoveAll(filepath.Join(tmpdir, pkg))
 }
 
-func packageImporter() error {
-	if err := os.MkdirAll(*shardPath, 0755); err != nil {
+type Opts struct {
+	ShardPath         string
+	ListenAddress     string
+	TLSCertPath       string
+	TLSKeyPath        string
+	CPUProfile        string
+	SourceBackendAddr string
+	DebugSkip         bool
+}
+
+func (o *Opts) Main() error {
+	if err := os.MkdirAll(o.ShardPath, 0755); err != nil {
 		return err
 	}
 
@@ -586,24 +579,25 @@ func packageImporter() error {
 
 	http.Handle("/metrics", promhttp.Handler())
 
-	ln, err := net.Listen("tcp", *listenAddress)
+	srv := &server{
+		unpacksem:         make(chan struct{}, runtime.NumCPU()),
+		mergesem:          make(chan struct{}, 1),
+		shardPath:         o.ShardPath,
+		cpuProfile:        o.CPUProfile,
+		sourceBackendAddr: o.SourceBackendAddr,
+		debugSkip:         o.DebugSkip,
+		tlsCertPath:       o.TLSCertPath,
+		tlsKeyPath:        o.TLSKeyPath,
+	}
+
+	ln, err := net.Listen("tcp", o.ListenAddress)
 	if err != nil {
 		return err
 	}
 	return grpcutil.ListenAndServeTLS(ln,
-		*tlsCertPath,
-		*tlsKeyPath,
+		o.TLSCertPath,
+		o.TLSKeyPath,
 		func(s *grpc.Server) {
-			packageimporterpb.RegisterPackageImporterServer(s, &server{
-				unpacksem: make(chan struct{}, runtime.NumCPU()),
-				mergesem:  make(chan struct{}, 1),
-			})
+			packageimporterpb.RegisterPackageImporterServer(s, srv)
 		})
-}
-
-func main() {
-	flag.Parse()
-	if err := packageImporter(); err != nil {
-		log.Fatal(err)
-	}
 }
