@@ -8,8 +8,10 @@ import (
 )
 
 var (
-	start = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file)):(\S+)\s+`)
-	end   = regexp.MustCompile(`(?i)\s+(-?(?:filetype|package|pkg|path|file)):(\S+)\s*$`)
+	start = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file|filename)):(\S+)\s+`)
+	end   = regexp.MustCompile(`(?i)\s+(-?(?:filetype|package|pkg|path|file|filename)):(\S+)\s*$`)
+	// solo matches when the entire query is just a single keyword:value (no other search terms)
+	solo = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file|filename)):(\S+)\s*$`)
 )
 
 func rewriteFilters(query url.Values, filtersRe *regexp.Regexp) url.Values {
@@ -37,6 +39,9 @@ func rewriteFilters(query url.Values, filtersRe *regexp.Regexp) url.Values {
 
 		if filtersRe == start {
 			qstr = strings.TrimPrefix(qstr, matches[0])
+		} else if filtersRe == solo {
+			// For solo matches, the entire query string is consumed
+			qstr = ""
 		} else {
 			qstr = strings.TrimSuffix(qstr, matches[0])
 		}
@@ -53,6 +58,8 @@ func RewriteQuery(u url.URL) url.URL {
 	// query is a copy which we will modify using Set() and use in the result
 	query := rewriteFilters(u.Query(), start)
 	query = rewriteFilters(query, end)
+	// Handle queries that are only a single keyword (no content search term)
+	query = rewriteFilters(query, solo)
 	u.RawQuery = query.Encode()
 
 	return u
