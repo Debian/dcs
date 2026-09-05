@@ -400,7 +400,7 @@ func Start(args ...string) (*Instance, error) {
 		append([]string{
 			"-varz_avail_fs=",
 			"-headroom_percentage=0",
-			"-template_pattern=cmd/dcs-web/templates/*",
+			"-template_pattern=internal/web/templates/*",
 			"-static_path=static/",
 			"-source_backends=" + sourceBackend,
 			"-tls_cert_path=" + filepath.Join(*localdcsPath, "cert.pem"),

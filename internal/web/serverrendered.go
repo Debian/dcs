@@ -1,9 +1,9 @@
-// vim:ts=4:sw=4:noexpandtab
+package web
+
 // These handlers serve server-rendered pages for clients without JavaScript.
 // The templates contain a bit of JavaScript that will automatically redirect
 // to the more interactive version so that browsers that _do_ have JavaScript
 // but follow a link will not end up in the server-rendered version.
-package main
 
 import (
 	"bytes"
@@ -19,9 +19,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Debian/dcs/cmd/dcs-web/common"
 	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/version"
+	"github.com/Debian/dcs/internal/web/common"
 )
 
 // XXX: Using a dcsregexp.Match anonymous struct member doesn’t work,

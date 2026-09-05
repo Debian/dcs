@@ -1,8 +1,7 @@
-package main
+package web
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -11,13 +10,7 @@ import (
 	"time"
 )
 
-var (
-	clickLogPath = flag.String("click_log_path",
-		"",
-		"Where to write the click.log entries (JSON-encoded, timestamped). Disabled if empty.")
-
-	clickLog *os.File
-)
+var clickLog *os.File
 
 func Track(w http.ResponseWriter, r *http.Request) {
 	var t struct {

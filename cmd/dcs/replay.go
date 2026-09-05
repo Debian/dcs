@@ -16,11 +16,11 @@ import (
 	"sync"
 	"time"
 
-	dcssearch "github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/ranking"
 	"github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/sourcebackend"
+	dcssearch "github.com/Debian/dcs/internal/web/search"
 )
 
 const replayHelp = `replay - replay a query log

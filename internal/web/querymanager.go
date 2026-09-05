@@ -1,4 +1,4 @@
-package main
+package web
 
 import (
 	"bufio"
@@ -22,12 +22,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Debian/dcs/cmd/dcs-web/common"
-	"github.com/Debian/dcs/cmd/dcs-web/search"
 	"github.com/Debian/dcs/internal/dpkgversion"
 	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/stringpool"
+	"github.com/Debian/dcs/internal/web/common"
+	"github.com/Debian/dcs/internal/web/search"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )

@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Debian/dcs/cmd/dcs-web/common"
-	"github.com/Debian/dcs/cmd/dcs-web/health"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/shardmapping"
+	"github.com/Debian/dcs/internal/web/common"
+	"github.com/Debian/dcs/internal/web/health"
 )
 
 func Show(w http.ResponseWriter, r *http.Request) {

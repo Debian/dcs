@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Debian/dcs/cmd/dcs-web/common"
 	"github.com/Debian/dcs/internal/version"
+	"github.com/Debian/dcs/internal/web/common"
 	"github.com/coreos/go-oidc"
 	"github.com/gorilla/securecookie"
 	"golang.org/x/oauth2"

@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Debian/dcs/cmd/dcs-web/common"
+	"github.com/Debian/dcs/internal/web/common"
 )
 
 var status = make(chan healthRequest)
