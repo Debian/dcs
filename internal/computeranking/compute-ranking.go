@@ -3,9 +3,7 @@ package computeranking
 import (
 	"compress/gzip"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,7 +19,7 @@ func loadMirroredControlFile(mirrorURL, name string) ([]control.Paragraph, error
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		log.Fatalf("URL %q resulted in %v\n", url, resp.Status)
+		return nil, fmt.Errorf("URL %q resulted in %v", url, resp.Status)
 	}
 	defer resp.Body.Close()
 
@@ -42,8 +40,6 @@ func loadMirroredControlFile(mirrorURL, name string) ([]control.Paragraph, error
 }
 
 func Main(mirrorURL, outputPath string, verbose bool) error {
-	flag.Parse()
-
 	sourcePackages, err := loadMirroredControlFile(mirrorURL, "source/Sources.gz")
 	if err != nil {
 		return err

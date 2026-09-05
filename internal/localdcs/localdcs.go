@@ -20,6 +20,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/Debian/dcs/internal/computeranking"
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 )
@@ -345,13 +346,10 @@ func Start(args ...string) (*Instance, error) {
 	rankingPath := filepath.Join(*localdcsPath, "ranking.json")
 	if stat, err := os.Stat(rankingPath); err != nil || time.Since(stat.ModTime()) > 7*24*time.Hour {
 		log.Printf("Computing ranking data\n")
-		cmd := exec.Command(
-			"dcs-compute-ranking",
-			"-output_path="+rankingPath)
-		cmd.Env = append(os.Environ(),
-			"TMPDIR="+*localdcsPath)
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		const mirrorURL = "http://deb.debian.org/debian"
+		const verbose = false
+		os.Setenv("TMPDIR", *localdcsPath)
+		if err := computeranking.Main(mirrorURL, rankingPath, verbose); err != nil {
 			return nil, fmt.Errorf("Could not compute ranking data: %v", err)
 		}
 	} else {
