@@ -4,7 +4,6 @@ package grpcutil
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,12 +17,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-)
-
-var (
-	requireClientAuth = flag.Bool("tls_require_client_auth",
-		true,
-		"Require TLS Client Authentication")
 )
 
 func init() {
@@ -71,7 +64,7 @@ func DialTLS(addr, certFile, keyFile string, opts ...grpc.DialOption) (*grpc.Cli
 		}, opts...)...)
 }
 
-func ListenAndServeTLS(ln net.Listener, certFile, keyFile string, register func(s *grpc.Server)) error {
+func ListenAndServeTLS(ln net.Listener, mux *http.ServeMux, certFile, keyFile string, requireClientAuth bool, register func(s *grpc.Server)) error {
 	auth, err := credentials.NewServerTLSFromFile(certFile, keyFile)
 	if err != nil {
 		return err
@@ -86,7 +79,7 @@ func ListenAndServeTLS(ln net.Listener, certFile, keyFile string, register func(
 	reflection.Register(s)
 
 	srv := http.Server{
-		Handler: grpcHandlerFunc(s, http.DefaultServeMux),
+		Handler: grpcHandlerFunc(s, mux),
 	}
 	if err := http2.ConfigureServer(&srv, nil); err != nil {
 		return err
@@ -100,7 +93,7 @@ func ListenAndServeTLS(ln net.Listener, certFile, keyFile string, register func(
 		return fmt.Errorf("Could not parse %q as PEM file (contents: %q)", certFile, contents)
 	}
 
-	if *requireClientAuth {
+	if requireClientAuth {
 		srv.TLSConfig.ClientCAs = roots
 		srv.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		trace.AuthRequest = func(req *http.Request) (bool, bool) {

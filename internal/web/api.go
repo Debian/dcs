@@ -211,6 +211,7 @@ func httpErrorWrapper(h func(http.ResponseWriter, *http.Request) error) http.Han
 }
 
 type apiserver struct {
+	opts    *Opts
 	decoder *apikeys.Decoder
 }
 
@@ -276,7 +277,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return fmt.Errorf("Invalid query: %v", err)
 	}
 
-	if _, err := maybeStartQuery(ctx, queryid, src, q); err != nil {
+	if _, err := a.opts.maybeStartQuery(ctx, queryid, src, q); err != nil {
 		metricErroredQueries.With(srcLabel).Inc()
 		return fmt.Errorf("Could not start query: %v", err)
 	}
@@ -323,8 +324,9 @@ func (a *apiserver) searchperpackage(w http.ResponseWriter, r *http.Request) err
 	return a.common(w, r, writePerPackageSearchResults)
 }
 
-func serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error {
+func (o *Opts) serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error {
 	a := &apiserver{
+		opts: o,
 		decoder: &apikeys.Decoder{
 			SecureCookie: apiOpts.SecureCookie(),
 		},

@@ -33,10 +33,6 @@ import (
 )
 
 var (
-	queryResultsPath = flag.String("query_results_path",
-		"/tmp/qr/",
-		"Path where query results files (page_0.json etc.) are stored")
-
 	perPackagePathRe = regexp.MustCompile(`^/perpackage-results/([^/]+)/` +
 		strconv.Itoa(resultsPerPackage) + `/page_([0-9]+).json$`)
 
@@ -179,7 +175,7 @@ var (
 	state   = make(map[string]*queryState)
 )
 
-func queryBackend(ctx context.Context, queryid, src string, backend sourcebackendpb.SourceBackendClient, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
+func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend sourcebackendpb.SourceBackendClient, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
@@ -203,7 +199,7 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 			filesTotal = 0
 		}
 
-		storeProgress(queryid, backendidx, &sourcebackendpb.ProgressUpdate{
+		o.storeProgress(queryid, backendidx, &sourcebackendpb.ProgressUpdate{
 			FilesProcessed: uint64(filesTotal),
 			FilesTotal:     uint64(filesTotal),
 		})
@@ -259,7 +255,7 @@ func queryBackend(ctx context.Context, queryid, src string, backend sourcebacken
 		case sourcebackendpb.SearchReply_MATCH:
 			storeResult(queryid, backendidx, msg.Match, len(b))
 		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
-			storeProgress(queryid, backendidx, msg.ProgressUpdate)
+			o.storeProgress(queryid, backendidx, msg.ProgressUpdate)
 			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
 		}
 
@@ -344,7 +340,7 @@ func startQuery(queryid string, querystate *queryState) error {
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns whether the query existed and any errors during query
 // creation.
-func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, error) {
+func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, error) {
 	if queryExists(queryid) {
 		return true, nil
 	}
@@ -364,9 +360,9 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.
-	ensureEnoughSpaceAvailable()
+	o.ensureEnoughSpaceAvailable()
 
-	dir := filepath.Join(*queryResultsPath, queryid)
+	dir := filepath.Join(o.QueryResultsPath, queryid)
 	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
 		return false, fmt.Errorf("could not create %q: %w", dir, err)
 	}
@@ -404,7 +400,7 @@ func maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, err
 		return true, nil
 	}
 	for idx, backend := range common.SourceBackendStubs {
-		go queryBackend(ctx, queryid, src, backend, idx, searchRequest)
+		go o.queryBackend(ctx, queryid, src, backend, idx, searchRequest)
 	}
 	return false, nil
 }
@@ -595,11 +591,11 @@ func fsBytes(path string) (available uint64, total uint64) {
 
 // Makes sure 20% of the filesystem backing -query_results_path are available,
 // cleans up old query results otherwise.
-func ensureEnoughSpaceAvailable() {
-	if err := os.MkdirAll(*queryResultsPath, 0755); err != nil {
+func (o *Opts) ensureEnoughSpaceAvailable() {
+	if err := os.MkdirAll(o.QueryResultsPath, 0755); err != nil {
 		log.Println(err)
 	}
-	available, total := fsBytes(*queryResultsPath)
+	available, total := fsBytes(o.QueryResultsPath)
 	headroom := uint64(*headroomPercentage * float64(total))
 	log.Printf("%d bytes available, %d bytes headroom required (20%%)\n", available, headroom)
 	if available >= headroom {
@@ -607,7 +603,7 @@ func ensureEnoughSpaceAvailable() {
 	}
 
 	log.Printf("Deleting an old query...\n")
-	dir, err := os.Open(*queryResultsPath)
+	dir, err := os.Open(o.QueryResultsPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -624,10 +620,10 @@ func ensureEnoughSpaceAvailable() {
 			continue
 		}
 		log.Printf("Removing query results for %q to make enough space\n", info.Name())
-		if err := os.RemoveAll(filepath.Join(*queryResultsPath, info.Name())); err != nil {
+		if err := os.RemoveAll(filepath.Join(o.QueryResultsPath, info.Name())); err != nil {
 			log.Fatal(err)
 		}
-		available, _ = fsBytes(*queryResultsPath)
+		available, _ = fsBytes(o.QueryResultsPath)
 		if available >= headroom {
 			break
 		}
@@ -687,7 +683,7 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 	return nil
 }
 
-func writeToDisk(queryid string) error {
+func (o *Opts) writeToDisk(queryid string) error {
 	// Get the slice with results and unset it on the state so that processing can continue.
 	stateMu.Lock()
 	s, ok := state[queryid]
@@ -746,7 +742,7 @@ func writeToDisk(queryid string) error {
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.
-	ensureEnoughSpaceAvailable()
+	o.ensureEnoughSpaceAvailable()
 
 	pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
 
@@ -786,7 +782,7 @@ func writeToDisk(queryid string) error {
 	return nil
 }
 
-func storeProgress(queryid string, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
+func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
 	stateMu.RLock()
 	s, ok := state[queryid]
 	stateMu.RUnlock()
@@ -817,7 +813,7 @@ func storeProgress(queryid string, backendidx int, progress *sourcebackendpb.Pro
 
 	if allSet && filesProcessed == filesTotal {
 		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", queryid, backendidx)
-		if err := writeToDisk(queryid); err != nil {
+		if err := o.writeToDisk(queryid); err != nil {
 			log.Printf("[%s] writeToDisk() failed: %v\n", queryid, err)
 			failQuery(queryid)
 		}
@@ -840,7 +836,7 @@ func storeProgress(queryid string, backendidx int, progress *sourcebackendpb.Pro
 	}
 }
 
-func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	matches := perPackagePathRe.FindStringSubmatch(r.URL.Path)
 	if matches == nil || len(matches) != 3 {
 		matches = redirectPathRe.FindStringSubmatch(r.URL.Path)
@@ -901,6 +897,6 @@ func PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
 	// directly served by nginx as well by now.
 	// This can be removed after 2015-06-01, when all old clients should be
 	// long expired from any caches.
-	name := filepath.Join(*queryResultsPath, queryid, fmt.Sprintf("perpackage_2_page_%d.json", pagenr))
+	name := filepath.Join(o.QueryResultsPath, queryid, fmt.Sprintf("perpackage_2_page_%d.json", pagenr))
 	http.ServeFile(w, r, name)
 }

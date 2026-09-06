@@ -29,6 +29,7 @@ import (
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/ranking"
 	"github.com/Debian/dcs/internal/sourcebackend"
+	"github.com/Debian/dcs/internal/web"
 )
 
 var (
@@ -101,18 +102,6 @@ func compileStaticAssets() error {
 	return cmd.Run()
 }
 
-// recordResource appends a line to a file in -localnet_dir so that we can
-// clean up resources (tempdirs, pids) when being called with -stop later.
-func recordResource(rtype, value string) error {
-	f, err := os.OpenFile(filepath.Join(*localdcsPath, rtype+"s"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = fmt.Fprintf(f, "%s\n", value)
-	return err
-}
-
 func kill() error {
 	pidsFile := filepath.Join(*localdcsPath, "pids")
 	if _, err := os.Stat(pidsFile); os.IsNotExist(err) {
@@ -146,43 +135,6 @@ func kill() error {
 	os.Remove(pidsFile)
 
 	return nil
-}
-
-func launchInBackground(binary string, args ...string) (addr string, _ error) {
-	// TODO: redirect stderr into a file
-	cmd := exec.Command(binary, args...)
-	r, w, err := os.Pipe()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.ExtraFiles = []*os.File{w}
-	// Put binaries into a separate process group, so that they survive when
-	// dcs-localdcs terminates.
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
-
-	cmd.Args = append(cmd.Args, "-addrfd=3") // Go dup2()s ExtraFiles to 3 and onwards
-
-	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("Could not start %q: %v", binary, err)
-	}
-
-	// Close the write end of the pipe in the parent process.
-	if err := w.Close(); err != nil {
-		return "", err
-	}
-
-	log.Printf("reading from pair[0]")
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return "", err
-	}
-	addr = string(b)
-
-	if err := recordResource("pid", strconv.Itoa(cmd.Process.Pid)); err != nil {
-		return "", fmt.Errorf("Could not record pid of %q: %v", binary, err)
-	}
-	return addr, nil
 }
 
 func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file string) error {
@@ -296,7 +248,7 @@ type Instance struct {
 	HTTPClient   *http.Client
 }
 
-func Start(args ...string) (*Instance, error) {
+func Start(hashKey, blockKey string) (*Instance, error) {
 	if len(*localdcsPath) >= 2 && (*localdcsPath)[:2] == "~/" {
 		usr, err := user.Current()
 		if err != nil {
@@ -404,8 +356,10 @@ func Start(args ...string) (*Instance, error) {
 	sourceBackend := ln.Addr().String()
 	go func() {
 		log.Fatal(grpcutil.ListenAndServeTLS(ln,
+			http.DefaultServeMux,
 			filepath.Join(*localdcsPath, "cert.pem"),
 			filepath.Join(*localdcsPath, "key.pem"),
+			false,
 			func(s *grpc.Server) {
 				sourcebackendpb.RegisterSourceBackendServer(s, srv)
 			}))
@@ -441,26 +395,27 @@ func Start(args ...string) (*Instance, error) {
 
 	// TODO: check for healthiness
 
-	dcsWeb, err := launchInBackground(
-		"dcs-web",
-		append([]string{
-			"-varz_avail_fs=",
-			"-headroom_percentage=0",
-			"-template_pattern=internal/web/templates/*",
-			"-static_path=static/",
-			"-source_backends=" + sourceBackend,
-			"-tls_cert_path=" + filepath.Join(*localdcsPath, "cert.pem"),
-			"-tls_key_path=" + filepath.Join(*localdcsPath, "key.pem"),
-			"-listen_address=" + *listenWeb,
-			"-listen_address_http=localhost:0",
-			"-query_results_path=" + filepath.Join(*localdcsPath, "qr"),
-			"-tls_require_client_auth=false",
-			"-securecookie_hash_key=268afdf10dfe2bd9bc1aa7ceb3f448071cfb3e06488f02affabb6e8d60ccf994",
-			"-securecookie_block_key=132c2e1cff7c4735f746500bd03780bf9b2aaa1ba7f706b8edb22dedeb39f46e",
-		}, args...)...)
+	webOpts := web.Opts{
+		ListenAddress:      *listenWeb,
+		ListenAddressPlain: "localhost:0",
+		StaticPath:         "static/",
+		TLSCertPath:        filepath.Join(*localdcsPath, "cert.pem"),
+		TLSKeyPath:         filepath.Join(*localdcsPath, "key.pem"),
+		TemplatePattern:    "internal/web/templates/*",
+		SourceBackends:     sourceBackend,
+		QueryResultsPath:   filepath.Join(*localdcsPath, "qr"),
+		HashKeyStr:         hashKey,
+		BlockKeyStr:        blockKey,
+	}
+	webLn, err := net.Listen("tcp", webOpts.ListenAddress)
 	if err != nil {
 		return nil, err
 	}
+	dcsWeb := webLn.Addr().String()
+
+	go func() {
+		log.Fatal(webOpts.Main(webLn))
+	}()
 
 	log.Printf("dcs-web running at https://%s\n", dcsWeb)
 

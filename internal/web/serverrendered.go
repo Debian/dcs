@@ -202,7 +202,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 // page= page number
 // perpkg= per-package grouping
 // literal= literal vs. regex search
-func Search(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Could not parse form data", http.StatusInternalServerError)
@@ -248,7 +248,7 @@ func Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := maybeStartQuery(ctx, queryid, src, q); err != nil {
+	if _, err := o.maybeStartQuery(ctx, queryid, src, q); err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
 		return

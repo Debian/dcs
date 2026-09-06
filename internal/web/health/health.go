@@ -11,8 +11,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/Debian/dcs/internal/web/common"
 )
 
 var status = make(chan healthRequest)
@@ -97,10 +95,10 @@ func IsHealthy(service string) bool {
 }
 
 // Internally, this just starts a go routine per service that should be health-checked.
-func StartChecking() {
+func StartChecking(useSourcesDebianNet bool) {
 	updates := make(chan healthUpdate)
 
-	if *common.UseSourcesDebianNet {
+	if useSourcesDebianNet {
 		go periodically(checkSDN, updates)
 	}
 

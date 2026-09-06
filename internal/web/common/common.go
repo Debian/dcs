@@ -4,7 +4,6 @@
 package common
 
 import (
-	"flag"
 	"html/template"
 	"os"
 	"slices"
@@ -22,27 +21,17 @@ import (
 )
 
 var CriticalCss template.CSS
-var templatePattern = flag.String("template_pattern",
-	"templates/*",
-	"Pattern matching the HTML templates (./templates/* by default)")
-var sourceBackends = flag.String("source_backends",
-	"localhost:28082",
-	"host:port (multiple values are comma-separated) of the source-backend(s)")
 var SourceBackendStubs []sourcebackendpb.SourceBackendClient
-var UseSourcesDebianNet = flag.Bool("use_sources_debian_net",
-	false,
-	"Redirect to sources.debian.net instead of handling /show on our own.")
 var Templates *template.Template
 
-// Must be called after flag.Parse()
-func Init(tlsCertPath, tlsKeyPath, staticPath string) {
-	loadTemplates()
+func Init(tlsCertPath, tlsKeyPath, staticPath, sourceBackends, templatePattern string) {
+	loadTemplates(templatePattern)
 	b, err := os.ReadFile(filepath.Join(staticPath, "critical.min.css"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	CriticalCss = template.CSS(string(b))
-	addrs := strings.Split(*sourceBackends, ",")
+	addrs := strings.Split(sourceBackends, ",")
 	SourceBackendStubs = make([]sourcebackendpb.SourceBackendClient, len(addrs))
 	for idx, addr := range addrs {
 		conn, err := grpcutil.DialTLS(addr, tlsCertPath, tlsKeyPath, grpc.WithBlock())
@@ -53,7 +42,7 @@ func Init(tlsCertPath, tlsKeyPath, staticPath string) {
 	}
 }
 
-func loadTemplates() {
+func loadTemplates(templatePattern string) {
 	var err error
 	Templates = template.New("foo").Funcs(template.FuncMap{
 		"appendToQuery": func(unparsedURL, extra string) string {
@@ -85,8 +74,8 @@ func loadTemplates() {
 			return false
 		},
 	})
-	Templates, err = Templates.ParseGlob(*templatePattern)
+	Templates, err = Templates.ParseGlob(templatePattern)
 	if err != nil {
-		log.Fatalf(`Could not load templates from "%s": %v`, *templatePattern, err)
+		log.Fatalf(`Could not load templates from "%s": %v`, templatePattern, err)
 	}
 }

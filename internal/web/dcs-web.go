@@ -93,7 +93,7 @@ func validateQuery(query string) error {
 	return nil
 }
 
-func EventsHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.FormValue("q")
 	if query == "" {
@@ -141,7 +141,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	cached, err := maybeStartQuery(ctx, identifier, src, q)
+	cached, err := o.maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %+v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
@@ -196,7 +196,7 @@ func EventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func InstantServer(ws *websocket.Conn) {
+func (o *Opts) InstantServer(ws *websocket.Conn) {
 	ctx := ws.Request().Context()
 	// The additional ":" at the end is necessary so that we don’t need to
 	// distinguish between the two cases (X-Forwarded-For, without a port, and
@@ -243,7 +243,7 @@ func InstantServer(ws *websocket.Conn) {
 		io.WriteString(h, q.Query)
 		identifier := fmt.Sprintf("%x", h.Sum64())
 
-		cached, err := maybeStartQuery(ctx, identifier, src, q.Query)
+		cached, err := o.maybeStartQuery(ctx, identifier, src, q.Query)
 		if err != nil {
 			log.Printf("[%s] could not start query: %v\n", src, err)
 			ws.Write([]byte(`{"Type":"error", "ErrorType":"failed"}`))
@@ -371,6 +371,7 @@ type server struct {
 	// For forward compatibility
 	dcspb.UnimplementedDCSServer
 
+	opts    *Opts
 	decoder *apikeys.Decoder
 }
 
@@ -403,7 +404,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	cached, err := maybeStartQuery(ctx, identifier, src, q)
+	cached, err := s.opts.maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		return fmt.Errorf("query(%s): %v", query, err)
 	}
@@ -555,29 +556,34 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 }
 
 type Opts struct {
-	ListenAddressPlain string
-	ListenAddress      string
-	MemProfile         string
-	StaticPath         string
-	AccessLogPath      string
-	TLSCertPath        string
-	TLSKeyPath         string
-	HashKeyStr         string
-	BlockKeyStr        string
-	ClickLogPath       string
-	ClientID           string
-	ClientSecret       string
-	RedirectURL        string
-	PrintVersion       bool
+	ListenAddressPlain   string
+	ListenAddress        string
+	MemProfile           string
+	StaticPath           string
+	AccessLogPath        string
+	TLSCertPath          string
+	TLSKeyPath           string
+	TLSRequireClientAuth bool
+	HashKeyStr           string
+	BlockKeyStr          string
+	ClickLogPath         string
+	ClientID             string
+	ClientSecret         string
+	RedirectURL          string
+	PrintVersion         bool
+	TemplatePattern      string
+	SourceBackends       string
+	UseSourcesDebianNet  bool
+	QueryResultsPath     string
 }
 
-func (o *Opts) Main() error {
+func (o *Opts) Main(ln net.Listener) error {
 	if o.PrintVersion {
 		fmt.Printf("dcs-web version %s\n", version.Read())
 		return nil
 	}
 
-	common.Init(o.TLSCertPath, o.TLSKeyPath, o.StaticPath)
+	common.Init(o.TLSCertPath, o.TLSKeyPath, o.StaticPath, o.SourceBackends, o.TemplatePattern)
 
 	if o.HashKeyStr == "" {
 		return fmt.Errorf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))
@@ -615,9 +621,10 @@ func (o *Opts) Main() error {
 
 	fmt.Printf("Debian Code Search webapp, version %s\n", version.Read())
 
-	health.StartChecking()
+	health.StartChecking(o.UseSourcesDebianNet)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Check if a static file was requested with full name
 		name := filepath.Join(o.StaticPath, r.URL.Path)
 		if r.URL.Path == "/" {
@@ -644,9 +651,9 @@ func (o *Opts) Main() error {
 			return
 		}
 	})
-	http.HandleFunc("/favicon.ico", http.NotFound)
-	http.HandleFunc("/show", show.Show)
-	http.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/favicon.ico", http.NotFound)
+	mux.HandleFunc("/show", show.Show(o.UseSourcesDebianNet))
+	mux.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("writing memprof")
 		if o.MemProfile != "" {
 			f, err := os.Create(o.MemProfile)
@@ -661,24 +668,24 @@ func (o *Opts) Main() error {
 		}
 	})
 
-	http.HandleFunc("/results/", ResultsHandler)
-	http.HandleFunc("/perpackage-results/", PerPackageResultsHandler)
-	http.HandleFunc("/queryz", QueryzHandler)
-	http.HandleFunc("/track", Track)
+	mux.HandleFunc("/results/", ResultsHandler)
+	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
+	mux.HandleFunc("/queryz", QueryzHandler)
+	mux.HandleFunc("/track", Track)
 
 	traced := http.NewServeMux()
-	traced.HandleFunc("/search", Search)
-	traced.HandleFunc("/events/", EventsHandler)
-	traced.Handle("/instantws", websocket.Handler(InstantServer))
-	http.Handle("/events/", traced)
+	traced.HandleFunc("/search", o.Search)
+	traced.HandleFunc("/events/", o.EventsHandler)
+	traced.Handle("/instantws", websocket.Handler(o.InstantServer))
+	mux.Handle("/events/", traced)
 	// TODO: find a way to trace /instantws calls — re-implement the
 	// http.Hijacker interface in nethttp.Middleware?
 	// http.Handle("/instantws", traceHandler)
-	http.Handle("/instantws", websocket.Handler(InstantServer))
-	http.Handle("/search", traced)
+	mux.Handle("/instantws", websocket.Handler(o.InstantServer))
+	mux.Handle("/search", traced)
 
 	// Used by the service worker.
-	http.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
@@ -691,7 +698,7 @@ func (o *Opts) Main() error {
 		}
 	})
 
-	http.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", promhttp.Handler())
 
 	apiOpts := apikeys.Options{
 		HashKey:      hashKey,
@@ -702,9 +709,9 @@ func (o *Opts) Main() error {
 		Prefix:       "/apikeys",
 	}
 	{
-		mux := http.NewServeMux()
-		http.Handle("/api/", http.StripPrefix("/api", mux))
-		if err := serveAPIOnMux(mux, apiOpts); err != nil {
+		apiMux := http.NewServeMux()
+		mux.Handle("/api/", http.StripPrefix("/api", apiMux))
+		if err := o.serveAPIOnMux(apiMux, apiOpts); err != nil {
 			return err
 		}
 	}
@@ -712,11 +719,11 @@ func (o *Opts) Main() error {
 	// Initialize the /apikeys/ functionality asynchronously, so that a salsa
 	// outage does not take down DCS:
 	{
-		mux := http.NewServeMux()
-		http.Handle("/apikeys/", http.StripPrefix("/apikeys", mux))
+		apiKeysMux := http.NewServeMux()
+		mux.Handle("/apikeys/", http.StripPrefix("/apikeys", apiKeysMux))
 		go func() {
 			for {
-				if err := apikeys.ServeOnMux(mux, apiOpts); err != nil {
+				if err := apikeys.ServeOnMux(apiKeysMux, apiOpts); err != nil {
 					log.Printf("cannot serve /apikeys/: %v", err)
 					time.Sleep(10 * time.Second)
 					continue
@@ -732,28 +739,26 @@ func (o *Opts) Main() error {
 		if err != nil {
 			return err
 		}
-		http.Handle("/apidocs/", httputil.NewSingleHostReverseProxy(u))
+		mux.Handle("/apidocs/", httputil.NewSingleHostReverseProxy(u))
 	}
 
 	if o.ListenAddressPlain != "" {
 		go func() {
-			log.Fatal(http.ListenAndServe(o.ListenAddressPlain, nil))
+			log.Fatal(http.ListenAndServe(o.ListenAddressPlain, mux))
 		}()
 	}
 
-	ln, err := net.Listen("tcp", o.ListenAddress)
-	if err != nil {
-		return err
-	}
 	return grpcutil.ListenAndServeTLS(ln,
+		mux,
 		o.TLSCertPath,
 		o.TLSKeyPath,
+		o.TLSRequireClientAuth,
 		func(s *grpc.Server) {
 			decoder := &apikeys.Decoder{
 				SecureCookie: apiOpts.SecureCookie(),
 			}
-
 			dcspb.RegisterDCSServer(s, &server{
+				opts:    o,
 				decoder: decoder,
 			})
 		})

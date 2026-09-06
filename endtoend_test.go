@@ -35,17 +35,14 @@ func TestEndToEnd(t *testing.T) {
 	flag.Set("shard_path", filepath.Join(temp, "shard"))
 	flag.Set("shard_path", filepath.Join(temp, "shard"))
 
-	instance, err := localdcs.Start(
-		"-securecookie_hash_key=3270b4d09abccbf3fe59b957b1d429c8c58ac5def079ea4b245f66ade65168c2",
-		"-securecookie_block_key=cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5",
+	const (
+		hashKey  = "3270b4d09abccbf3fe59b957b1d429c8c58ac5def079ea4b245f66ade65168c2"
+		blockKey = "cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"
 	)
+	instance, err := localdcs.Start(hashKey, blockKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		flag.Set("stop", "true")
-		localdcs.Start()
-	}()
 
 	// Created using dcs apikey-create; subject is set to “unittest!”
 	const apikey = "MTYxNDAxMzI4OXwyb2pFeXdGd0Q0VmdhTkZtMkRoeDdsa1JUa3ZwOTQtM3M2MG1ybGFWRkhacUZwZ1dmMmFlMG5lbkM3UWQ1SV96LXc9PXxdMAS04xLgPDL02_RXt7IftcfPZ4x839RuMhy0_WSX0g=="

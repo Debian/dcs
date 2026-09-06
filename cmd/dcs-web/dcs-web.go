@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 
 	"github.com/Debian/dcs/internal/web"
 )
@@ -63,11 +64,36 @@ func main() {
 		false,
 		"print version and exit")
 
+	flag.StringVar(&opts.TemplatePattern, "template_pattern",
+		"templates/*",
+		"Pattern matching the HTML templates (./templates/* by default)")
+
+	flag.StringVar(&opts.SourceBackends, "source_backends",
+		"localhost:28082",
+		"host:port (multiple values are comma-separated) of the source-backend(s)")
+
+	flag.BoolVar(&opts.UseSourcesDebianNet, "use_sources_debian_net",
+		false,
+		"Redirect to sources.debian.net instead of handling /show on our own.")
+
+	flag.StringVar(&opts.QueryResultsPath, "query_results_path",
+		"/tmp/qr/",
+		"Path where query results files (page_0.json etc.) are stored")
+
+	flag.BoolVar(&opts.TLSRequireClientAuth, "tls_require_client_auth",
+		true,
+		"Require TLS Client Authentication")
+
 	flag.Parse()
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	if err := opts.Main(); err != nil {
+	ln, err := net.Listen("tcp", opts.ListenAddress)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := opts.Main(ln); err != nil {
 		log.Fatal(err)
 	}
 }

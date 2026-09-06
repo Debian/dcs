@@ -554,13 +554,14 @@ func (s *server) unpackAndIndex(dscPath string) error {
 }
 
 type Opts struct {
-	ShardPath         string
-	ListenAddress     string
-	TLSCertPath       string
-	TLSKeyPath        string
-	CPUProfile        string
-	SourceBackendAddr string
-	DebugSkip         bool
+	ShardPath            string
+	ListenAddress        string
+	TLSCertPath          string
+	TLSKeyPath           string
+	TLSRequireClientAuth bool
+	CPUProfile           string
+	SourceBackendAddr    string
+	DebugSkip            bool
 }
 
 func (o *Opts) Main(ln net.Listener) error {
@@ -591,8 +592,10 @@ func (o *Opts) Main(ln net.Listener) error {
 	}
 
 	return grpcutil.ListenAndServeTLS(ln,
+		http.DefaultServeMux,
 		o.TLSCertPath,
 		o.TLSKeyPath,
+		o.TLSRequireClientAuth,
 		func(s *grpc.Server) {
 			packageimporterpb.RegisterPackageImporterServer(s, srv)
 		})

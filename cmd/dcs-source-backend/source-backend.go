@@ -39,6 +39,10 @@ var (
 	usePositionalIndex = flag.Bool("use_positional_index",
 		false,
 		"use the pos and posrel index sections for identifier queries")
+
+	requireClientAuth = flag.Bool("tls_require_client_auth",
+		true,
+		"Require TLS Client Authentication")
 )
 
 func main() {
@@ -100,8 +104,10 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Fatal(grpcutil.ListenAndServeTLS(ln,
+		http.DefaultServeMux,
 		*tlsCertPath,
 		*tlsKeyPath,
+		*requireClientAuth,
 		func(s *grpc.Server) {
 			sourcebackendpb.RegisterSourceBackendServer(s, srv)
 		}))

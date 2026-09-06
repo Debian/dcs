@@ -35,6 +35,10 @@ func main() {
 
 	flag.StringVar(&opts.TLSKeyPath, "tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 
+	flag.BoolVar(&opts.TLSRequireClientAuth, "tls_require_client_auth",
+		true,
+		"Require TLS Client Authentication")
+
 	flag.Parse()
 
 	ln, err := net.Listen("tcp", opts.ListenAddress)
