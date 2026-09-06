@@ -9,30 +9,21 @@ and start testing your changes to the source code.
 If you don’t already have Go installed, use:
 
 ```bash
-sudo apt-get install golang-go
-export GOPATH=~/go
-export PATH=$GOPATH/bin:$PATH
+sudo apt install golang-go
 ```
-
-I recommend to put the `export` statements into your shell profile so that you
-don’t have to remember to run them.
 
 ## Download/update the source code
 
 ```bash
-go get -u github.com/Debian/dcs/cmd/...
+git clone https://github.com/Debian/dcs
 ```
 
 ## Launch DCS
 
-The `dcs-localdcs` tool recompiles the code and static assets, then brings up a
-local DCS:
+The `dcs-localdcs` entrypoint runs all of DCS in a single process, indexes the
+packages in `testdata/` and prints the URL at which you can access this local
+DCS instance in your browser:
 
 ```bash
-dcs-localdcs
-# play around with DCS
-dcs-localdcs -stop
+go run ./cmd/dcs-localdcs
 ```
-
-To quickly restart the stack, you can use `dcs-localdcs -stop && dcs-localdcs`
-after saving your changes in your editor of choice.
