@@ -236,9 +236,14 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 		log.Fatal(err)
 	}
 
+	unpacked, err := os.OpenRoot(filepath.Join(*shardPath, "src"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	srv := &sourcebackend.Server{
 		Index:              ix,
-		UnpackedPath:       filepath.Join(*shardPath, "src"),
+		UnpackedPath:       unpacked,
 		IndexPath:          indexPath,
 		UsePositionalIndex: true,
 		RankingMap:         rankingMap,

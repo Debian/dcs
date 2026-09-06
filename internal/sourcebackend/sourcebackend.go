@@ -141,7 +141,7 @@ type Server struct {
 
 	mu                 sync.Mutex
 	Index              *index.Index
-	UnpackedPath       string
+	UnpackedPath       *os.Root
 	IndexPath          string
 	UsePositionalIndex bool
 	RankingMap         ranking.StoredRankingMap
@@ -150,14 +150,8 @@ type Server struct {
 // Serves a single file for displaying it in /show
 func (s *Server) File(ctx context.Context, in *sourcebackendpb.FileRequest) (*sourcebackendpb.FileReply, error) {
 	log.Printf("requested filename *%s*\n", in.Path)
-	// path.Join calls path.Clean so we get the shortest path without any "..".
-	absPath := path.Join(s.UnpackedPath, in.Path)
-	log.Printf("clean, absolute path is *%s*\n", absPath)
-	if !strings.HasPrefix(absPath, s.UnpackedPath) {
-		return nil, fmt.Errorf("Path traversal is bad, mhkay?")
-	}
 
-	contents, err := os.ReadFile(absPath)
+	contents, err := s.UnpackedPath.ReadFile(in.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +453,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				// mmap'ing a whole bunch of small files (most of our files are
 				// << 64 KB).
 				// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
-				f, err := os.Open(filepath.Join(s.UnpackedPath, bundle[0].Path))
+				f, err := s.UnpackedPath.Open(bundle[0].Path)
 				if err != nil {
 					log.Printf("%s %v", logprefix, err)
 					for range bundle {
@@ -591,7 +585,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				}
 
 				// TODO: figure out how to safely clone a dcs/regexp
-				matches := grep.File(path.Join(s.UnpackedPath, file.Path))
+				matches := grep.File(path.Join(s.UnpackedPath.Name(), file.Path))
 				for _, match := range matches {
 					match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
 					match.PathRank = file.Ranking
@@ -602,7 +596,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 					// TODO: ideally, we’d get sourcebackendpb.Match structs from grep.File(), let’s do that after profiling the decoding performance
 
-					path := match.Path[len(s.UnpackedPath):]
+					path := match.Path[len(s.UnpackedPath.Name()):]
 					connMu.Lock()
 					if err := stream.Send(&sourcebackendpb.SearchReply{
 						Type: sourcebackendpb.SearchReply_MATCH,

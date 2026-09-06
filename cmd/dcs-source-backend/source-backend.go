@@ -90,9 +90,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	unpacked, err := os.OpenRoot(*unpackedPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	srv := &sourcebackend.Server{
 		Index:              ix,
-		UnpackedPath:       *unpackedPath,
+		UnpackedPath:       unpacked,
 		IndexPath:          *indexPath,
 		UsePositionalIndex: *usePositionalIndex,
 		RankingMap:         rankingMap,

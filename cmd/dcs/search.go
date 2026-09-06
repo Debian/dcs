@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/Debian/dcs/internal/index"
@@ -31,8 +32,8 @@ func search(args []string) error {
 	fset.Usage = usage(fset, searchHelp)
 	var idx string
 	fset.StringVar(&idx, "idx", "", "path to the index file to work with")
-	var unpacked string
-	fset.StringVar(&unpacked, "unpacked_path", "", "path to the source files to work with")
+	var unpackedPath string
+	fset.StringVar(&unpackedPath, "unpacked_path", "", "path to the source files to work with")
 	var query string
 	fset.StringVar(&query, "query", "", "search query")
 	var pos bool
@@ -48,6 +49,11 @@ func search(args []string) error {
 	ix, err := index.Open(idx)
 	if err != nil {
 		return fmt.Errorf("Could not open index: %v", err)
+	}
+
+	unpacked, err := os.OpenRoot(unpackedPath)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	srv := &sourcebackend.Server{
@@ -80,6 +86,6 @@ func search(args []string) error {
 		if msg.Type != sourcebackendpb.SearchReply_MATCH {
 			continue
 		}
-		fmt.Printf("%s:%d\n", unpacked+msg.Match.Path, msg.Match.Line)
+		fmt.Printf("%s:%d\n", unpacked.Name()+msg.Match.Path, msg.Match.Line)
 	}
 }
