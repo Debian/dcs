@@ -4,12 +4,15 @@ import (
 	"flag"
 	"log"
 	"net"
+	"net/http"
 
 	"github.com/Debian/dcs/internal/web"
 )
 
 func main() {
-	var opts web.Opts
+	opts := web.Opts{
+		Mux: http.NewServeMux(),
+	}
 
 	flag.StringVar(&opts.ListenAddressPlain, "listen_address_http",
 		"",
@@ -20,10 +23,6 @@ func main() {
 		"listen address ([host]:port) for gRPC/TLS")
 
 	flag.StringVar(&opts.MemProfile, "memprofile", "", "Write memory profile to this file")
-
-	flag.StringVar(&opts.StaticPath, "static_path",
-		"./static/",
-		"Path to static assets such as *.css")
 
 	flag.StringVar(&opts.AccessLogPath, "access_log_path",
 		"",
@@ -63,10 +62,6 @@ func main() {
 	flag.BoolVar(&opts.PrintVersion, "version",
 		false,
 		"print version and exit")
-
-	flag.StringVar(&opts.TemplatePattern, "template_pattern",
-		"templates/*",
-		"Pattern matching the HTML templates (./templates/* by default)")
 
 	flag.StringVar(&opts.SourceBackends, "source_backends",
 		"localhost:28082",

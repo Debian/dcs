@@ -1,22 +1,21 @@
 package localdcs
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"google.golang.org/grpc"
@@ -30,12 +29,11 @@ import (
 	"github.com/Debian/dcs/internal/ranking"
 	"github.com/Debian/dcs/internal/sourcebackend"
 	"github.com/Debian/dcs/internal/web"
+	"github.com/Debian/dcs/static"
+	"github.com/evanw/esbuild/pkg/api"
 )
 
 var (
-	stop = flag.Bool("stop",
-		false,
-		"Whether to stop the currently running localdcs instead of starting a new one")
 	shardPath = flag.String("shard_path",
 		"/tmp/dcs-hacking",
 		"Path to the unpacked sources")
@@ -55,87 +53,6 @@ var (
 		"localhost:0",
 		"listen address ([host]:port) for dcs-web (gRPC/TLS)")
 )
-
-func installBinaries() error {
-	cmd := exec.Command("go", "install", "github.com/Debian/dcs/cmd/...")
-	cmd.Stderr = os.Stderr
-	log.Printf("Compiling and installing binaries: %v\n", cmd.Args)
-	return cmd.Run()
-}
-
-func help(binary string) error {
-	err := exec.Command(binary, "-help").Run()
-	if exiterr, ok := err.(*exec.ExitError); ok {
-		status, ok := exiterr.Sys().(syscall.WaitStatus)
-		if !ok {
-			log.Panicf("cannot run on this platform: exec.ExitError.Sys() does not return syscall.WaitStatus")
-		}
-		// -help results in exit status 2, so that’s expected.
-		if status.ExitStatus() == 2 {
-			return nil
-		}
-	}
-	return err
-}
-
-func verifyBinariesAreExecutable() error {
-	binaries := []string{
-		"dcs-package-importer",
-		"dcs-source-backend",
-		"dcs-web",
-		"dcs-compute-ranking",
-	}
-	log.Printf("Verifying binaries are executable: %v\n", binaries)
-	for _, binary := range binaries {
-		if err := help(binary); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func compileStaticAssets() error {
-	cmd := exec.Command("make")
-	cmd.Stderr = os.Stderr
-	cmd.Dir = "static"
-	log.Printf("Compiling static assets: %v\n", cmd.Args)
-	return cmd.Run()
-}
-
-func kill() error {
-	pidsFile := filepath.Join(*localdcsPath, "pids")
-	if _, err := os.Stat(pidsFile); os.IsNotExist(err) {
-		return fmt.Errorf("-stop specified, but no localdcs instance found in -localdcs_path=%q", *localdcsPath)
-	}
-
-	pidsBytes, err := os.ReadFile(pidsFile)
-	if err != nil {
-		return fmt.Errorf("Could not read %q: %v", pidsFile, err)
-	}
-	pids := strings.SplitSeq(string(pidsBytes), "\n")
-	for pidline := range pids {
-		if pidline == "" {
-			continue
-		}
-		pid, err := strconv.Atoi(pidline)
-		if err != nil {
-			return fmt.Errorf("Invalid line in %q: %v", pidsFile, err)
-		}
-
-		process, err := os.FindProcess(pid)
-		if err != nil {
-			log.Printf("Could not find process %d: %v", pid, err)
-			continue
-		}
-		if err := process.Kill(); err != nil {
-			log.Printf("Could not kill process %d: %v", pid, err)
-		}
-	}
-
-	os.Remove(pidsFile)
-
-	return nil
-}
 
 func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file string) error {
 	stream, err := packageImporter.Import(context.Background())
@@ -261,17 +178,6 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 		return nil, fmt.Errorf("Could not create directory %q for dcs-localdcs state: %v", *localdcsPath, err)
 	}
 
-	if *stop {
-		if err := kill(); err != nil {
-			return nil, fmt.Errorf("Could not stop localdcs: %v", err)
-		}
-		return nil, nil
-	}
-
-	if _, err := os.Stat(filepath.Join(*localdcsPath, "pids")); !os.IsNotExist(err) {
-		return nil, fmt.Errorf("There already is a localdcs instance running. Either use -stop or specify a different -localdcs_path")
-	}
-
 	for _, dir := range []string{
 		*shardPath,
 		filepath.Join(*shardPath, "src"),
@@ -280,18 +186,6 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return nil, fmt.Errorf("Could not create directory %q for unpacked files/index: %v", dir, err)
 		}
-	}
-
-	if err := installBinaries(); err != nil {
-		return nil, fmt.Errorf("Compiling and installing binaries failed: %v", err)
-	}
-
-	if err := verifyBinariesAreExecutable(); err != nil {
-		return nil, fmt.Errorf("Could not find all required binaries: %v", err)
-	}
-
-	if err := compileStaticAssets(); err != nil {
-		return nil, fmt.Errorf("Compiling static assets failed: %v", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(*localdcsPath, "key.pem")); os.IsNotExist(err) {
@@ -395,17 +289,94 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 
 	// TODO: check for healthiness
 
+	// Minify all assets and serve them on an HTTP ServeMux
+	// (in production, this happens in the reverse proxy, not DCS).
+	webMux := http.NewServeMux()
+	for _, js := range []string{
+		"cssrelpreload.js",
+		"instant.js",
+		"loadCSS.js",
+		"service-worker.js",
+	} {
+		min := strings.TrimSuffix(js, ".js") + ".min.js"
+		b, err := fs.ReadFile(static.FS, js)
+		if err != nil {
+			return nil, err
+		}
+		res := api.Transform(string(b), api.TransformOptions{
+			Loader:            api.LoaderJS,
+			MinifyWhitespace:  true,
+			MinifyIdentifiers: true,
+			MinifySyntax:      true,
+		})
+		if len(res.Errors) > 0 {
+			return nil, fmt.Errorf("esbuild.minify(%s): %v", min, res.Errors)
+		}
+		webMux.HandleFunc("GET /"+min, func(w http.ResponseWriter, r *http.Request) {
+			http.ServeContent(w, r, min, time.Time{}, bytes.NewReader(res.Code))
+		})
+	}
+	var criticalCSS []byte
+	for _, css := range []string{
+		"critical.css",
+		"non-critical.css",
+	} {
+		min := strings.TrimSuffix(css, ".css") + ".min.css"
+		b, err := fs.ReadFile(static.FS, css)
+		if err != nil {
+			return nil, err
+		}
+		res := api.Transform(string(b), api.TransformOptions{
+			Loader:            api.LoaderCSS,
+			MinifyWhitespace:  true,
+			MinifyIdentifiers: true,
+			MinifySyntax:      true,
+		})
+		if len(res.Errors) > 0 {
+			return nil, fmt.Errorf("esbuild.minify(%s): %v", min, res.Errors)
+		}
+		if css == "critical.css" {
+			criticalCSS = res.Code
+		}
+		webMux.HandleFunc("GET /"+min, func(w http.ResponseWriter, r *http.Request) {
+			http.ServeContent(w, r, min, time.Time{}, bytes.NewReader(res.Code))
+		})
+	}
+	// Concatenate debian.css and debcodesearch.css to debcodesearch.min.css.
+	{
+		const min = "debcodesearch.min.css"
+		debianCSS, err := fs.ReadFile(static.FS, "debian.css")
+		if err != nil {
+			return nil, err
+		}
+		dcsCSS, err := fs.ReadFile(static.FS, "debcodesearch.css")
+		if err != nil {
+			return nil, err
+		}
+		res := api.Transform(string(append(debianCSS, dcsCSS...)), api.TransformOptions{
+			Loader:            api.LoaderCSS,
+			MinifyWhitespace:  true,
+			MinifyIdentifiers: true,
+			MinifySyntax:      true,
+		})
+		if len(res.Errors) > 0 {
+			return nil, fmt.Errorf("esbuild.minify(%s): %v", min, res.Errors)
+		}
+		webMux.HandleFunc("GET /"+min, func(w http.ResponseWriter, r *http.Request) {
+			http.ServeContent(w, r, min, time.Time{}, bytes.NewReader(res.Code))
+		})
+	}
 	webOpts := web.Opts{
+		Mux:                webMux,
 		ListenAddress:      *listenWeb,
 		ListenAddressPlain: "localhost:0",
-		StaticPath:         "static/",
 		TLSCertPath:        filepath.Join(*localdcsPath, "cert.pem"),
 		TLSKeyPath:         filepath.Join(*localdcsPath, "key.pem"),
-		TemplatePattern:    "internal/web/templates/*",
 		SourceBackends:     sourceBackend,
 		QueryResultsPath:   filepath.Join(*localdcsPath, "qr"),
 		HashKeyStr:         hashKey,
 		BlockKeyStr:        blockKey,
+		CriticalCSS:        criticalCSS,
 	}
 	webLn, err := net.Listen("tcp", webOpts.ListenAddress)
 	if err != nil {

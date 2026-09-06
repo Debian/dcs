@@ -5,12 +5,11 @@ package common
 
 import (
 	"html/template"
-	"os"
+	"io/fs"
 	"slices"
 
 	"log"
 	"net/url"
-	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -24,13 +23,8 @@ var CriticalCss template.CSS
 var SourceBackendStubs []sourcebackendpb.SourceBackendClient
 var Templates *template.Template
 
-func Init(tlsCertPath, tlsKeyPath, staticPath, sourceBackends, templatePattern string) {
-	loadTemplates(templatePattern)
-	b, err := os.ReadFile(filepath.Join(staticPath, "critical.min.css"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	CriticalCss = template.CSS(string(b))
+func Init(tlsCertPath, tlsKeyPath, sourceBackends string, templates fs.FS) {
+	loadTemplates(templates)
 	addrs := strings.Split(sourceBackends, ",")
 	SourceBackendStubs = make([]sourcebackendpb.SourceBackendClient, len(addrs))
 	for idx, addr := range addrs {
@@ -42,7 +36,7 @@ func Init(tlsCertPath, tlsKeyPath, staticPath, sourceBackends, templatePattern s
 	}
 }
 
-func loadTemplates(templatePattern string) {
+func loadTemplates(templates fs.FS) {
 	var err error
 	Templates = template.New("foo").Funcs(template.FuncMap{
 		"appendToQuery": func(unparsedURL, extra string) string {
@@ -74,8 +68,8 @@ func loadTemplates(templatePattern string) {
 			return false
 		},
 	})
-	Templates, err = Templates.ParseGlob(templatePattern)
+	Templates, err = Templates.ParseFS(templates, "templates/*.html")
 	if err != nil {
-		log.Fatalf(`Could not load templates from "%s": %v`, templatePattern, err)
+		log.Fatalf("Could not load embedded templates: %v", err)
 	}
 }

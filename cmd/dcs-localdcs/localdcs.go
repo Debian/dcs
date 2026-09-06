@@ -17,9 +17,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if instance.Addr == "" {
-		return // stopped
-	}
 	log.Printf("https://%s", instance.Addr)
 	select {} // run until cancelled
 }

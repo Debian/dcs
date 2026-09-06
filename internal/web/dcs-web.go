@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"html/template"
 	"io"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -13,7 +15,7 @@ import (
 	_ "net/http/pprof"
 	"net/url"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"runtime/pprof"
 	"strconv"
@@ -36,6 +38,7 @@ import (
 	"github.com/Debian/dcs/internal/web/health"
 	"github.com/Debian/dcs/internal/web/search"
 	"github.com/Debian/dcs/internal/web/show"
+	"github.com/Debian/dcs/static"
 	"github.com/gorilla/securecookie"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -556,10 +559,10 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 }
 
 type Opts struct {
+	Mux                  *http.ServeMux
 	ListenAddressPlain   string
 	ListenAddress        string
 	MemProfile           string
-	StaticPath           string
 	AccessLogPath        string
 	TLSCertPath          string
 	TLSKeyPath           string
@@ -571,10 +574,10 @@ type Opts struct {
 	ClientSecret         string
 	RedirectURL          string
 	PrintVersion         bool
-	TemplatePattern      string
 	SourceBackends       string
 	UseSourcesDebianNet  bool
 	QueryResultsPath     string
+	CriticalCSS          []byte
 }
 
 func (o *Opts) Main(ln net.Listener) error {
@@ -583,7 +586,16 @@ func (o *Opts) Main(ln net.Listener) error {
 		return nil
 	}
 
-	common.Init(o.TLSCertPath, o.TLSKeyPath, o.StaticPath, o.SourceBackends, o.TemplatePattern)
+	criticalCSS := o.CriticalCSS
+	if criticalCSS == nil {
+		var err error
+		criticalCSS, err = fs.ReadFile(static.FS, "critical.min.css")
+		if err != nil {
+			return fmt.Errorf("critical.min.css not found (did you not run make static?)")
+		}
+	}
+	common.CriticalCss = template.CSS(string(criticalCSS))
+	common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
 
 	if o.HashKeyStr == "" {
 		return fmt.Errorf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))
@@ -623,22 +635,22 @@ func (o *Opts) Main(ln net.Listener) error {
 
 	health.StartChecking(o.UseSourcesDebianNet)
 
-	mux := http.NewServeMux()
+	mux := o.Mux
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Check if a static file was requested with full name
-		name := filepath.Join(o.StaticPath, r.URL.Path)
+		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if r.URL.Path == "/" {
-			name = filepath.Join(o.StaticPath, "index.html")
+			name = "index.html"
 		}
-		if _, err := os.Stat(name); err == nil {
-			http.ServeFile(w, r, name)
+		if _, err := fs.Stat(static.FS, name); err == nil {
+			http.ServeFileFS(w, r, static.FS, name)
 			return
 		}
 
 		// Or maybe /faq, which resolves to /faq.html
 		name = name + ".html"
-		if _, err := os.Stat(name); err == nil {
-			http.ServeFile(w, r, name)
+		if _, err := fs.Stat(static.FS, name); err == nil {
+			http.ServeFileFS(w, r, static.FS, name)
 			return
 		}
 
