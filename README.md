@@ -9,6 +9,7 @@ Context:
 * [Debian Code Search: positional index, TurboPFor-compressed (2019)](https://michael.stapelberg.ch/posts/2019-09-29-dcs-positional-turbopfor-index/)
   * [TurboPFor: an analysis (2019)](https://michael.stapelberg.ch/posts/2019-02-05-turbopfor-analysis/)
 * [Debian Code Search: OpenAPI now available (2021)](https://michael.stapelberg.ch/posts/2021-03-06-debian-code-search-openapi/)
+* [Debian Code Search: Fast TurboPFor with Go SIMD (2026)](https://michael.stapelberg.ch/posts/2026-09-06-dcs-fast-turbopfor-go-simd/)
 
 Documentation:
 
