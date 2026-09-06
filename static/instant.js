@@ -74,23 +74,9 @@ function sendQuery(term, literal) {
     $('#options').hide();
     $('#packageshint').hide();
     var query = term;
-    if (typeof(EventSource) !== 'undefined') {
-        // EventSource is supported by Chrome 9+ and Firefox 6+.
-        var eventsrc = new EventSource("/events/?q=" + query + "&literal=" + (literal ? "1" : "0"));
-        eventsrc.onmessage = onEvent;
-    } else {
-        // Fall back to WebSockets, which need an additional round trip
-        // (because they do not work over HTTP2).
-        var websocket_url = window.location.protocol.replace('http', 'ws') + '//' + window.location.host + '/instantws';
-        var connection = new WebSocket(websocket_url);
-        var queryMsg = JSON.stringify({
-            "Query": "q=" + encodeURIComponent(query) + "&literal=" +  (literal ? "1" : "0"),
-        });
-        connection.onopen = function() {
-            connection.send(queryMsg);
-        };
-        connection.onmessage = onEvent;
-    }
+    // EventSource is supported by Chrome 9+ and Firefox 6+.
+    var eventsrc = new EventSource("/events/?q=" + query + "&literal=" + (literal ? "1" : "0"));
+    eventsrc.onmessage = onEvent;
     document.title = searchterm + ' · Debian Code Search';
     progress(0, false, 'Checking which files to grep…');
 }

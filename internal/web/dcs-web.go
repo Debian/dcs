@@ -43,7 +43,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "golang.org/x/net/trace"
-	"golang.org/x/net/websocket"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -196,106 +195,6 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	if sent == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		fmt.Fprintln(w, "No content")
-	}
-}
-
-func (o *Opts) InstantServer(ws *websocket.Conn) {
-	ctx := ws.Request().Context()
-	// The additional ":" at the end is necessary so that we don’t need to
-	// distinguish between the two cases (X-Forwarded-For, without a port, and
-	// RemoteAddr, with a part) in the code below.
-	src := ws.Request().Header.Get("X-Forwarded-For") + ":"
-	remoteaddr := ws.Request().RemoteAddr
-	if src == ":" || (!strings.HasPrefix(remoteaddr, "[::1]:") &&
-		!strings.HasPrefix(remoteaddr, "127.0.0.1:")) {
-		src = remoteaddr
-	}
-	log.Printf("Accepted websocket connection from %q\n", src)
-
-	type Query struct {
-		Query string
-	}
-	var q Query
-	for {
-		err := json.NewDecoder(ws).Decode(&q)
-		if err != nil {
-			log.Printf("[%s] error reading query: %v\n", src, err)
-			return
-		}
-		log.Printf("[%s] Received query %v\n", src, q)
-
-		if err := validateQuery("?" + q.Query); err != nil {
-			log.Printf("[%s] Query %q failed validation: %v\n", src, q.Query, err)
-			b, _ := json.Marshal(struct {
-				Type         string
-				ErrorType    string
-				ErrorMessage string
-			}{
-				Type:         "error",
-				ErrorType:    "invalidquery",
-				ErrorMessage: err.Error(),
-			})
-			ws.Write(b)
-			continue
-		}
-
-		// Uniquely (well, good enough) identify this query for a couple of minutes
-		// (as long as we want to cache results). We could try to normalize the
-		// query before hashing it, but that seems hardly worth the complexity.
-		h := fnv.New64()
-		io.WriteString(h, q.Query)
-		identifier := fmt.Sprintf("%x", h.Sum64())
-
-		cached, err := o.maybeStartQuery(ctx, identifier, src, q.Query)
-		if err != nil {
-			log.Printf("[%s] could not start query: %v\n", src, err)
-			ws.Write([]byte(`{"Type":"error", "ErrorType":"failed"}`))
-			continue
-		}
-
-		// Create an apache common log format entry.
-		if accessLog != nil {
-			responseCode := 200
-			if cached {
-				responseCode = 304
-			}
-			remoteIP := src
-			if idx := strings.LastIndex(remoteIP, ":"); idx > -1 {
-				remoteIP = remoteIP[:idx]
-			}
-			fmt.Fprintf(accessLog, "%s - - [%s] \"GET /instantws?%s HTTP/1.1\" %d -\n",
-				remoteIP, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q.Query, responseCode)
-		}
-
-		lastseen := -1
-		for {
-			message, sequence, ok := getEvent(identifier, lastseen)
-			if !ok {
-				log.Printf("[%s] query no longer exists", src)
-				return
-			}
-
-			lastseen = sequence
-			// This message was obsoleted by a more recent one, e.g. a more
-			// recent progress update obsoletes all earlier progress updates.
-			if *message.obsolete {
-				continue
-			}
-			if len(message.data) == 0 {
-				// TODO: tell the client that a new query can be sent
-				break
-			}
-			written, err := ws.Write(message.data)
-			if err != nil {
-				log.Printf("[%s] Error writing to websocket, closing: %v\n", src, err)
-				return
-			}
-			if written != len(message.data) {
-				log.Printf("[%s] Could only write %d of %d bytes to websocket, closing.\n", src, written, len(message.data))
-				return
-			}
-		}
-		log.Printf("[%s] query done. waiting for a new one\n", src)
 	}
 }
 
@@ -688,12 +587,7 @@ func (o *Opts) Main(ln net.Listener) error {
 	traced := http.NewServeMux()
 	traced.HandleFunc("/search", o.Search)
 	traced.HandleFunc("/events/", o.EventsHandler)
-	traced.Handle("/instantws", websocket.Handler(o.InstantServer))
 	mux.Handle("/events/", traced)
-	// TODO: find a way to trace /instantws calls — re-implement the
-	// http.Hijacker interface in nethttp.Middleware?
-	// http.Handle("/instantws", traceHandler)
-	mux.Handle("/instantws", websocket.Handler(o.InstantServer))
 	mux.Handle("/search", traced)
 
 	// Used by the service worker.
