@@ -11,7 +11,7 @@ import (
 
 	"github.com/Debian/dcs/internal/version"
 	"github.com/Debian/dcs/internal/web/common"
-	"github.com/coreos/go-oidc"
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/gorilla/securecookie"
 	"golang.org/x/oauth2"
 )
