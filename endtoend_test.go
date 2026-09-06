@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -51,8 +50,7 @@ func TestEndToEnd(t *testing.T) {
 
 		conn, err := grpcutil.DialTLS(instance.Addr,
 			filepath.Join(temp, "cert.pem"),
-			filepath.Join(temp, "key.pem"),
-			grpc.WithBlock())
+			filepath.Join(temp, "key.pem"))
 		if err != nil {
 			t.Fatalf("could not connect to %q: %v", instance.Addr, err)
 		}

@@ -59,9 +59,8 @@ func query(args []string) error {
 	creds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: insecure,
 	})
-	conn, err := grpc.Dial(target,
-		grpc.WithTransportCredentials(creds),
-		grpc.WithBlock())
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return err
 	}

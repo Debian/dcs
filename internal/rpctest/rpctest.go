@@ -8,6 +8,7 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 )
 
@@ -22,8 +23,8 @@ func Loopback(register func(s *grpc.Server)) (*grpc.ClientConn, func()) {
 			log.Fatalf("s.Serve: %v", err)
 		}
 	}()
-	conn, err := grpc.Dial(ln.Addr().String(),
-		grpc.WithInsecure(),
+	conn, err := grpc.NewClient("passthrough:///bufconn",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
 			return ln.Dial()
 		}))

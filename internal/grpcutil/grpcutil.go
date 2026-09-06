@@ -56,11 +56,12 @@ func DialTLS(addr, certFile, keyFile string, opts ...grpc.DialOption) (*grpc.Cli
 		RootCAs:      roots,
 		Certificates: []tls.Certificate{cert}})
 
-	return grpc.Dial(addr,
+	return grpc.NewClient(addr,
 		append([]grpc.DialOption{
 			grpc.WithTransportCredentials(auth),
 			grpc.WithStreamInterceptor(grpc_opentracing.StreamClientInterceptor()),
 			grpc.WithUnaryInterceptor(grpc_opentracing.UnaryClientInterceptor()),
+			grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
 		}, opts...)...)
 }
 

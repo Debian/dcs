@@ -89,8 +89,7 @@ func importTestdata(packageImporterAddr string) error {
 	conn, err := grpcutil.DialTLS(
 		packageImporterAddr,
 		filepath.Join(*localdcsPath, "cert.pem"),
-		filepath.Join(*localdcsPath, "key.pem"),
-		grpc.WithBlock())
+		filepath.Join(*localdcsPath, "key.pem"))
 	if err != nil {
 		return fmt.Errorf("grpcutil.DialTLS(%s): %v", packageImporterAddr, err)
 	}
