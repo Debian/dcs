@@ -29,6 +29,7 @@ import (
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/internal/shardmapping"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"pault.ag/go/debian/control"
@@ -50,6 +51,10 @@ type packageImporter struct {
 }
 
 var (
+	keyringPath = flag.String("debian_archive_keyring",
+		"",
+		"Path to an OpenPGP keyring (e.g. debian-archive-keyring.gpg) used to verify signatures. If empty, downloads are not verified.")
+
 	shardsStr = flag.String("shards",
 		"localhost:21010",
 		"comma-separated list of shards")
@@ -276,11 +281,7 @@ func lookfor(dscName string) {
 		var dscContents bytes.Buffer
 		// Store a copy of the content in dscContents.
 		reader := io.TeeReader(resp.Body, &dscContents)
-		// Passing a nil keyring strips the PGP signature without verifying
-		// it. The worst thing that can happen is that an attacker gives us
-		// bad source code to index and serve. Verifying PGP signatures is
-		// harder since we need an up-to-date debian-keyring.
-		pr, err := control.NewParagraphReader(reader, nil)
+		pr, err := control.NewParagraphReader(reader, keyring)
 		if err != nil {
 			log.Printf("Invalid dsc file: %v\n", err)
 			return
@@ -365,7 +366,7 @@ func checkSources() {
 		}
 		defer reader.Close()
 
-		pr, err := control.NewParagraphReader(reader, nil)
+		pr, err := control.NewParagraphReader(reader, keyring)
 		if err != nil {
 			log.Printf("Could not parse Sources.gz: %v\n", err)
 			return
@@ -538,8 +539,33 @@ func markFed(pkg string) {
 	}
 }
 
+// Passing a nil keyring strips the PGP signature without verifying
+// it. The worst thing that can happen is that an attacker gives us
+// bad source code to index and serve. Verifying PGP signatures is
+// harder since we need an up-to-date debian-keyring.
+var keyring *openpgp.EntityList
+
+func maybeReadKeyring() {
+	if *keyringPath == "" {
+		return // no verification requested
+	}
+	f, err := os.Open(*keyringPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	kr, err := openpgp.ReadKeyRing(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("loaded %d key(s) from %s", len(kr), *keyringPath)
+	keyring = &kr
+}
+
 func main() {
 	flag.Parse()
+
+	maybeReadKeyring()
 
 	shards := strings.Split(*shardsStr, ",")
 	packageImporters = make([]*packageImporter, len(shards))

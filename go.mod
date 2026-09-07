@@ -3,6 +3,7 @@ module github.com/Debian/dcs
 go 1.27
 
 require (
+	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/antihax/optional v1.0.0
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/edsrzf/mmap-go v1.2.0
@@ -23,7 +24,6 @@ require (
 )
 
 require (
-	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
