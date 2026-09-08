@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"html"
 	"log"
-	"math/rand"
+	"math/rand/v2"
 	"net/url"
 	"os"
 	"path"
@@ -389,7 +389,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 		cnt := 0
 		errorShown := false
 		var lastProgressUpdate time.Time
-		progressInterval := 2*time.Second + time.Duration(rand.Int63n(int64(500*time.Millisecond)))
+		progressInterval := 2*time.Second + time.Duration(rand.Int64N(int64(500*time.Millisecond)))
 		for cnt < len(files) {
 			add := <-progress
 			cnt += add
