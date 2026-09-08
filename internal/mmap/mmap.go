@@ -19,13 +19,17 @@ func Open(path string) (*File, error) {
 		return nil, err
 	}
 	defer f.Close()
+	return Map(f)
+}
+
+func Map(f *os.File) (*File, error) {
 	st, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
 	size := st.Size()
 	if int64(int(size+4095)) != size+4095 {
-		return nil, fmt.Errorf("%s: too large for mmap", path)
+		return nil, fmt.Errorf("%s: too large for mmap", f.Name())
 	}
 	n := int(size)
 	if n == 0 {
@@ -33,7 +37,7 @@ func Open(path string) (*File, error) {
 	}
 	data, err := unix.Mmap(int(f.Fd()), 0, (n+4095)&^4095, syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
-		return nil, fmt.Errorf("mmap %s: %v", path, err)
+		return nil, fmt.Errorf("mmap %s: %v", f.Name(), err)
 	}
 	return &File{
 		Data: data[:n],

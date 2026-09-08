@@ -6,7 +6,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/antihax/optional v1.0.0
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/edsrzf/mmap-go v1.2.0
 	github.com/evanw/esbuild v0.28.1
 	github.com/google/codesearch v1.2.0
 	github.com/google/go-cmp v0.7.0

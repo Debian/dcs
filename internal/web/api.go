@@ -13,8 +13,8 @@ import (
 
 	"github.com/Debian/dcs/internal/api"
 	"github.com/Debian/dcs/internal/apikeys"
+	"github.com/Debian/dcs/internal/mmap"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
-	"github.com/edsrzf/mmap-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
 )
@@ -81,7 +81,7 @@ func init() {
 }
 
 type resultWriter struct {
-	perBackend []mmap.MMap
+	perBackend []*mmap.File
 	w          io.Writer
 	enc        *json.Encoder
 	msg        sourcebackendpb.SearchReply
@@ -90,7 +90,7 @@ type resultWriter struct {
 func (rw *resultWriter) fromPointers(pointers []resultPointer) error {
 	for idx, ptr := range pointers {
 		mapping := rw.perBackend[ptr.backendidx]
-		if err := proto.Unmarshal(mapping[ptr.offset:ptr.offset+int64(ptr.length)], &rw.msg); err != nil {
+		if err := proto.Unmarshal(mapping.Data[ptr.offset:ptr.offset+int64(ptr.length)], &rw.msg); err != nil {
 			return err
 		}
 		if rw.msg.Type != sourcebackendpb.SearchReply_MATCH {
@@ -132,18 +132,18 @@ func (rw *resultWriter) fromPointers(pointers []resultPointer) error {
 func (rw *resultWriter) Close() error {
 	rw.w.Write([]byte{']'})
 	for _, mapping := range rw.perBackend {
-		if err := mapping.Unmap(); err != nil {
+		if err := mapping.Close(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func perBackendFromState(state *queryState) ([]mmap.MMap, error) {
+func perBackendFromState(state *queryState) ([]*mmap.File, error) {
 	state.tempFilesMu.Lock()
-	perBackend := make([]mmap.MMap, len(state.perBackend))
+	perBackend := make([]*mmap.File, len(state.perBackend))
 	for idx, state := range state.perBackend {
-		mapping, err := mmap.Map(state.tempFile, 0, 0)
+		mapping, err := mmap.Map(state.tempFile)
 		if err != nil {
 			return nil, err
 		}

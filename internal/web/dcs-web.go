@@ -382,7 +382,7 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 	var msg sourcebackendpb.SearchReply
 	for _, ptr := range state.resultPointers {
 		mapping := perBackend[ptr.backendidx]
-		if err := proto.Unmarshal(mapping[ptr.offset:ptr.offset+int64(ptr.length)], &msg); err != nil {
+		if err := proto.Unmarshal(mapping.Data[ptr.offset:ptr.offset+int64(ptr.length)], &msg); err != nil {
 			return err
 		}
 		if msg.Type != sourcebackendpb.SearchReply_MATCH {
