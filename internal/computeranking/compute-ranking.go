@@ -39,7 +39,7 @@ func loadMirroredControlFile(mirrorURL, name string) ([]control.Paragraph, error
 	return contents, nil
 }
 
-func Main(mirrorURL, outputPath string, verbose bool) error {
+func Main(mirrorURL, popconURL, outputPath string, verbose bool) error {
 	sourcePackages, err := loadMirroredControlFile(mirrorURL, "source/Sources.gz")
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func Main(mirrorURL, outputPath string, verbose bool) error {
 		return err
 	}
 
-	popconInstSrc, err := popconInstallations(binaryPackages, verbose)
+	popconInstSrc, err := popconInstallations(popconURL, binaryPackages, verbose)
 	if err != nil {
 		return err
 	}

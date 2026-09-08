@@ -2,6 +2,7 @@ package localdcs
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -12,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -164,6 +166,59 @@ type Instance struct {
 	HTTPClient   *http.Client
 }
 
+func mustGzip(s string) []byte {
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write([]byte(s)); err != nil {
+		log.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		log.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func fakeDebian() *httptest.Server {
+	mux := http.NewServeMux()
+	const sources = `Package: i3-wm
+Binary: i3, i3-wm, i3-wm-dbg
+Version: 4.5.1-2
+
+`
+	sourcesGz := mustGzip(sources)
+	mux.HandleFunc("/debian/dists/sid/main/source/Sources.gz", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(sourcesGz)
+	})
+
+	const packages = `Package: i3-wm
+Source: i3-wm
+Version: 4.5.1-2
+Depends: libc6
+Architecture: amd64
+
+Package: i3
+Source: i3-wm
+Version: 4.5.1-2
+Depends: i3-wm
+Architecture: amd64
+
+`
+	packagesGz := mustGzip(packages)
+	mux.HandleFunc("/debian/dists/sid/main/binary-amd64/Packages.gz", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(packagesGz)
+	})
+
+	const popcon = `Submissions: 1000
+Package: i3-wm                           100  200   50    10
+Package: i3                               50  100   25     5
+`
+	popconGz := mustGzip(popcon)
+	mux.HandleFunc("/all-popcon-results.txt.gz", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(popconGz)
+	})
+	return httptest.NewServer(mux)
+}
+
 func Start(hashKey, blockKey string) (*Instance, error) {
 	if len(*localdcsPath) >= 2 && (*localdcsPath)[:2] == "~/" {
 		usr, err := user.Current()
@@ -197,10 +252,13 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 	rankingPath := filepath.Join(*localdcsPath, "ranking.json")
 	if stat, err := os.Stat(rankingPath); err != nil || time.Since(stat.ModTime()) > 7*24*time.Hour {
 		log.Printf("Computing ranking data\n")
-		const mirrorURL = "http://deb.debian.org/debian"
+		srv := fakeDebian()
+		defer srv.Close()
+		mirrorURL := srv.URL + "/debian"
+		popconURL := srv.URL + "/all-popcon-results.txt.gz"
 		const verbose = false
 		os.Setenv("TMPDIR", *localdcsPath)
-		if err := computeranking.Main(mirrorURL, rankingPath, verbose); err != nil {
+		if err := computeranking.Main(mirrorURL, popconURL, rankingPath, verbose); err != nil {
 			return nil, fmt.Errorf("Could not compute ranking data: %v", err)
 		}
 	} else {

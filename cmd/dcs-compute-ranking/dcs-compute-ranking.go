@@ -8,9 +8,13 @@ import (
 )
 
 var (
-	mirrorUrl = flag.String("mirror_url",
+	mirrorURL = flag.String("mirror_url",
 		"http://deb.debian.org/debian",
 		"URL to the debian mirror to use")
+
+	popconURL = flag.String("popcon_url",
+		"https://popcon.debian.org/all-popcon-results.txt.gz",
+		"URL to the popcon results file")
 
 	verbose = flag.Bool("verbose",
 		false,
@@ -24,7 +28,7 @@ var (
 func main() {
 	flag.Parse()
 
-	if err := computeranking.Main(*mirrorUrl, *outputPath, *verbose); err != nil {
+	if err := computeranking.Main(*mirrorURL, *popconURL, *outputPath, *verbose); err != nil {
 		log.Fatal(err)
 	}
 }

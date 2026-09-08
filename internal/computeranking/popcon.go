@@ -17,7 +17,7 @@ var (
 	asciiMatch = regexp.MustCompile(`^(?P<package>[A-Za-z0-9-.+_]+)(:(?P<arch>[a-z0-9]+))?$`)
 )
 
-func popconInstallations(binaryPackages []control.Paragraph, verbose bool) (map[string]float32, error) {
+func popconInstallations(url string, binaryPackages []control.Paragraph, verbose bool) (map[string]float32, error) {
 	binaryToSource := make(map[string]string)
 	for _, pkg := range binaryPackages {
 		source, ok := pkg.Values["Source"]
@@ -35,7 +35,6 @@ func popconInstallations(binaryPackages []control.Paragraph, verbose bool) (map[
 
 	// Modeled after UDD’s popcon_gatherer.py:
 	// https://anonscm.debian.org/cgit/collab-qa/udd.git/tree/udd/popcon_gatherer.py?id=9db1e97eff32691f4df03d1b9ee8a9290a91fc7a
-	url := "https://popcon.debian.org/all-popcon-results.txt.gz"
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
