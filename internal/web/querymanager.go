@@ -22,7 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Debian/dcs/internal/dpkgversion"
 	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/stringpool"
@@ -30,6 +29,7 @@ import (
 	"github.com/Debian/dcs/internal/web/search"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
+	"pault.ag/go/debian/version"
 )
 
 var (
@@ -704,23 +704,23 @@ func (o *Opts) writeToDisk(queryid string) error {
 	idx := 0
 
 	// For each full package (i3-wm_4.8-1), store only the newest version.
-	packageVersions := make(map[string]dpkgversion.Version)
+	packageVersions := make(map[string]version.Version)
 	for _, bstate := range s.perBackend {
 		for pkg, _ := range bstate.allPackages {
 			underscore := strings.Index(pkg, "_")
 			name := pkg[:underscore]
-			version, err := dpkgversion.Parse(pkg[underscore+1:])
+			ver, err := version.Parse(pkg[underscore+1:])
 			if err != nil {
 				log.Printf("[%s] parsing version %q failed: %v\n", queryid, pkg[underscore+1:], err)
 				continue
 			}
 
 			if bestversion, ok := packageVersions[name]; ok {
-				if dpkgversion.Compare(version, bestversion) > 0 {
-					packageVersions[name] = version
+				if version.Compare(ver, bestversion) > 0 {
+					packageVersions[name] = ver
 				}
 			} else {
-				packageVersions[name] = version
+				packageVersions[name] = ver
 			}
 		}
 	}
