@@ -36,8 +36,7 @@ func TestMatchContextAfter(t *testing.T) {
 		t.Fatalf("Compile(%#q): %v", "fnord", err)
 	}
 
-	g := Grep{}
-	g.Regexp = re
+	g := Grep{Regexp: re}
 	matches := g.Reader(strings.NewReader(string(buffer)), "input")
 	if len(matches) != 1 {
 		t.Fatalf("Expected precisely one match, got %d", len(matches))
@@ -97,8 +96,7 @@ func TestMatchContextBefore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compile(%#q): %v", "ba", err)
 	}
-	g := Grep{}
-	g.Regexp = re
+	g := Grep{Regexp: re}
 	matches := g.Reader(strings.NewReader(string(buffer)), "input")
 	if len(matches) != 1 {
 		t.Fatalf("Expected precisely one match, got %d", len(matches))

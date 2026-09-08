@@ -41,12 +41,12 @@ func Show(useSourcesDebianNet bool) http.HandlerFunc {
 			return
 		}
 
-		idx := strings.Index(filename, "/")
-		if idx == -1 {
+		before, _, ok := strings.Cut(filename, "/")
+		if !ok {
 			http.Error(w, "Filename does not contain a package", http.StatusInternalServerError)
 			return
 		}
-		pkg := filename[:idx]
+		pkg := before
 		shard := common.SourceBackendStubs[shardmapping.TaskIdxForPackage(pkg, len(common.SourceBackendStubs))]
 		resp, err := shard.File(context.Background(), &sourcebackendpb.FileRequest{
 			Path: filename,
