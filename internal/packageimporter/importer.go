@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -268,7 +267,7 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 }
 
 func (s *server) cleanupUnsuccessfulMerges() error {
-	fis, err := ioutil.ReadDir(s.shardPath)
+	fis, err := os.ReadDir(s.shardPath)
 	if err != nil {
 		return err
 	}
@@ -471,13 +470,17 @@ func unpack(dscPath, unpacked string) error {
 		return fmt.Errorf("%s: %v", cmd.Args, err)
 	}
 
-	files, err := ioutil.ReadDir(unpacked)
+	files, err := os.ReadDir(unpacked)
 	if err != nil {
 		return err
 	}
 
 	for _, file := range files {
-		if !file.Mode().IsRegular() {
+		fi, err := file.Info()
+		if err != nil {
+			return err
+		}
+		if !fi.Mode().IsRegular() {
 			continue
 		}
 		if isTar(file.Name()) {

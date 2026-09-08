@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 )
 
@@ -57,15 +57,20 @@ func humanReadableBytes(v int64) string {
 }
 
 func measure(dir string, pos bool) (int64, error) {
-	fis, err := ioutil.ReadDir(dir)
+	dirents, err := os.ReadDir(dir)
 	if err != nil {
 		return 0, err
 	}
 	var total int64
-	for _, fi := range fis {
-		if !pos && strings.Contains(fi.Name(), "posting.pos") {
+	for _, de := range dirents {
+		if !pos && strings.Contains(de.Name(), "posting.pos") {
 			continue
 		}
+		fi, err := de.Info()
+		if err != nil {
+			return 0, err
+		}
+
 		total += fi.Size()
 	}
 	return total, nil

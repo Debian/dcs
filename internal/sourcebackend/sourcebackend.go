@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/url"
@@ -222,7 +221,7 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 			if err := renameio.Symlink(newShard, s.IndexPath); err != nil {
 				return nil, err
 			}
-			fis, err := ioutil.ReadDir(filepath.Dir(s.IndexPath))
+			fis, err := os.ReadDir(filepath.Dir(s.IndexPath))
 			if err != nil {
 				return nil, err
 			}
