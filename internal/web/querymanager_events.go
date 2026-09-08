@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"github.com/Debian/dcs/internal/frequency"
@@ -34,7 +35,7 @@ type obsoletableEvent interface {
 type event struct {
 	data     []byte
 	original obsoletableEvent
-	obsolete *bool
+	obsolete *atomic.Bool
 }
 
 func addEvent(queryid string, data []byte, origdata any) {
@@ -47,7 +48,7 @@ func addEvent(queryid string, data []byte, origdata any) {
 	original, _ := origdata.(obsoletableEvent)
 	s.events = append(s.events, event{
 		data:     data,
-		obsolete: new(bool),
+		obsolete: new(atomic.Bool),
 		original: original})
 	// An empty message marks the query as finished, but further errors can
 	// occur, so we store whether we’ve seen an empty message for use in
@@ -96,7 +97,7 @@ func addEventMarshal(queryid string, data any) {
 				continue
 			}
 			if events[i].original.ObsoletedBy(&original) {
-				*(events[i].obsolete) = true
+				events[i].obsolete.Store(true)
 				break
 			}
 		}

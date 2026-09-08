@@ -176,7 +176,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		lastseen = sequence
 		// This message was obsoleted by a more recent one, e.g. a more
 		// recent progress update obsoletes all earlier progress updates.
-		if *message.obsolete {
+		if message.obsolete.Load() {
 			continue
 		}
 		if len(message.data) == 0 {
@@ -334,7 +334,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 		lastseen = sequence
 		// This message was obsoleted by a more recent one, e.g. a more
 		// recent progress update obsoletes all earlier progress updates.
-		if *message.obsolete {
+		if message.obsolete.Load() {
 			continue
 		}
 		if len(message.data) == 0 {
