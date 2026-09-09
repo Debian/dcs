@@ -5,7 +5,6 @@ var assets = {
     '/non-critical.min.css': true,
     '/Pics/openlogo-50.svg': true,
     '/jquery.min.js': true,
-    '/url-search-params.min.js': true,
     '/loadCSS.min.js': true,
     '/cssrelpreload.min.js': true,
     '/instant.min.js?17': true,
