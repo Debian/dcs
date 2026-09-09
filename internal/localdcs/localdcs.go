@@ -355,9 +355,7 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 	// (in production, this happens in the reverse proxy, not DCS).
 	webMux := http.NewServeMux()
 	for _, js := range []string{
-		"cssrelpreload.js",
 		"instant.js",
-		"loadCSS.js",
 		"service-worker.js",
 	} {
 		min := strings.TrimSuffix(js, ".js") + ".min.js"
