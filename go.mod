@@ -4,7 +4,6 @@ go 1.27
 
 require (
 	github.com/ProtonMail/go-crypto v1.4.1
-	github.com/antihax/optional v1.0.0
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/evanw/esbuild v0.28.1
 	github.com/google/codesearch v1.2.0
