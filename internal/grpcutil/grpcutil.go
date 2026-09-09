@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/Debian/dcs/internal/addrfd"
-	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/trace"
 	"google.golang.org/grpc"
@@ -59,8 +58,6 @@ func DialTLS(addr, certFile, keyFile string, opts ...grpc.DialOption) (*grpc.Cli
 	return grpc.NewClient(addr,
 		append([]grpc.DialOption{
 			grpc.WithTransportCredentials(auth),
-			grpc.WithStreamInterceptor(grpc_opentracing.StreamClientInterceptor()),
-			grpc.WithUnaryInterceptor(grpc_opentracing.UnaryClientInterceptor()),
 			grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
 		}, opts...)...)
 }
@@ -71,10 +68,7 @@ func ListenAndServeTLS(ln net.Listener, mux *http.ServeMux, certFile, keyFile st
 		return err
 	}
 
-	s := grpc.NewServer(
-		grpc.Creds(auth),
-		grpc.StreamInterceptor(grpc_opentracing.StreamServerInterceptor()),
-		grpc.UnaryInterceptor(grpc_opentracing.UnaryServerInterceptor()))
+	s := grpc.NewServer(grpc.Creds(auth))
 
 	register(s)
 	reflection.Register(s)
