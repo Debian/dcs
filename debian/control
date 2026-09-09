@@ -1,23 +1,33 @@
 Source: dcs
-Section: net
-Priority: extra
+Section: devel
+Priority: optional
 Maintainer: Michael Stapelberg <stapelberg@debian.org>
 Build-Depends:
- debhelper (>= 8.0.0),
- dh-golang (>= 1.1),
- fonts-inconsolata,
- fonts-roboto,
+ debhelper-compat (= 14),
+ dh-golang,
+ golang-any (>= 2:1.27~),
  golang-codesearch-dev,
- golang-go,
- golang-go.crypto-dev,
- golang-godebiancontrol-dev,
- golang-pq-dev,
- libjs-jquery,
- woff-tools,
- yui-compressor
-Standards-Version: 3.9.2
+ golang-github-coreos-go-oidc-v3-dev,
+ golang-github-evanw-esbuild-dev,
+ golang-github-google-go-cmp-dev,
+ golang-github-google-renameio-dev,
+ golang-github-gorilla-securecookie-dev,
+ golang-github-prometheus-client-golang-dev,
+ golang-golang-x-crypto-dev,
+ golang-golang-x-net-dev,
+ golang-golang-x-oauth2-dev,
+ golang-golang-x-sync-dev,
+ golang-golang-x-sys-dev,
+ golang-google-grpc-dev,
+ golang-google-protobuf-dev,
+ golang-pault-go-debian-dev,
+ esbuild,
+ libjs-highlight.js,
+ libjs-jquery
+Standards-Version: 4.7.0
 Vcs-Browser: https://github.com/Debian/dcs/
 Vcs-Git: https://github.com/Debian/dcs/
+XS-Go-Import-Path: github.com/Debian/dcs
 
 Package: dcs
 Architecture: any
@@ -28,8 +38,3 @@ Depends:
 Built-Using: ${misc:Built-Using}
 Description: Debian Code Search
  Server binaries, tools and templates/static assets to run Debian Code Search.
-
-Package: dcs-doc
-Architecture: all
-Description: documentation for dcs
- <insert long description, indented with spaces>
