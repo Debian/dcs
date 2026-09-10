@@ -224,6 +224,10 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		queryid := matches[1]
 		stateMu.RLock()
 		s, ok := state[queryid]
+		var packages []string
+		if ok {
+			packages = s.allPackagesSorted
+		}
 		stateMu.RUnlock()
 		if !ok {
 			http.Error(w, "No such query.", http.StatusNotFound)
@@ -233,8 +237,6 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		if matches[2] == "json" {
 			startJsonResponse(w)
 		}
-
-		packages := s.allPackagesSorted
 
 		switch matches[2] {
 		case "json":
