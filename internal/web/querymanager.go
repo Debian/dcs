@@ -807,6 +807,7 @@ func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebac
 	for _, total := range s.filesTotal {
 		filesTotal += total
 	}
+	numResults := s.numResults()
 	stateMu.Unlock()
 
 	if allSet && filesProcessed == filesTotal {
@@ -824,7 +825,7 @@ func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebac
 			QueryId:        queryid,
 			FilesProcessed: filesProcessed,
 			FilesTotal:     filesTotal,
-			Results:        s.numResults(),
+			Results:        numResults,
 		})
 		if filesProcessed == filesTotal {
 			finishQuery(queryid)
