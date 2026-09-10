@@ -362,6 +362,12 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 		return fmt.Errorf("%s %v\n", logprefix, err)
 	}
 
+	if len(files) == 0 {
+		// Nothing to search, the progress update above already
+		// counts as a completion message (0 of 0 searched).
+		return nil
+	}
+
 	// The tricky part here is “flow control”: if we just start grepping like
 	// crazy, we will eventually run out of memory because all our writes are
 	// blocked on the connection (and the goroutines need to keep the write
@@ -394,7 +400,10 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			add := <-progress
 			cnt += add
 
-			if time.Since(lastProgressUpdate) > progressInterval {
+			// Skip the progress update if cnt == len(files) to avoid
+			// signaling completion multiple times (here and in the
+			// unconditional sendProgressUpdate below).
+			if cnt < len(files) && time.Since(lastProgressUpdate) > progressInterval {
 				if err := sendProgressUpdate(stream, connMu, cnt, len(files)); err != nil {
 					if !errorShown {
 						log.Printf("%s %v\n", logprefix, err)
