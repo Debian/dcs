@@ -374,6 +374,10 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 
 	stateMu.RLock()
 	state, ok := state[queryid]
+	var resultPointers []resultPointer
+	if ok {
+		resultPointers = state.resultPointers
+	}
 	stateMu.RUnlock()
 	if !ok {
 		// TODO: canonical code
@@ -386,7 +390,7 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 	}
 
 	var msg sourcebackendpb.SearchReply
-	for _, ptr := range state.resultPointers {
+	for _, ptr := range resultPointers {
 		mapping := perBackend[ptr.backendidx]
 		if err := proto.Unmarshal(mapping.Data[ptr.offset:ptr.offset+int64(ptr.length)], &msg); err != nil {
 			return err

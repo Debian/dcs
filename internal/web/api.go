@@ -174,7 +174,10 @@ func writeSearchResults(w io.Writer, state *queryState) error {
 		return err
 	}
 	defer rw.Close()
-	if err := rw.fromPointers(state.resultPointers); err != nil {
+	stateMu.RLock()
+	resultPointers := state.resultPointers
+	stateMu.RUnlock()
+	if err := rw.fromPointers(resultPointers); err != nil {
 		return err
 	}
 	return nil
@@ -186,14 +189,18 @@ func writePerPackageSearchResults(w io.Writer, state *queryState) error {
 		return err
 	}
 	defer rw.Close()
-	for idx, pkg := range state.allPackagesSorted {
+	stateMu.RLock()
+	pkgs := state.allPackagesSorted
+	byPkg := state.resultPointersByPkg
+	stateMu.RUnlock()
+	for idx, pkg := range pkgs {
 		if idx == 0 {
 			fmt.Fprintf(w, `{"package": "%s", "results":[`, pkg)
 		} else {
 			fmt.Fprintf(w, `,{"package": "%s", "results":[`, pkg)
 		}
 
-		if err := rw.fromPointers(state.resultPointersByPkg[pkg]); err != nil {
+		if err := rw.fromPointers(byPkg[pkg]); err != nil {
 			return err
 		}
 		w.Write([]byte{']', '}'})
@@ -294,8 +301,8 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	stateMu.RLock()
 	state, exists := state[queryid]
-	stateMu.RUnlock()
 	if !exists {
+		stateMu.RUnlock()
 		return fmt.Errorf("BUG: query state for %q not found", queryid)
 	}
 
@@ -308,6 +315,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	}
 	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
 	startJsonResponse(w)
+	stateMu.RUnlock()
 
 	if err := writeResults(w, state); err != nil {
 		return err
