@@ -491,10 +491,10 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 
 	// Check if we need to consider this result for the top 10.
 	stateMu.Lock()
+	defer stateMu.Unlock()
 	var firstPathRank float32
 	s, ok := state[queryid]
 	if !ok {
-		stateMu.Unlock()
 		return
 	}
 	firstPathRank = s.FirstPathRank
@@ -524,6 +524,7 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 		})
 		sort.Sort(pointerByRanking(combined))
 		copy(s.results[:], combined[:10])
+		// Temporarily unlock while writing the results to disk.
 		stateMu.Unlock()
 
 		// The result entered the top 10, so send it to the client(s) for
@@ -536,8 +537,8 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 			log.Fatalf("Could not marshal result as JSON: %v\n", err)
 		}
 		addEvent(queryid, b.Bytes(), &result)
-	} else {
-		stateMu.Unlock()
+
+		stateMu.Lock()
 	}
 
 	bstate := s.perBackend[backendidx]
