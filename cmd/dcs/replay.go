@@ -161,11 +161,11 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 	var (
 		matchCntMu sync.Mutex
 		matchCnt   int
-		buf        = make([]byte, 0, 16384)
 	)
 	numWorkers := min(len(files), 1000)
 	for range numWorkers {
 		go func() {
+			buf := make([]byte, 0, 16384)
 			re, err := regexp.Compile(query)
 			if err != nil {
 				log.Printf("%s\n", err)
