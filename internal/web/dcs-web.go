@@ -222,7 +222,9 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		queryid := matches[1]
-		_, ok := state[queryid]
+		stateMu.RLock()
+		s, ok := state[queryid]
+		stateMu.RUnlock()
 		if !ok {
 			http.Error(w, "No such query.", http.StatusNotFound)
 			return
@@ -232,7 +234,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 			startJsonResponse(w)
 		}
 
-		packages := state[queryid].allPackagesSorted
+		packages := s.allPackagesSorted
 
 		switch matches[2] {
 		case "json":
@@ -253,7 +255,9 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatalf("Could not convert %q into a number: %v\n", matches[3], err)
 	}
 	perpackage := (matches[2] == "perpackage_2_")
+	stateMu.RLock()
 	_, ok := state[queryid]
+	stateMu.RUnlock()
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
