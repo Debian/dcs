@@ -111,6 +111,8 @@ func updatePagination(currentpage int, resultpages int, baseurl string) string {
 }
 
 func readPackagesFile(queryid string) []string {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
 	packages := state[queryid].allPackagesSorted
 	end := min(100, len(packages))
 	return packages[:end]
