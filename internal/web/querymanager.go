@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -445,8 +446,8 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 			Duration:       s.ended.Sub(s.started),
 			NumResults:     s.numResults(),
 			NumResultPages: s.resultPages,
-			FilesTotal:     s.filesTotal,
-			FilesProcessed: s.filesProcessed,
+			FilesTotal:     slices.Clone(s.filesTotal),
+			FilesProcessed: slices.Clone(s.filesProcessed),
 		}
 		if stats[idx].NumResults == 0 && stats[idx].Done {
 			stats[idx].NumResults = s.numResults()
