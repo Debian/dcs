@@ -294,6 +294,7 @@ func lookfor(dscName string) {
 
 		if len(paragraphs) != 1 {
 			log.Printf("Expected parsing exactly one paragraph, got %d. Skipping.\n", len(paragraphs))
+			return
 		}
 		pkg := paragraphs[0]
 
