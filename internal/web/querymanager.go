@@ -632,11 +632,14 @@ func (o *Opts) ensureEnoughSpaceAvailable() {
 func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) error {
 	stateMu.RLock()
 	s, ok := state[queryid]
+	var firstPathRank float32
+	if ok {
+		firstPathRank = s.FirstPathRank
+	}
 	stateMu.RUnlock()
 	if !ok {
 		return fmt.Errorf("query no longer exists")
 	}
-	firstPathRank := s.FirstPathRank
 
 	s.tempFilesMu.Lock()
 	defer s.tempFilesMu.Unlock()
