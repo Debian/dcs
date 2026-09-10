@@ -23,7 +23,11 @@ func startJsonResponse(w http.ResponseWriter) {
 
 func writeResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
 	stateMu.RLock()
-	pointers := state[queryid].resultPointers
+	state, ok := state[queryid]
+	var pointers []resultPointer
+	if ok {
+		pointers = state.resultPointers
+	}
 	stateMu.RUnlock()
 	pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
 	if page > pages {
