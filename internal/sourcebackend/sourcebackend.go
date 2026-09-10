@@ -207,13 +207,13 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 			newShard = filepath.Join(filepath.Dir(s.IndexPath), name)
 			// We verified the given argument refers to an index shard within
 			// this directory, so let’s load this shard.
-			oldIndex := s.Index
 			log.Printf("Trying to load %q\n", newShard)
 			newIndex, err := index.Open(newShard)
 			if err != nil {
 				return nil, err
 			}
 			s.mu.Lock()
+			oldIndex := s.Index
 			s.Index = newIndex
 			s.mu.Unlock()
 			defer oldIndex.Close()
