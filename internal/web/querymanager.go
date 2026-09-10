@@ -144,7 +144,6 @@ type queryState struct {
 
 	results [10]resultPointer
 
-	filesMu        sync.Mutex
 	filesTotal     []int
 	filesProcessed []int
 
@@ -182,14 +181,12 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 	defer func() {
 		stateMu.RLock()
 		s, ok := state[queryid]
+		filesTotal := s.filesTotal[backendidx]
+		filesProcessed := s.filesProcessed[backendidx]
 		stateMu.RUnlock()
 		if !ok {
 			return // query no longer exists
 		}
-		s.filesMu.Lock()
-		filesTotal := s.filesTotal[backendidx]
-		filesProcessed := s.filesProcessed[backendidx]
-		s.filesMu.Unlock()
 
 		if filesProcessed == filesTotal {
 			return
@@ -783,13 +780,12 @@ func (o *Opts) writeToDisk(queryid string) error {
 }
 
 func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
-	stateMu.RLock()
+	stateMu.Lock()
 	s, ok := state[queryid]
-	stateMu.RUnlock()
 	if !ok {
+		stateMu.Unlock()
 		return // query no longer exists
 	}
-	s.filesMu.Lock()
 	s.filesTotal[backendidx] = int(progress.FilesTotal)
 	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
 	allSet := true
@@ -809,7 +805,7 @@ func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebac
 	for _, total := range s.filesTotal {
 		filesTotal += total
 	}
-	s.filesMu.Unlock()
+	stateMu.Unlock()
 
 	if allSet && filesProcessed == filesTotal {
 		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", queryid, backendidx)
