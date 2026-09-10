@@ -182,8 +182,12 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 	defer func() {
 		stateMu.RLock()
 		s, ok := state[queryid]
-		filesTotal := s.filesTotal[backendidx]
-		filesProcessed := s.filesProcessed[backendidx]
+		var filesTotal int
+		var filesProcessed int
+		if ok {
+			filesTotal = s.filesTotal[backendidx]
+			filesProcessed = s.filesProcessed[backendidx]
+		}
 		stateMu.RUnlock()
 		if !ok {
 			return // query no longer exists
