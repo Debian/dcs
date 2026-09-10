@@ -663,6 +663,11 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 }
 
 func (i *Index) Close() error {
+	if i.DocidMap != nil {
+		if err := i.DocidMap.Close(); err != nil {
+			return err
+		}
+	}
 	if i.Docid != nil {
 		if err := i.Docid.Close(); err != nil {
 			return err
