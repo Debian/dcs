@@ -113,7 +113,11 @@ func updatePagination(currentpage int, resultpages int, baseurl string) string {
 func readPackagesFile(queryid string) []string {
 	stateMu.RLock()
 	defer stateMu.RUnlock()
-	packages := state[queryid].allPackagesSorted
+	s, ok := state[queryid]
+	if !ok {
+		return nil
+	}
+	packages := s.allPackagesSorted
 	end := min(100, len(packages))
 	return packages[:end]
 }
@@ -174,7 +178,10 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 	baseurl := r.URL
 	baseurl.RawQuery = basequery.Encode()
 	stateMu.RLock()
-	pages := int(math.Ceil(float64(len(state[queryid].allPackagesSorted)) / float64(packagesPerPage)))
+	var pages int
+	if s, ok := state[queryid]; ok {
+		pages = int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
+	}
 	stateMu.RUnlock()
 	pagination := updatePagination(page, pages, baseurl.String())
 
@@ -325,7 +332,11 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	baseurl := r.URL
 	baseurl.RawQuery = basequery.Encode()
 	stateMu.RLock()
-	pagination := updatePagination(page, state[queryid].resultPages, baseurl.String())
+	var resultPages int
+	if s, ok := state[queryid]; ok {
+		resultPages = s.resultPages
+	}
+	pagination := updatePagination(page, resultPages, baseurl.String())
 	stateMu.RUnlock()
 
 	basequery.Set("perpkg", "1")
