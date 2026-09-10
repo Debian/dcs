@@ -856,12 +856,16 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	stateMu.RLock()
 	s, ok := state[queryid]
+	var done bool
+	if ok {
+		done = s.done
+	}
 	stateMu.RUnlock()
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
 	}
-	if !s.done {
+	if !done {
 		started := time.Now()
 		for time.Since(started) < 60*time.Second {
 			stateMu.RLock()
