@@ -660,12 +660,9 @@ func writeFromPointers(queryid string, f io.Writer, pointers []resultPointer) er
 	var msg sourcebackendpb.SearchReply
 	for idx, pointer := range pointers {
 		src := s.perBackend[pointer.backendidx].tempFile
-		if _, err := src.Seek(pointer.offset, os.SEEK_SET); err != nil {
-			return err
-		}
 		// TODO: Avoid the allocations by using a slice and only allocate a new buffer when pointer.length > cap(rdbuf)
 		rdbuf := make([]byte, pointer.length)
-		if _, err := src.Read(rdbuf); err != nil {
+		if _, err := src.ReadAt(rdbuf, pointer.offset); err != nil {
 			return err
 		}
 		if idx > 0 {
