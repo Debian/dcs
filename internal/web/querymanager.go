@@ -309,31 +309,42 @@ func queryExists(queryid string) bool {
 	return exists && !expired
 }
 
+func releaseQueryLocked(s *queryState) {
+	for _, state := range s.perBackend {
+		state.tempFile.Close()
+	}
+	s.newEvent.Broadcast() // unblock getEvent
+}
+
 func startQuery(queryid string, querystate *queryState) error {
 	stateMu.Lock()
 	defer stateMu.Unlock()
 	exists, expired := queryExistsLocked(queryid)
-	if exists && !expired {
-		return fmt.Errorf("query already exists")
-	}
-	// See if we need to garbage collect old queries. This is unnecessary when
-	// the query is expired, as we can just re-use the previous slot.
-	if !exists && len(state) >= 10 {
-		log.Printf("Trying to garbage collect queries (currently %d)\n", len(state))
-		for queryid, s := range state {
-			if len(state) < 10 {
-				break
-			}
-			if !s.done {
-				continue
-			}
-			for _, state := range s.perBackend {
-				state.tempFile.Close()
-			}
-			s.newEvent.Broadcast() // unblock getEvent
-			delete(state, queryid)
+	if exists {
+		if expired {
+			// Prepare for reusing the query slot by releasing resources.
+			releaseQueryLocked(state[queryid])
+		} else {
+			// This query is already active, do not interfere.
+			return fmt.Errorf("query already exists")
 		}
-		log.Printf("Garbage collection done. %d queries remaining", len(state))
+	} else {
+		// See if we need to garbage collect old queries. This is unnecessary when
+		// the query is expired, as we can just re-use the previous slot.
+		if len(state) >= 10 {
+			log.Printf("Trying to garbage collect queries (currently %d)\n", len(state))
+			for queryid, s := range state {
+				if len(state) < 10 {
+					break
+				}
+				if !s.done {
+					continue
+				}
+				releaseQueryLocked(s)
+				delete(state, queryid)
+			}
+			log.Printf("Garbage collection done. %d queries remaining", len(state))
+		}
 	}
 	state[queryid] = querystate
 	activeQueries.Add(1)
