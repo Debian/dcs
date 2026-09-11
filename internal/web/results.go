@@ -3,7 +3,6 @@ package web
 import (
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -29,12 +28,11 @@ func writeResults(queryid string, page int, results io.Writer, w http.ResponseWr
 		pointers = state.resultPointers
 	}
 	stateMu.RUnlock()
-	pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
-	if page > pages {
+	start := page * resultsPerPage
+	if page < 0 || start > len(pointers) {
 		http.Error(w, "No such page.", http.StatusNotFound)
 		return nil
 	}
-	start := page * resultsPerPage
 	end := min((page+1)*resultsPerPage, len(pointers))
 
 	if strings.HasSuffix(r.URL.Path, ".json") {
@@ -53,12 +51,11 @@ func writePerPkgResults(queryid string, page int, results io.Writer, w http.Resp
 	packages := state[queryid].allPackagesSorted
 	stateMu.RUnlock()
 
-	pages := int(math.Ceil(float64(len(packages)) / float64(packagesPerPage)))
-	if page > pages {
+	start := page * packagesPerPage
+	if page < 0 || start > len(packages) {
 		http.Error(w, "No such page.", http.StatusNotFound)
 		return nil
 	}
-	start := page * packagesPerPage
 	end := min((page+1)*packagesPerPage, len(packages))
 
 	if strings.HasSuffix(r.URL.Path, ".json") {
