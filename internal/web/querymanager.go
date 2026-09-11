@@ -874,7 +874,8 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 	queryid := matches[1]
 	pagenr, err := strconv.Atoi(matches[2])
 	if err != nil {
-		log.Fatalf("Could not convert %q into a number: %v\n", matches[2], err)
+		http.Error(w, fmt.Sprintf("Could not convert %q into a number: %v", matches[2], err), http.StatusBadRequest)
+		return
 	}
 	stateMu.RLock()
 	s, ok := state[queryid]
