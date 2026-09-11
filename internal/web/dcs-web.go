@@ -388,6 +388,11 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 	if err != nil {
 		return err
 	}
+	defer func() {
+		for _, mapping := range perBackend {
+			mapping.Close()
+		}
+	}()
 
 	var msg sourcebackendpb.SearchReply
 	for _, ptr := range resultPointers {
