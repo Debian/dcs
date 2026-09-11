@@ -201,6 +201,7 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 			filesTotal = 0
 		}
 
+		s.perBackend[backendidx].tempFileWriter.Flush()
 		o.storeProgress(queryid, backendidx, &sourcebackendpb.ProgressUpdate{
 			FilesProcessed: uint64(filesTotal),
 			FilesTotal:     uint64(filesTotal),
@@ -257,8 +258,13 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 		case sourcebackendpb.SearchReply_MATCH:
 			storeResult(queryid, backendidx, msg.Match, len(b))
 		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
-			o.storeProgress(queryid, backendidx, msg.ProgressUpdate)
 			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
+			if orderlyFinished {
+				// Flush before storeProgress so that the file is on disk
+				// before clients start requesting it.
+				tempFileWriter.Flush()
+			}
+			o.storeProgress(queryid, backendidx, msg.ProgressUpdate)
 		}
 
 		bstate.tempFileOffset += int64(len(b))
@@ -700,7 +706,6 @@ func (o *Opts) writeToDisk(queryid string) error {
 	pointers := make([]resultPointer, 0, s.numResults())
 	for _, bstate := range s.perBackend {
 		pointers = append(pointers, bstate.resultPointers...)
-		bstate.tempFileWriter.Flush()
 	}
 	if len(pointers) == 0 {
 		log.Printf("[%s] not writing, no results.\n", queryid)
