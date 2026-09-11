@@ -125,7 +125,7 @@ func readPackagesFile(queryid string) []string {
 func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, page int) {
 	var buffer bytes.Buffer
 	if err := writePerPkgResults(queryid, page, &buffer, w, r); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 
@@ -291,7 +291,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 
 	var buffer bytes.Buffer
 	if err := writeResults(queryid, page, &buffer, w, r); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err)
 		return
 	}
 

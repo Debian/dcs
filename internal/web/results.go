@@ -23,15 +23,15 @@ func startJsonResponse(w http.ResponseWriter) {
 func writeResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
 	stateMu.RLock()
 	state, ok := state[queryid]
-	var pointers []resultPointer
-	if ok {
-		pointers = state.resultPointers
+	if !ok {
+		stateMu.RUnlock()
+		return httpError(http.StatusNotFound, fmt.Errorf("query no longer exists"))
 	}
+	pointers := state.resultPointers
 	stateMu.RUnlock()
 	start := page * resultsPerPage
 	if page < 0 || start > len(pointers) {
-		http.Error(w, "No such page.", http.StatusNotFound)
-		return nil
+		return httpError(http.StatusNotFound, fmt.Errorf("No such page."))
 	}
 	end := min((page+1)*resultsPerPage, len(pointers))
 
@@ -47,14 +47,18 @@ func writeResults(queryid string, page int, results io.Writer, w http.ResponseWr
 
 func writePerPkgResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
 	stateMu.RLock()
-	bypkg := state[queryid].resultPointersByPkg
-	packages := state[queryid].allPackagesSorted
+	state, ok := state[queryid]
+	if !ok {
+		stateMu.RUnlock()
+		return httpError(http.StatusNotFound, fmt.Errorf("query no longer exists"))
+	}
+	packages := state.allPackagesSorted
+	bypkg := state.resultPointersByPkg
 	stateMu.RUnlock()
 
 	start := page * packagesPerPage
 	if page < 0 || start > len(packages) {
-		http.Error(w, "No such page.", http.StatusNotFound)
-		return nil
+		return httpError(http.StatusNotFound, fmt.Errorf("No such page."))
 	}
 	end := min((page+1)*packagesPerPage, len(packages))
 

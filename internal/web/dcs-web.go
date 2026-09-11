@@ -270,9 +270,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = writePerPkgResults(queryid, page, w, w, r)
 	}
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
+	handleError(w, err)
 }
 
 type server struct {
