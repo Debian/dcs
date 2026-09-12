@@ -9,6 +9,7 @@ var resultsPerPackage = 2;
 
 var animationFallback;
 var searchterm;
+var ppHideAfterAnimation = false;
 
 // fatal (bool): Whether all ongoing operations should be cancelled.
 //
@@ -483,7 +484,7 @@ function changeGrouping() {
         return;
     }
 
-    ppelements.data('hideAfterAnimation', !shouldPerPkg);
+    ppHideAfterAnimation = !shouldPerPkg;
 
     if (currentPerPkg) {
         $('#perpackage').addClass('animation-reverse');
@@ -555,27 +556,16 @@ window.addEventListener('load', function() {
         }
     });
 
-    function bindAnimationEvent(element, name, cb) {
-        var prefixes = ["webkit", "MS", "moz", "o", ""];
-        for (var i = 0; i < prefixes.length; i++) {
-            if (i >= 3) {
-                element.bind(prefixes[i] + name.toLowerCase(), cb);
-            } else {
-                element.bind(prefixes[i] + name, cb);
-            }
-        }
-    }
-
-    var ppresults = $('#perpackage');
-    bindAnimationEvent(ppresults, 'AnimationStart', function(e) {
+    var ppresults = document.getElementById('perpackage');
+    ppresults.addEventListener('animationstart', function(e) {
         clearTimeout(animationFallback);
     });
-    bindAnimationEvent(ppresults, 'AnimationEnd',  function(e) {
-        if (ppresults.data('hideAfterAnimation')) {
-            ppresults.hide();
+    ppresults.addEventListener('animationend', function(e) {
+        if (ppHideAfterAnimation) {
+            ppresults.style.display = 'none';
             setPositionStatic('#footer, #normalresults');
         } else {
-            $('#normalresults').hide();
+            document.getElementById('normalresults').style.display = 'none';
         }
     });
 
