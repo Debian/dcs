@@ -331,7 +331,7 @@ function onQueryDone(msg) {
         return;
     }
 
-    $('#options').show();
+    document.getElementById('options').style.display = '';
 
     progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
 
@@ -348,14 +348,14 @@ function onQueryDone(msg) {
             return resp.json();
         })
         .then(function(data) {
-            var p = $('#packages');
-            p.text('');
+            var p = document.getElementById('packages');
+            p.innerText = '';
             packages = data.Packages;
             updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
             if (data.Packages.length === 1) {
-                p.append('All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
-                $('#enable-perpackage').attr('disabled', 'disabled');
-                $('label[for=enable-perpackage]').css('opacity', '0.5');
+                p.insertAdjacentHTML('beforeend', 'All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
+                document.getElementById('enable-perpackage').setAttribute('disabled', 'disabled');
+                document.querySelector('label[for=enable-perpackage]').style.opacity = '0.5';
             } else if (data.Packages.length > 1) {
                 // We are limiting the amount of packages because
                 // some browsers (e.g. Chrome 40) will stop
@@ -371,19 +371,20 @@ function onQueryDone(msg) {
                     return '<a href="' + u.toString() + '">' + packageName + '</a>';
                 };
                 var packagesList = data.Packages.slice(0, 1000).map(pkgLink).join(', ');
-                p.append('<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
-                if ($('#packages span:first-child').prop('scrollWidth') > p.width()) {
-                    p.append('<span class="showhint"><a href="#" onclick="$(\'#packageshint\').show(); return false;">▾</a></span>');
-                    $('#packageshint').text('');
-                    $('#packageshint').append('To see all packages which contain results: <pre>curl -s ' + location.protocol + '//' + location.host + '/results/' + queryid + '/packages.txt</pre>');
+                p.insertAdjacentHTML('beforeend', '<span><strong>Filter by package</strong>: ' + packagesList + '</span>');
+                if (p.querySelector('span:first-child').scrollWidth > p.clientWidth) {
+                    p.insertAdjacentHTML('beforeend', '<span class="showhint"><a href="#" onclick="document.getElementById(\'packageshint\').style.display = \'\'; return false;">▾</a></span>');
+                    var hint = document.getElementById('packageshint');
+                    hint.textContent = '';
+                    hint.insertAdjacentHTML('beforeend', 'To see all packages which contain results: <pre>curl -s ' + location.protocol + '//' + location.host + '/results/' + queryid + '/packages.txt</pre>');
                 }
 
-                $('#enable-perpackage').attr('disabled', null);
-                $('label[for=enable-perpackage]').css('opacity', '1.0');
+                document.getElementById('enable-perpackage').removeAttribute('disabled');
+                document.querySelector('label[for=enable-perpackage]').style.opacity = '1.0';
 
                 if (location.pathname.lastIndexOf('/perpackage-results/', 0) === 0) {
                     var parts = new RegExp("/perpackage-results/([^/]+)/2/page_([0-9]+)").exec(location.pathname);
-                    $('#enable-perpackage').prop('checked', true);
+                    document.getElementById('enable-perpackage').checked = true;
                     changeGrouping();
                     loadPerPkgPage(parseInt(parts[2]), false);
                 }
@@ -394,7 +395,7 @@ function onQueryDone(msg) {
                     if (sp.get('perpkg') !== '1') {
                         return;
                     }
-                    $('#enable-perpackage').prop('checked', true);
+                    document.getElementById('enable-perpackage').checked = true;
                     changeGrouping();
                     loadPerPkgPage(parseInt(getDefault(sp, 'page', 0)), false);
                 }
