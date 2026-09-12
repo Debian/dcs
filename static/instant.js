@@ -538,13 +538,13 @@ function changeGrouping() {
     ppelements.addClass('ppanimation');
 }
 
-$(window).load(function() {
+window.addEventListener('load', function() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/service-worker.min.js?12');
     }
 
     // Pressing “/” anywhere on the page focuses the search field.
-    $(document).keydown(function(e) {
+    document.addEventListener('keydown', function(e) {
         if (e.key == '/') {
             var q = $('#searchbox input[name=q], #searchform input[name=q]');
             if (q.is(':focus')) {
@@ -597,7 +597,7 @@ $(window).load(function() {
 
     // This is triggered when the user navigates (e.g. via back button) between
     // pages that were created using history.pushState().
-    $(window).on('popstate', function(ev) {
+    window.addEventListener('popstate', function(ev) {
         var sp = new URLSearchParams(location.search.slice(1));
         var perpkg = (sp.get('perpkg') === '1');
         var nr = getDefault(sp, 'page', 0);
