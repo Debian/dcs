@@ -340,8 +340,14 @@ function onQueryDone(msg) {
     // user decides to switch to perpackage mode.
     loadPerPkgPage(0, true);
 
-    $.ajax('/results/' + queryid + '/packages.json')
-        .done(function(data, textStatus, xhr) {
+    fetch('/results/' + queryid + '/packages.json')
+        .then(function(resp) {
+            if (!resp.ok) {
+                throw new Error(resp.statusText);
+            }
+            return resp.json();
+        })
+        .then(function(data) {
             var p = $('#packages');
             p.text('');
             packages = data.Packages;
@@ -394,8 +400,8 @@ function onQueryDone(msg) {
                 }
             }
         })
-        .fail(function(xhr, textStatus, errorThrown) {
-            error(true, true, null, 'Loading search result package list failed: ' + errorThrown);
+        .catch(function(err) {
+            error(true, true, null, 'Loading search result package list failed: ' + err.message);
         });
 }
 
