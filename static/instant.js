@@ -73,10 +73,10 @@ function progress(percentage, temporary, text) {
 }
 
 function sendQuery(term, literal) {
-    $('#normalresults').show();
-    $('#progressbar').show();
-    $('#options').hide();
-    $('#packageshint').hide();
+    document.getElementById('normalresults').style.display = ''; // show
+    document.getElementById('progressbar').style.display = ''; // show
+    document.getElementById('options').style.display = 'none'; // hide
+    document.getElementById('packageshint').style.display = 'none'; // hide
     var query = term;
     // EventSource is supported by Chrome 9+ and Firefox 6+.
     var eventsrc = new EventSource("/events/?q=" + query + "&literal=" + (literal ? "1" : "0"));
