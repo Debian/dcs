@@ -215,8 +215,14 @@ function loadPerPkgPage(nr, preload) {
             history.pushState({ searchterm: searchterm, nr: nr, perpkg: true }, 'page ' + nr, pathname);
         }
     }
-    $.ajax('/results/' + queryid + '/perpackage_2_page_' + nr + '.json')
-        .done(function(data, textStatus, xhr) {
+    fetch('/results/' + queryid + '/perpackage_2_page_' + nr + '.json')
+        .then(function(resp) {
+            if (!resp.ok) {
+                throw new Error(resp.statusText);
+            }
+            return resp.json();
+        })
+        .then(function(data) {
             if (progress_bar_start !== undefined) {
                 clearTimeout(progress_bar_start);
             }
@@ -244,8 +250,8 @@ function loadPerPkgPage(nr, preload) {
                 }
             });
         })
-        .fail(function(xhr, textStatus, errorThrown) {
-            error(true, true, null, 'Could not load search query results ("' + errorThrown + '").');
+        .catch(function(err) {
+            error(true, true, null, 'Could not load search query results ("' + err.message + '").');
         });
 }
 
