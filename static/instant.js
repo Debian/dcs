@@ -167,8 +167,14 @@ function loadPage(nr) {
     if (location.toString() !== pathname) {
         history.pushState({ searchterm: searchterm, nr: nr, perpkg: false }, 'page ' + nr, pathname);
     }
-    $.ajax('/results/' + queryid + '/page_' + nr + '.json')
-        .done(function(data, textStatus, xhr) {
+    fetch('/results/' + queryid + '/page_' + nr + '.json')
+        .then(function(resp) {
+            if (!resp.ok) {
+                throw new Error(resp.statusText);
+            }
+            return resp.json();
+        })
+        .then(function(data) {
             clearTimeout(progress_bar_start);
             // TODO: experiment and see whether animating the results works
             // well. Fade them in one after the other, see:
@@ -182,8 +188,8 @@ function loadPage(nr) {
             });
             progress(100, true, null);
         })
-        .fail(function(xhr, textStatus, errorThrown) {
-            error(true, true, null, 'Could not load search query results: ' + errorThrown);
+        .catch(function(err) {
+            error(true, true, null, 'Could not load search query results: ' + err.message);
         });
 }
 
