@@ -47,23 +47,26 @@ function error(fatal, permanent, unique_id, message) {
 // Setting temporary to true will reset the text to the last non-temporary text
 // upon completion (which is a call with percentage == 100).
 function progress(percentage, temporary, text) {
+    var progressbar = document.getElementById('progressbar');
+    var bar = progressbar.querySelector('.progress-bar');
+    var span = progressbar.querySelector('span');
     if (percentage == 0) {
-        $('#progressbar span').text(text);
-        $('#progressbar .progress-bar').css('width', '10%');
-        $('#progressbar .progress-bar').addClass('progress-active');
-        $('#progressbar').show();
+        span.textContent = text;
+        bar.style.width = '10%';
+        bar.classList.add('progress-active');
+        progressbar.style.display = ''; // show
     } else {
         if (text !== null) {
-            $('#progressbar span').text(text);
+            span.textContent = text;
             if (!temporary) {
-                $('#progressbar').data('old-text', text);
+                progressbar.dataset.oldText = text;
             }
         }
-        $('#progressbar .progress-bar').css('width', percentage + '%');
+        bar.style.width = percentage + '%';
         if (percentage == 100) {
-            $('#progressbar .progress-bar').removeClass('progress-active');
+            bar.classList.remove('progress-active');
             if (temporary) {
-                $('#progressbar span').text($('#progressbar').data('old-text'));
+                span.textContent = progressbar.dataset.oldText;
             }
         }
     }
