@@ -498,10 +498,10 @@ function animationSupported() {
 // Switch between displaying all results and grouping search results by Debian
 // source package.
 function changeGrouping() {
-    var ppelements = $('#perpackage');
+    var perpackage = document.getElementById('perpackage');
 
-    var currentPerPkg = ppelements.is(':visible');
-    var shouldPerPkg = $('#enable-perpackage').prop('checked');
+    var currentPerPkg = perpackage.style.display !== 'none';
+    var shouldPerPkg = document.getElementById('enable-perpackage').checked;
     if (currentPerPkg === shouldPerPkg) {
         return;
     }
@@ -509,16 +509,16 @@ function changeGrouping() {
     ppHideAfterAnimation = !shouldPerPkg;
 
     if (currentPerPkg) {
-        $('#perpackage').addClass('animation-reverse');
+        perpackage.classList.add('animation-reverse');
     } else {
-        $('#perpackage').removeClass('animation-reverse');
-        $('#perpackage').show();
+        perpackage.classList.remove('animation-reverse');
+        perpackage.style.display = ''; // show
     }
 
     var u = new URL(location);
     var sp = new URLSearchParams(u.search.slice(1));
     if (shouldPerPkg) {
-        ppelements.removeClass('animation-reverse');
+        perpackage.classList.remove('animation-reverse');
         sp.set('perpkg', 1);
         u.search = "?" + sp.toString();
         var pathname = u.toString();
@@ -531,9 +531,9 @@ function changeGrouping() {
 
         setPositionAbsolute('#footer');
         setPositionAbsolute('#normalresults');
-        $('#perpackage').show();
+        perpackage.style.display = ''; // show
     } else {
-        ppelements.addClass('animation-reverse');
+        perpackage.classList.add('animation-reverse');
         sp["delete"]('perpkg');
         u.search = "?" + sp.toString();
         var pathname = u.toString();
@@ -543,22 +543,22 @@ function changeGrouping() {
                 'page ' + currentpage,
                 pathname);
         }
-        $('#normalresults').show();
+        document.getElementById('normalresults').style.display = ''; // show
         // For browsers that don’t support animations, we need to have a fallback.
         // The timer will be cancelled in the animationstart event handler.
         if (!animationSupported()) {
             animationFallback = setTimeout(function() {
-                $('#perpackage').hide();
+                perpackage.style.display = 'none'; // hide
                 setPositionStatic('#footer, #normalresults');
             }, 100);
         }
     }
 
-    ppelements.removeClass('ppanimation');
+    perpackage.classList.remove('ppanimation');
     // Trigger a reflow, otherwise removing/adding the animation class does not
     // lead to restarting the animation.
-    ppelements[0].offsetWidth = ppelements[0].offsetWidth;
-    ppelements.addClass('ppanimation');
+    perpackage.offsetWidth = perpackage.offsetWidth;
+    perpackage.classList.add('ppanimation');
 }
 
 window.addEventListener('load', function() {
