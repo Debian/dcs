@@ -22,8 +22,7 @@ Build-Depends:
  golang-google-protobuf-dev,
  golang-pault-go-debian-dev,
  esbuild,
- libjs-highlight.js,
- libjs-jquery
+ libjs-highlight.js
 Standards-Version: 4.7.0
 Vcs-Browser: https://github.com/Debian/dcs/
 Vcs-Git: https://github.com/Debian/dcs/

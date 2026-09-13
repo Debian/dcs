@@ -4,8 +4,7 @@ var version = 'v2/';
 var assets = {
     '/non-critical.min.css': true,
     '/Pics/openlogo-50.svg': true,
-    '/jquery.min.js': true,
-    '/instant.min.js?17': true,
+    '/instant.min.js?18': true,
     // Only cache fonts in woff2 format, all browsers which support service
     // workers also support woff2.
     '/Inconsolata.woff2': true,

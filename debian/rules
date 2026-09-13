@@ -3,7 +3,6 @@
 export DH_GOLANG_INSTALL_ALL=1
 
 override_dh_auto_configure:
-	cp /usr/share/javascript/jquery/jquery.min.js static/jquery.min.js
 	cp /usr/share/javascript/highlight.js/highlight.min.js static/highlightjs.min.js
 	cp /usr/share/javascript/highlight.js/styles/default.css static/highlightjs-default.min.css
 	$(MAKE) -C static
