@@ -7,7 +7,6 @@
 var packagesPerPage = 5;
 var resultsPerPackage = 2;
 
-var animationFallback;
 var searchterm;
 var ppHideAfterAnimation = false;
 
@@ -488,17 +487,6 @@ function setPositionStatic(id) {
     el.style.height = '';
 }
 
-function animationSupported() {
-    var elm = $('#perpackage')[0];
-    var prefixes = ["webkit", "MS", "moz", "o", ""];
-    for (var i = 0; i < prefixes.length; i++) {
-        if (elm.style[prefixes[i] + 'AnimationName'] !== undefined) {
-            return true;
-        }
-    }
-    return false;
-}
-
 // Switch between displaying all results and grouping search results by Debian
 // source package.
 function changeGrouping() {
@@ -548,15 +536,6 @@ function changeGrouping() {
                 pathname);
         }
         document.getElementById('normalresults').style.display = ''; // show
-        // For browsers that don’t support animations, we need to have a fallback.
-        // The timer will be cancelled in the animationstart event handler.
-        if (!animationSupported()) {
-            animationFallback = setTimeout(function() {
-                perpackage.style.display = 'none'; // hide
-                setPositionStatic('footer');
-                setPositionStatic('normalresults');
-            }, 100);
-        }
     }
 
     perpackage.classList.remove('ppanimation');
@@ -586,9 +565,6 @@ window.addEventListener('load', function() {
     });
 
     var ppresults = document.getElementById('perpackage');
-    ppresults.addEventListener('animationstart', function(e) {
-        clearTimeout(animationFallback);
-    });
     ppresults.addEventListener('animationend', function(e) {
         if (ppHideAfterAnimation) {
             ppresults.style.display = 'none';
