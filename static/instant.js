@@ -574,11 +574,13 @@ window.addEventListener('load', function() {
     // Pressing “/” anywhere on the page focuses the search field.
     document.addEventListener('keydown', function(e) {
         if (e.key == '/') {
-            var q = $('#searchbox input[name=q], #searchform input[name=q]');
-            if (q.is(':focus')) {
-                return;
+            var q = document.querySelector('#searchbox input[name=q], #searchform input[name=q]');
+            if (q !== null) {
+                if (document.activeElement === q) {
+                    return;
+                }
+                q.focus();
             }
-            q.focus();
             e.preventDefault();
         }
     });
