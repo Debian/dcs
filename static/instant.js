@@ -310,7 +310,9 @@ function updatePagination(currentpage, resultpages, perpackage) {
 }
 
 function escapeForHTML(input) {
-    return $('<div/>').text(input).html();
+    var div = document.createElement('div');
+    div.textContent = input;
+    return div.innerHTML;
 }
 
 function getDefault(searchparams, name, def) {
