@@ -23,7 +23,7 @@ var ppHideAfterAnimation = false;
 //
 // message (string): The human-readable error message.
 function error(fatal, permanent, unique_id, message) {
-    if (unique_id !== null && $('#errors div[data-uniqueid=' + unique_id + ']').size() > 0) {
+    if (unique_id !== null && document.querySelector('#errors div[data-uniqueid="' + unique_id + '"]') !== null) {
         return;
     }
     if (fatal) {
@@ -31,13 +31,14 @@ function error(fatal, permanent, unique_id, message) {
         return;
     }
 
-    var div = $('<div class="alert alert-' + (permanent ? 'danger' : 'warning') + '" role="alert"></div>');
+    var div = document.createElement('div');
+    div.className = 'alert alert-' + (permanent ? 'danger' : 'warning');
+    div.setAttribute('role', 'alert');
     if (unique_id !== null) {
-        div.attr('data-uniqueid', unique_id);
+        div.setAttribute('data-uniqueid', unique_id);
     }
-    div.text(message);
-    $('#errors').append(div);
-    return div;
+    div.textContent = message;
+    document.getElementById('errors').appendChild(div);
 }
 
 // Setting percentage to 0 means initializing the progressbar. To display some
