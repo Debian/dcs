@@ -306,7 +306,9 @@ function updatePagination(currentpage, resultpages, perpackage) {
         html += '<a href="' + pageUrl(currentpage+1, perpackage) + '" onclick="' + clickFunc + '(' + (currentpage+1) + ');return false;" rel="next">&gt;</a> ';
     }
 
-    $((perpackage ? '.perpackage-pagination' : '.pagination')).html(html);
+    document.querySelectorAll((perpackage ? '.perpackage-pagination' : '.pagination')).forEach(function(el) {
+        el.innerHTML = html;
+    });
 }
 
 function escapeForHTML(input) {
