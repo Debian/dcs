@@ -468,22 +468,23 @@ function onEvent(e) {
     }
 }
 
-function setPositionAbsolute(selector) {
-    var element = $(selector);
-    var pos = element.position();
-    pos.width = element.width();
-    pos.height = element.height();
-    pos.position = 'absolute';
-    element.css(pos);
+function setPositionAbsolute(id) {
+    var el = document.getElementById(id);
+    var cs = getComputedStyle(el);
+    el.style.top = (el.offsetTop - parseFloat(cs.marginTop)) + 'px';
+    el.style.left = (el.offsetLeft - parseFloat(cs.marginLeft)) + 'px';
+    el.style.width = cs.width;
+    el.style.height = cs.height;
+    el.style.position = 'absolute';
 }
 
-function setPositionStatic(selector) {
-    $(selector).css({
-        'position': 'static',
-        'left': '',
-        'top': '',
-        'width': '',
-        'height': ''});
+function setPositionStatic(id) {
+    var el = document.getElementById(id);
+    el.style.position = 'static';
+    el.style.left = '';
+    el.style.top = '';
+    el.style.width = '';
+    el.style.height = '';
 }
 
 function animationSupported() {
@@ -531,8 +532,8 @@ function changeGrouping() {
                 pathname);
         }
 
-        setPositionAbsolute('#footer');
-        setPositionAbsolute('#normalresults');
+        setPositionAbsolute('footer');
+        setPositionAbsolute('normalresults');
         perpackage.style.display = ''; // show
     } else {
         perpackage.classList.add('animation-reverse');
@@ -551,7 +552,8 @@ function changeGrouping() {
         if (!animationSupported()) {
             animationFallback = setTimeout(function() {
                 perpackage.style.display = 'none'; // hide
-                setPositionStatic('#footer, #normalresults');
+                setPositionStatic('footer');
+                setPositionStatic('normalresults');
             }, 100);
         }
     }
@@ -587,7 +589,8 @@ window.addEventListener('load', function() {
     ppresults.addEventListener('animationend', function(e) {
         if (ppHideAfterAnimation) {
             ppresults.style.display = 'none';
-            setPositionStatic('#footer, #normalresults');
+            setPositionStatic('footer');
+            setPositionStatic('normalresults');
         } else {
             document.getElementById('normalresults').style.display = 'none';
         }
