@@ -567,15 +567,17 @@ window.addEventListener('load', function() {
     });
 
     var ppresults = document.getElementById('perpackage');
-    ppresults.addEventListener('animationend', function(e) {
-        if (ppHideAfterAnimation) {
-            ppresults.style.display = 'none';
-            setPositionStatic('footer');
-            setPositionStatic('normalresults');
-        } else {
-            document.getElementById('normalresults').style.display = 'none';
-        }
-    });
+    if (ppresults !== null) {
+        ppresults.addEventListener('animationend', function(e) {
+            if (ppHideAfterAnimation) {
+                ppresults.style.display = 'none';
+                setPositionStatic('footer');
+                setPositionStatic('normalresults');
+            } else {
+                document.getElementById('normalresults').style.display = 'none';
+            }
+        });
+    }
 
     // Recognize old URL patterns for backwards compatibility:
     if (location.pathname.lastIndexOf('/results/', 0) === 0 ||
