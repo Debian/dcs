@@ -326,12 +326,12 @@ function onQueryDone(msg) {
     if (msg.Results === 0) {
         progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
         var sp = new URLSearchParams(location.search.slice(1));
-	var literal = sp.get('literal') === '1';
-	if (literal) {
+        var literal = sp.get('literal') === '1';
+        if (literal) {
             error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Did you mean to search in regex mode instead?');
-	} else {
+        } else {
             error(false, true, 'noresults', 'Your query “' + searchterm + '” had no results. Please read the FAQ to make sure your syntax is correct.');
-	}
+        }
         return;
     }
 
@@ -590,8 +590,8 @@ window.addEventListener('load', function() {
     if (location.pathname === '/search') {
         var sp = new URLSearchParams(location.search.slice(1));
         searchterm = sp.get('q');
-	var literal = sp.get('literal') === '1';
-	$('#searchbox option[value=' + (literal ? '1' : '0') + ']').prop('selected', true);
+        var literal = sp.get('literal') === '1';
+        document.querySelector('#searchbox option[value="' + (literal ? '1' : '0') + '"]').selected = true;
         sendQuery(encodeURIComponent(searchterm), literal);
     }
 
@@ -601,7 +601,7 @@ window.addEventListener('load', function() {
         var sp = new URLSearchParams(location.search.slice(1));
         var perpkg = (sp.get('perpkg') === '1');
         var nr = getDefault(sp, 'page', 0);
-        $('#enable-perpackage').prop('checked', perpkg);
+        document.getElementById('enable-perpackage').checked = perpkg;
         changeGrouping();
         if (perpkg) {
             loadPerPkgPage(nr);
