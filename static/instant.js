@@ -102,12 +102,12 @@ function track(ev) {
         return;
     }
 
-    var link = $(ev.currentTarget);
+    var link = ev.currentTarget;
     navigator.sendBeacon("/track", new Blob(
         [JSON.stringify({
             "searchterm": searchterm,
-            "path": link.attr('data-path'),
-            "line": link.attr('data-line'),
+            "path": link.getAttribute('data-path'),
+            "line": link.getAttribute('data-line'),
           })],
         {"type": "application/json; charset=UTF-8"}));
 }
