@@ -123,7 +123,7 @@ function addSearchResult(results, result) {
     context.push(result.ctxn2);
     // Remove any empty context lines (e.g. when the match is close to the
     // beginning or end of the file).
-    context = $.grep(context, function(elm, idx) { return $.trim(elm) != ""; });
+    context = context.filter(function(ctx) { return ctx.trim() != ""; });
     // TODO: only replace \t at the beginning of each context line
     context = context.join("<br>").replace("\t", "    ");
 
@@ -133,20 +133,27 @@ function addSearchResult(results, result) {
     var rest = result.path.substring(delimiter);
 
     // Append the new search result, then sort the results.
-    var el = $('<li data-ranking="' + result.ranking + '"><a onclick="track(event);" href="/show?file=' + encodeURIComponent(result.path) + '&line=' + result.line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.pathrank + ', Final: ' + result.ranking + '</small></li>');
-    $(el).children('a').attr('data-path', result.path).attr('data-line', result.line);
-    results.append(el);
-    $('ul#results').append($('ul#results>li').detach().sort(function(a, b) {
+    results.insertAdjacentHTML('beforeend', '<li data-ranking="' + result.ranking + '"><a onclick="track(event);" href="/show?file=' + encodeURIComponent(result.path) + '&line=' + result.line + '"><code><strong>' + sourcePackage + '</strong>' + escapeForHTML(rest) + '</code></a><br><pre>' + context + '</pre><small>PathRank: ' + result.pathrank + ', Final: ' + result.ranking + '</small></li>');
+    var a = results.lastElementChild.querySelector('a');
+    a.setAttribute('data-path', result.path);
+    a.setAttribute('data-line', result.line);
+    var ul = document.getElementById('results');
+    // Re-order the list in place (appendChild moves each element).
+    var resultItems = document.querySelectorAll('ul#results>li');
+    var sortedResults = Array.from(resultItems).sort(function(a, b) {
         return b.getAttribute('data-ranking') - a.getAttribute('data-ranking');
-    }));
+    });
+    for (var res of sortedResults) {
+        ul.appendChild(res);
+    }
 
     // For performance reasons, we always keep the amount of displayed
     // results at 10. With (typically rather generic) queries where the top
     // results are changed very often, the page would get really slow
     // otherwise.
-    var items = $('ul#results>li');
-    if (items.size() > 10) {
-        items.last().remove();
+    resultItems = document.querySelectorAll('ul#results>li');
+    if (resultItems.length > 10) {
+        resultItems[resultItems.length-1].remove();
     }
 }
 
@@ -181,11 +188,14 @@ function loadPage(nr) {
             // http://www.google.com/design/spec/animation/meaningful-transitions.html#meaningful-transitions-hierarchical-timing
             currentpage = nr;
             updatePagination(currentpage, resultpages, false);
-            $('ul#results>li').remove();
-            var ul = $('ul#results');
-            $.each(data, function(idx, element) {
-                addSearchResult(ul, element);
-            });
+            var resultItems = document.querySelectorAll('ul#results>li');
+            for (var res of resultItems) {
+                res.remove();
+            }
+            var results = document.getElementById('results');
+            for (var res of data) {
+                addSearchResult(results, res);
+            }
             progress(100, true, null);
         })
         .catch(function(err) {
@@ -228,15 +238,15 @@ function loadPerPkgPage(nr, preload) {
             }
             currentpage_pkg = nr;
             updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
-            var pp = $('#perpackage-results');
-            pp.text('');
-            $.each(data, function(idx, meta) {
-                pp.append('<h2>' + meta.Package + '</h2>');
-                var ul = $('<ul></ul>');
+            var pp = document.getElementById('perpackage-results');
+            pp.textContent = '';
+            for (var meta of data) {
+                pp.insertAdjacentHTML('beforeend', '<h2>' + meta.Package + '</h2>');
+                var ul = document.createElement('ul');
                 pp.append(ul);
-                $.each(meta.Results, function(idx, result) {
-                    addSearchResult(ul, result);
-                });
+                for (var res of meta.Results) {
+                    addSearchResult(ul, res);
+                }
                 var u = new URL(location);
                 var sp = new URLSearchParams(u.search.slice(1));
                 sp.set('q', searchterm + ' package:\\Q' + meta.Package + '\\E');
@@ -244,11 +254,11 @@ function loadPerPkgPage(nr, preload) {
                 sp["delete"]('perpkg');
                 u.search = "?" + sp.toString();
                 var allResultsURL = u.toString();
-                ul.append('<li><a href="' + allResultsURL + '">show all results in package <span class="packagename">' + meta.Package + '</span></a></li>');
+                ul.insertAdjacentHTML('beforeend', '<li><a href="' + allResultsURL + '">show all results in package <span class="packagename">' + meta.Package + '</span></a></li>');
                 if (!preload) {
                     progress(100, true, null);
                 }
-            });
+            }
         })
         .catch(function(err) {
             error(true, true, null, 'Could not load search query results ("' + err.message + '").');
@@ -465,7 +475,8 @@ function onEvent(e) {
         break;
 
         default:
-        addSearchResult($('ul#results'), msg);
+        var results = document.getElementById('results');
+        addSearchResult(results, msg);
         break;
     }
 }
