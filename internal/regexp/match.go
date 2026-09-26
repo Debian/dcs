@@ -278,11 +278,29 @@ func (m *matcher) cache(z *nstate) *dstate {
 		return d
 	}
 
+	// From https://swtch.com/~rsc/regexp/regexp1.html (Russ Cox, January 2007):
+	//
+	// > One might also worry about bounding the amount of memory used by the
+	// > on-the-fly DFA construction. Since the DStates are only a cache of the
+	// > step function, the implementation of dstate could choose to throw away
+	// > the entire DFA so far if the cache grew too large.
+	if len(m.dstate) >= 1000 {
+		m.reset()
+	}
+
 	d = &dstate{enc: enc}
 	m.dstate[enc] = d
 	d.matchNL = m.computeNext(d, '\n') == &dmatch
 	d.matchEOT = m.computeNext(d, endText) == &dmatch
 	return d
+}
+
+func (m *matcher) reset() {
+	clear(m.start.next[:])
+	clear(m.startLine.next[:])
+	clear(m.dstate)
+	m.dstate[m.start.enc] = m.start
+	m.dstate[m.startLine.enc] = m.startLine
 }
 
 func (m *matcher) match(b []byte, beginText, endText bool) (end int) {
