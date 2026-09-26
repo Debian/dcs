@@ -168,6 +168,13 @@ func (m *matcher) stepByte(runq, nextq *sparse.Set, c int, flag syntax.EmptyOp) 
 			match = true
 			continue
 		case instByteRange:
+			// DCS does not support multi-line matches:
+			// match recognizes \n and never calls stepByte(\n).
+			// Do not consume \n here to avoid creating dstates
+			// that match never needs (for RAM efficiency).
+			if c == '\n' {
+				break
+			}
 			if c == endText {
 				break
 			}
