@@ -560,7 +560,9 @@ function changeGrouping() {
 
 window.addEventListener('load', function() {
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/service-worker.min.js?13');
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            registrations.forEach(function(r) { r.unregister(); });
+        });
     }
 
     // Pressing “/” anywhere on the page focuses the search field.

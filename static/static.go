@@ -3,7 +3,7 @@ package static
 import "embed"
 
 //go:embed critical*.css non-critical.css debian.css debcodesearch.css
-//go:embed instant.js service-worker.js
+//go:embed instant.js
 //go:embed highlightjs.min.js highlightjs-default.min.css
 //go:embed about.html contact.html faq.html thirdparty.html
 //go:embed favicon.ico opensearch.xml robots.txt

@@ -1,4 +1,4 @@
-all: instant.min.js debcodesearch.min.css non-critical.min.css critical.min.css service-worker.min.js
+all: instant.min.js debcodesearch.min.css non-critical.min.css critical.min.css
 
 %.min.js: %.js
 	go tool esbuild --minify $< > $@

@@ -356,7 +356,6 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 	webMux := http.NewServeMux()
 	for _, js := range []string{
 		"instant.js",
-		"service-worker.js",
 	} {
 		min := strings.TrimSuffix(js, ".js") + ".min.js"
 		b, err := fs.ReadFile(static.FS, js)
