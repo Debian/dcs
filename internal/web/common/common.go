@@ -15,6 +15,7 @@ import (
 
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
+	"github.com/Debian/dcs/static"
 )
 
 var CriticalCss template.CSS
@@ -37,6 +38,7 @@ func Init(tlsCertPath, tlsKeyPath, sourceBackends string, templates fs.FS) {
 func loadTemplates(templates fs.FS) {
 	var err error
 	Templates = template.New("foo").Funcs(template.FuncMap{
+		"staticHash": static.Hash,
 		"appendToQuery": func(unparsedURL, extra string) string {
 			u, err := url.Parse(unparsedURL)
 			if err != nil {

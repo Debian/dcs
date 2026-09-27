@@ -4,7 +4,7 @@ vim:ts=4:sw=4:expandtab
 <html lang="en">
 <head>
 <title>Debian Code Search: Current queries</title>
-<link rel="stylesheet" href="debcodesearch.min.css">
+<link rel="stylesheet" href="/debcodesearch.min.css?cachebust={{ staticHash "debcodesearch.min.css" }}">
 <style type="text/css">
 pre, code {
     /* We need to make sure that the line numbers and the code itself have
@@ -63,7 +63,7 @@ pre {
 <div id="header">
    <div id="upperheader">
    <div id="logo">
-  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
+  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg?cachebust={{ staticHash "Pics/openlogo-50.svg" }}" alt="Debian" width="50" height="61"></a>
   </div> <!-- end logo -->
   <p class="section"><a href="/">Code Search</a></p>
 {{ template "searchbox.html" . }}

@@ -76,11 +76,11 @@ ul.comfy li, ol.comfy li {
     padding-top: 1em;
 }
 </style>
-<link rel="preload" href="/non-critical.min.css" as="style" onload="this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="/non-critical.min.css"></noscript>
+<link rel="preload" href="/non-critical.min.css?cachebust={{ staticHash "non-critical.min.css" }}" as="style" onload="this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="/non-critical.min.css?cachebust={{ staticHash "non-critical.min.css" }}"></noscript>
 <link rel="search"
   type="application/opensearchdescription+xml"
-  href="/opensearch.xml"
+  href="/opensearch.xml?cachebust={{ staticHash "opensearch.xml" }}"
   title="Debian Code Search">
 </head>
 <body>
@@ -88,7 +88,7 @@ ul.comfy li, ol.comfy li {
 <div id="header">
    <div id="upperheader">
    <div id="logo">
-  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg" alt="Debian" width="50" height="61"></a>
+  <a href="./" title="Debian Home"><img src="/Pics/openlogo-50.svg?cachebust={{ staticHash "Pics/openlogo-50.svg" }}" alt="Debian" width="50" height="61"></a>
   </div>
   <p class="section"><a href="/">CODE SEARCH</a></p>
 {{ template "searchbox.html" . }}

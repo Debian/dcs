@@ -471,6 +471,20 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 	}
 }
 
+func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
+	hash := static.Hash(name)
+	w.Header().Set("ETag", `"`+hash+`"`)
+	if r.URL.Query().Get("cachebust") != "" {
+		// Cache for 7 days.
+		w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+		w.Header().Set("Expires", time.Now().Add(7*24*time.Hour).Format(http.TimeFormat))
+	} else {
+		// Cache for 1 hour.
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
+	http.ServeFileFS(w, r, static.FS, name)
+}
+
 type Opts struct {
 	Mux                  *http.ServeMux
 	ListenAddressPlain   string
@@ -551,14 +565,14 @@ func (o *Opts) Main(ln net.Listener) error {
 			name = "index.html"
 		}
 		if _, err := fs.Stat(static.FS, name); err == nil {
-			http.ServeFileFS(w, r, static.FS, name)
+			serveStatic(w, r, name)
 			return
 		}
 
 		// Or maybe /faq, which resolves to /faq.html
 		name = name + ".html"
 		if _, err := fs.Stat(static.FS, name); err == nil {
-			http.ServeFileFS(w, r, static.FS, name)
+			serveStatic(w, r, name)
 			return
 		}
 
@@ -571,7 +585,6 @@ func (o *Opts) Main(ln net.Listener) error {
 			return
 		}
 	})
-	mux.HandleFunc("/favicon.ico", http.NotFound)
 	mux.HandleFunc("/show", show.Show(o.UseSourcesDebianNet))
 	mux.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("writing memprof")
