@@ -474,9 +474,12 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
 	hash := static.Hash(name)
 	w.Header().Set("ETag", `"`+hash+`"`)
-	if r.URL.Query().Get("cachebust") != "" {
-		// Cache for 7 days.
-		w.Header().Set("Cache-Control", "public, max-age=604800, immutable")
+	if r.URL.Query().Get("cachebust") != "" ||
+		strings.HasSuffix(r.URL.Path, ".woff2") ||
+		strings.HasSuffix(r.URL.Path, ".woff") {
+		// Cache for 30 days, as recommended on
+		// https://developer.chrome.com/docs/performance/insights/cache
+		w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
 		w.Header().Set("Expires", time.Now().Add(7*24*time.Hour).Format(http.TimeFormat))
 	} else {
 		// Cache for 1 hour.
