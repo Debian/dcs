@@ -57,6 +57,10 @@ pre {
     float: left;
     width: {{.lnrwidth}}em;
 }
+
+#content {
+    min-height: 100vh; /* avoid layout shift by pushing footer offscreen */
+}
 </style>
 <link rel="preload" href="/non-critical.min.css?cachebust={{ staticHash "non-critical.min.css" }}" as="style" onload="this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="/non-critical.min.css?cachebust={{ staticHash "non-critical.min.css" }}"></noscript>
