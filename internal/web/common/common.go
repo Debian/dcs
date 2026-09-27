@@ -15,7 +15,7 @@ import (
 
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
-	"github.com/Debian/dcs/static"
+	"github.com/Debian/dcs/internal/static"
 )
 
 var CriticalCss template.CSS

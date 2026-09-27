@@ -84,7 +84,7 @@ func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file str
 	return err
 }
 
-func importTestdata(packageImporterAddr string) error {
+func importTestdata(packageImporterAddr, dataDir string) error {
 	conn, err := grpcutil.DialTLS(
 		packageImporterAddr,
 		filepath.Join(*localdcsPath, "cert.pem"),
@@ -94,7 +94,7 @@ func importTestdata(packageImporterAddr string) error {
 	}
 	packageImporter := packageimporterpb.NewPackageImporterClient(conn)
 	testdataFiles := make(map[string][]string)
-	if err := filepath.Walk("internal/endtoend/testdata/pool", func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk(filepath.Join(dataDir, "pool"), func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
@@ -216,7 +216,7 @@ Package: i3                               50  100   25     5
 	return httptest.NewServer(mux)
 }
 
-func Start(hashKey, blockKey string) (*Instance, error) {
+func Start(hashKey, blockKey, dataDir string) (*Instance, error) {
 	if len(*localdcsPath) >= 2 && (*localdcsPath)[:2] == "~/" {
 		usr, err := user.Current()
 		if err != nil {
@@ -342,7 +342,7 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 		log.Fatal(impOpts.Main(impLn))
 	}()
 
-	if err := importTestdata(packageImporter); err != nil {
+	if err := importTestdata(packageImporter, dataDir); err != nil {
 		return nil, fmt.Errorf("Could not import testdata/: %v", err)
 	}
 

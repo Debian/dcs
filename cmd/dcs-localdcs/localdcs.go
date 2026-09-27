@@ -13,7 +13,7 @@ func main() {
 		hashKey  = "268afdf10dfe2bd9bc1aa7ceb3f448071cfb3e06488f02affabb6e8d60ccf994"
 		blockKey = "132c2e1cff7c4735f746500bd03780bf9b2aaa1ba7f706b8edb22dedeb39f46e"
 	)
-	instance, err := localdcs.Start(hashKey, blockKey)
+	instance, err := localdcs.Start(hashKey, blockKey, "internal/endtoend/testdata")
 	if err != nil {
 		log.Fatal(err)
 	}

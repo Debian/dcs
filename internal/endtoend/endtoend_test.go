@@ -38,7 +38,7 @@ func TestEndToEnd(t *testing.T) {
 		hashKey  = "3270b4d09abccbf3fe59b957b1d429c8c58ac5def079ea4b245f66ade65168c2"
 		blockKey = "cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"
 	)
-	instance, err := localdcs.Start(hashKey, blockKey)
+	instance, err := localdcs.Start(hashKey, blockKey, "testdata")
 	if err != nil {
 		t.Fatal(err)
 	}

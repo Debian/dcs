@@ -5,7 +5,7 @@ push:
 	./push-ex62.zsh
 
 test:
-	go generate ./static
+	go generate ./internal/static
 	go test -count=1 -v -race github.com/Debian/dcs/...
 
 docs: contrib/ksy/meta.dot contrib/ksy/docidmap.dot
