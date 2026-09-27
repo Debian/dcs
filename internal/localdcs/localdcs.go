@@ -94,7 +94,7 @@ func importTestdata(packageImporterAddr string) error {
 	}
 	packageImporter := packageimporterpb.NewPackageImporterClient(conn)
 	testdataFiles := make(map[string][]string)
-	if err := filepath.Walk("testdata/pool", func(path string, info os.FileInfo, err error) error {
+	if err := filepath.Walk("internal/endtoend/testdata/pool", func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
