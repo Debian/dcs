@@ -490,7 +490,6 @@ type Opts struct {
 	SourceBackends       string
 	UseSourcesDebianNet  bool
 	QueryResultsPath     string
-	CriticalCSS          []byte
 }
 
 func (o *Opts) Main(ln net.Listener) error {
@@ -499,13 +498,9 @@ func (o *Opts) Main(ln net.Listener) error {
 		return nil
 	}
 
-	criticalCSS := o.CriticalCSS
-	if criticalCSS == nil {
-		var err error
-		criticalCSS, err = fs.ReadFile(static.FS, "critical.min.css")
-		if err != nil {
-			return fmt.Errorf("critical.min.css not found (did you not run make static?)")
-		}
+	criticalCSS, err := fs.ReadFile(static.FS, "critical.min.css")
+	if err != nil {
+		return fmt.Errorf("critical.min.css not found (did you not run make static?)")
 	}
 	common.CriticalCss = template.CSS(string(criticalCSS))
 	common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)

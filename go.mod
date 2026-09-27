@@ -5,7 +5,6 @@ go 1.27
 require (
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/evanw/esbuild v0.28.1
 	github.com/google/codesearch v1.2.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/renameio/v2 v2.0.2
@@ -24,6 +23,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.2 // indirect
+	github.com/evanw/esbuild v0.28.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect

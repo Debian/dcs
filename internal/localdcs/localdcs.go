@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -31,8 +30,6 @@ import (
 	"github.com/Debian/dcs/internal/ranking"
 	"github.com/Debian/dcs/internal/sourcebackend"
 	"github.com/Debian/dcs/internal/web"
-	"github.com/Debian/dcs/static"
-	"github.com/evanw/esbuild/pkg/api"
 )
 
 var (
@@ -350,83 +347,8 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 	}
 
 	// TODO: check for healthiness
-
-	// Minify all assets and serve them on an HTTP ServeMux
-	// (in production, this happens in the reverse proxy, not DCS).
-	webMux := http.NewServeMux()
-	for _, js := range []string{
-		"instant.js",
-	} {
-		min := strings.TrimSuffix(js, ".js") + ".min.js"
-		b, err := fs.ReadFile(static.FS, js)
-		if err != nil {
-			return nil, err
-		}
-		res := api.Transform(string(b), api.TransformOptions{
-			Loader:            api.LoaderJS,
-			MinifyWhitespace:  true,
-			MinifyIdentifiers: true,
-			MinifySyntax:      true,
-		})
-		if len(res.Errors) > 0 {
-			return nil, fmt.Errorf("esbuild.minify(%s): %v", min, res.Errors)
-		}
-		webMux.HandleFunc("GET /"+min, func(w http.ResponseWriter, r *http.Request) {
-			http.ServeContent(w, r, min, time.Time{}, bytes.NewReader(res.Code))
-		})
-	}
-	var criticalCSS []byte
-	for _, css := range []string{
-		"critical.css",
-		"non-critical.css",
-	} {
-		min := strings.TrimSuffix(css, ".css") + ".min.css"
-		b, err := fs.ReadFile(static.FS, css)
-		if err != nil {
-			return nil, err
-		}
-		res := api.Transform(string(b), api.TransformOptions{
-			Loader:            api.LoaderCSS,
-			MinifyWhitespace:  true,
-			MinifyIdentifiers: true,
-			MinifySyntax:      true,
-		})
-		if len(res.Errors) > 0 {
-			return nil, fmt.Errorf("esbuild.minify(%s): %v", min, res.Errors)
-		}
-		if css == "critical.css" {
-			criticalCSS = res.Code
-		}
-		webMux.HandleFunc("GET /"+min, func(w http.ResponseWriter, r *http.Request) {
-			http.ServeContent(w, r, min, time.Time{}, bytes.NewReader(res.Code))
-		})
-	}
-	// Concatenate debian.css and debcodesearch.css to debcodesearch.min.css.
-	{
-		const min = "debcodesearch.min.css"
-		debianCSS, err := fs.ReadFile(static.FS, "debian.css")
-		if err != nil {
-			return nil, err
-		}
-		dcsCSS, err := fs.ReadFile(static.FS, "debcodesearch.css")
-		if err != nil {
-			return nil, err
-		}
-		res := api.Transform(string(append(debianCSS, dcsCSS...)), api.TransformOptions{
-			Loader:            api.LoaderCSS,
-			MinifyWhitespace:  true,
-			MinifyIdentifiers: true,
-			MinifySyntax:      true,
-		})
-		if len(res.Errors) > 0 {
-			return nil, fmt.Errorf("esbuild.minify(%s): %v", min, res.Errors)
-		}
-		webMux.HandleFunc("GET /"+min, func(w http.ResponseWriter, r *http.Request) {
-			http.ServeContent(w, r, min, time.Time{}, bytes.NewReader(res.Code))
-		})
-	}
 	webOpts := web.Opts{
-		Mux:                webMux,
+		Mux:                http.NewServeMux(),
 		ListenAddress:      *listenWeb,
 		ListenAddressPlain: "localhost:0",
 		TLSCertPath:        filepath.Join(*localdcsPath, "cert.pem"),
@@ -435,7 +357,6 @@ func Start(hashKey, blockKey string) (*Instance, error) {
 		QueryResultsPath:   filepath.Join(*localdcsPath, "qr"),
 		HashKeyStr:         hashKey,
 		BlockKeyStr:        blockKey,
-		CriticalCSS:        criticalCSS,
 	}
 	webLn, err := net.Listen("tcp", webOpts.ListenAddress)
 	if err != nil {

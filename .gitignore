@@ -24,12 +24,5 @@ cmd/dcs-rs-cleanup/dcs-rs-cleanup
 cmd/dcs-index-backend/dcs-index-backend
 cmd/dcs-tail-fedmsg/dcs-tail-fedmsg
 cmd/dcs-source-backend/dcs-source-backend
-static/critical.min.css
-static/cssrelpreload.min.js
-static/debcodesearch.min.css
-static/instant.min.js
-static/loadCSS.min.js
-static/non-critical.min.css
-static/service-worker.min.js
 debian/*.debhelper.log
 obj-*

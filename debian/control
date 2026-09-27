@@ -21,6 +21,9 @@ Build-Depends:
  golang-google-grpc-dev,
  golang-google-protobuf-dev,
  golang-pault-go-debian-dev,
+ protobuf-compiler,
+ protoc-gen-go,
+ protoc-gen-go-grpc,
  esbuild,
  libjs-highlight.js
 Standards-Version: 4.7.0
