@@ -171,11 +171,6 @@ func sendProgressUpdate(stream sourcebackendpb.SourceBackend_SearchServer, connM
 	})
 }
 
-type entry struct {
-	fn  string
-	pos uint32
-}
-
 func countNL(b []byte) int {
 	n := 0
 	for {
@@ -244,7 +239,12 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 	return nil, fmt.Errorf("No such shard.")
 }
 
-func (s *Server) queryPositional(literal string) ([]entry, error) {
+type fileMatches struct {
+	fn      string
+	matches []index.Match
+}
+
+func (s *Server) queryPositional(literal string) ([]fileMatches, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	log.Printf("queryPositional(%q)", literal)
@@ -252,16 +252,26 @@ func (s *Server) queryPositional(literal string) ([]entry, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ix.QueryPositional(%q): %v", literal, err)
 	}
-	possible := make([]entry, len(matches))
-	for idx, match := range matches {
-		fn, err := s.Index.DocidMap.Lookup(match.Docid)
+
+	// Split matches into smaller slices (= create new slice headers),
+	// which are kept in memory alongside the file name (fileMatches).
+	var possible []fileMatches
+	for len(matches) > 0 {
+		docid := matches[0].Docid
+		n := 1
+		// Find all matches within this document (source file).
+		for n < len(matches) && matches[n].Docid == docid {
+			n++
+		}
+		fn, err := s.Index.DocidMap.Lookup(docid)
 		if err != nil {
-			return nil, fmt.Errorf("DocidMap.Lookup(%v): %v", match.Docid, err)
+			return nil, fmt.Errorf("DocidMap.Lookup(%v): %v", docid, err)
 		}
-		possible[idx] = entry{
-			fn:  fn,
-			pos: match.Position,
-		}
+		possible = append(possible, fileMatches{
+			fn:      fn,
+			matches: matches[:n],
+		})
+		matches = matches[n:]
 	}
 
 	return possible, nil
@@ -282,8 +292,6 @@ func (s *Server) query(query *index.Query) ([]string, error) {
 	return possible, nil
 }
 
-// Reads a single JSON request from the TCP connection, performs the search and
-// sends results back over the TCP connection as they appear.
 func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendpb.SourceBackend_SearchServer) error {
 	connMu := new(sync.Mutex)
 	logprefix := fmt.Sprintf("[%q]", in.Query)
@@ -310,16 +318,17 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	caseSensitive := simplified.Flags&syntax.FoldCase != 0
 	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseSensitive
 	var files ranking.ResultPaths
+	var possible []fileMatches
 	if queryPos {
-		possible, err := s.queryPositional(string(simplified.Rune))
+		possible, err = s.queryPositional(string(simplified.Rune))
 		if err != nil {
 			return err
 		}
 		files = make(ranking.ResultPaths, 0, len(possible))
-		for _, entry := range possible {
+		for idx, entry := range possible {
 			result := ranking.ResultPath{
 				Path:     entry.fn,
-				Position: int(entry.pos),
+				MatchIdx: idx,
 			}
 			result.Rank(s.RankingMap, &rankingopts)
 			if result.Ranking > -1 {
@@ -429,22 +438,10 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 	var workerFn func()
 	if queryPos {
-		work := make(chan []ranking.ResultPath)
+		work := make(chan ranking.ResultPath)
 		go func() {
-			var last string
-			var bundle []ranking.ResultPath
-			for _, fn := range files {
-				if fn.Path != last {
-					if len(bundle) > 0 {
-						work <- bundle
-						bundle = nil
-					}
-					last = fn.Path
-				}
-				bundle = append(bundle, fn)
-			}
-			if len(bundle) > 0 {
-				work <- bundle
+			for _, file := range files {
+				work <- file
 			}
 			close(work)
 		}()
@@ -454,25 +451,24 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			buf := make([]byte, 0, 64*1024)
 			rqb := []byte(string(simplified.Rune))
 
-			for bundle := range work {
+			for file := range work {
+				bundle := possible[file.MatchIdx].matches
 
 				// TODO: figure out how to safely clone a dcs/regexp
 				// Turns out open+read+close is significantly faster than
 				// mmap'ing a whole bunch of small files (most of our files are
 				// << 64 KB).
 				// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
-				f, err := s.UnpackedPath.Open(bundle[0].Path)
+				f, err := s.UnpackedPath.Open(file.Path)
 				if err != nil {
 					log.Printf("%s %v", logprefix, err)
-					for range bundle {
-						progress <- 1
-					}
+					progress <- 1
 					continue
 				}
 				const extraBytes = 1024 // for context lines
 				// Assumption: bundle is ordered from low to high (if not, we
 				// need to traverse bundle).
-				max := bundle[len(bundle)-1].Position + len(rqb) + extraBytes
+				max := int(bundle[len(bundle)-1].Position) + len(rqb) + extraBytes
 				if max > cap(buf) {
 					buf = make([]byte, 0, max)
 				}
@@ -480,15 +476,15 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				f.Close()
 				if err != nil {
 					log.Printf("%s %v", logprefix, err)
-					for range bundle {
-						progress <- 1
-					}
+					progress <- 1
 					continue
 				}
 				b := buf[:n]
 
 				lastPos := -1
-				for _, fn := range bundle {
+				for _, m := range bundle {
+					fn := file // copy
+					pos := int(m.Position)
 					sourcePkgName := fn.Path[fn.SourcePkgIdx[0]:fn.SourcePkgIdx[1]]
 					if rankingopts.Pathmatch {
 						fn.Ranking += querystr.Match(&fn.Path)
@@ -501,23 +497,23 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						fn.Ranking += 0.0008 * querystr.Match(&sourcePkgName)
 					}
 
-					if fn.Position+len(rqb) > len(b) || !bytes.Equal(b[fn.Position:fn.Position+len(rqb)], rqb) {
+					if pos+len(rqb) > len(b) || !bytes.Equal(b[pos:pos+len(rqb)], rqb) {
 						continue
 					}
-					if lastPos > -1 && !bytes.ContainsRune(b[lastPos:fn.Position], '\n') {
+					if lastPos > -1 && !bytes.ContainsRune(b[lastPos:pos], '\n') {
 						continue // cap to one match per line, like grep()
 					}
-					//fmt.Printf("%s:%d\n", fn.Path, fn.Position)
-					lastPos = fn.Position
+					//fmt.Printf("%s:%d\n", fn.Path, pos)
+					lastPos = pos
 
-					line := countNL(b[:fn.Position]) + 1
+					line := countNL(b[:pos]) + 1
 					match := regexp.Match{
 						Path: fn.Path,
 						Line: line,
 						//Context: string(line),
 					}
 					match.PathRank = ranking.PostRank(rankingopts, &match, &querystr)
-					five := index.FiveLines(b, fn.Position)
+					five := index.FiveLines(b, pos)
 					connMu.Lock()
 					if err := stream.Send(&sourcebackendpb.SearchReply{
 						Type: sourcebackendpb.SearchReply_MATCH,
@@ -539,22 +535,16 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						// Drain the work channel, but without doing any work.
 						// This effectively exits the worker goroutine(s)
 						// cleanly.
-						for range bundle {
+						progress <- 1
+						for range work {
 							progress <- 1
-						}
-						for bundle := range work {
-							for range bundle {
-								progress <- 1
-							}
 						}
 						return
 					}
 					connMu.Unlock()
 				}
 				// Only send progress after all matches are sent
-				for range bundle {
-					progress <- 1
-				}
+				progress <- 1
 			}
 		}
 	} else {

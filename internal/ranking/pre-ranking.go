@@ -51,7 +51,7 @@ func ReadRankingData(path string) (StoredRankingMap, error) {
 // and sorting each path.
 type ResultPath struct {
 	Path         string
-	Position     int
+	MatchIdx     int
 	SourcePkgIdx [2]int
 	Ranking      float32
 }

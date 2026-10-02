@@ -111,7 +111,7 @@ func TestEndToEnd(t *testing.T) {
 				Data: &dcspb.Event_Progress{
 					Progress: &dcspb.Progress{
 						QueryId:    queryId,
-						FilesTotal: 17,
+						FilesTotal: 8,
 					},
 				},
 			},
@@ -120,8 +120,8 @@ func TestEndToEnd(t *testing.T) {
 				Data: &dcspb.Event_Progress{
 					Progress: &dcspb.Progress{
 						QueryId:        queryId,
-						FilesProcessed: 17,
-						FilesTotal:     17,
+						FilesProcessed: 8,
+						FilesTotal:     8,
 						// Results:        17,
 					},
 				},

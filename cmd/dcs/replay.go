@@ -43,34 +43,22 @@ type measurement struct {
 }
 
 // TODO: refactor to verifyBundle(), use bcmills concurrency pattern
-func verifyMatches(query string, files ranking.ResultPaths) (filesSearched int, matches int, _ error) {
+func verifyMatches(query string, files ranking.ResultPaths, possible []fileMatches) (filesSearched int, matches int, _ error) {
 	rqb := []byte(query)
 	// matchFile, err := os.Create("/tmp/matchfile.pos.txt")
 	// if err != nil {
 	// 	return m, err
 	// }
 	// defer matchFile.Close()
-	work := make(chan []ranking.ResultPath)
+	work := make(chan ranking.ResultPath)
 	go func() {
-		var last string
-		var bundle []ranking.ResultPath
-		for _, fn := range files {
-			if fn.Path != last {
-				if len(bundle) > 0 {
-					work <- bundle
-					bundle = nil
-				}
-				last = fn.Path
-				filesSearched++
-			}
-			bundle = append(bundle, fn)
-		}
-		if len(bundle) > 0 {
-			work <- bundle
+		for _, file := range files {
+			work <- file
 		}
 		close(work)
 	}()
-	numWorkers := min(len(files), 1000)
+	filesSearched = len(files)
+	numWorkers := min(len(files), 100)
 	var matchesMu sync.Mutex
 	var wg sync.WaitGroup
 	wg.Add(numWorkers)
@@ -78,18 +66,19 @@ func verifyMatches(query string, files ranking.ResultPaths) (filesSearched int, 
 		go func() {
 			defer wg.Done()
 			buf := make([]byte, 0, 64*1024)
-			for bundle := range work {
+			for file := range work {
+				bundle := possible[file.MatchIdx].matches
 				// Turns out open+read+close is significantly faster than
 				// mmap'ing a whole bunch of small files (most of our files are
 				// << 64 KB).
 				// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
-				f, err := os.Open(bundle[0].Path)
+				f, err := os.Open(file.Path)
 				if err != nil {
 					log.Fatal(err) // TODO
 				}
 				// Assumption: bundle is ordered from low to high (if not, we
 				// need to traverse bundle).
-				max := bundle[len(bundle)-1].Position + len(rqb)
+				max := int(bundle[len(bundle)-1].Position) + len(rqb)
 				if max > cap(buf) {
 					buf = make([]byte, 0, max)
 				}
@@ -104,16 +93,17 @@ func verifyMatches(query string, files ranking.ResultPaths) (filesSearched int, 
 				b := buf[:n]
 
 				lastPos := -1
-				for _, fn := range bundle {
-					if fn.Position+len(rqb) < len(b) && bytes.Equal(b[fn.Position:fn.Position+len(rqb)], rqb) {
-						if lastPos > -1 && !bytes.ContainsRune(b[lastPos:fn.Position], '\n') {
+				for _, m := range bundle {
+					pos := int(m.Position)
+					if pos+len(rqb) < len(b) && bytes.Equal(b[pos:pos+len(rqb)], rqb) {
+						if lastPos > -1 && !bytes.ContainsRune(b[lastPos:pos], '\n') {
 							continue // cap to one match per line, like grep()
 						}
 						matchesMu.Lock()
 						matches++
 						matchesMu.Unlock()
-						//fmt.Fprintf(matchFile, "%s:%d\n", fn.Path, fn.Position)
-						lastPos = fn.Position
+						//fmt.Fprintf(matchFile, "%s:%d\n", fn.Path, pos)
+						lastPos = pos
 					}
 				}
 			}
@@ -261,16 +251,16 @@ func (si *shardedIndex) doPostingQuery(query *index.Query) []string {
 	return possible
 }
 
-type entry struct {
-	fn  string
-	pos uint32
+type fileMatches struct {
+	fn      string
+	matches []index.Match
 }
 
-func (si *shardedIndex) doPostingQueryPos(query string) []entry {
+func (si *shardedIndex) doPostingQueryPos(query string) []fileMatches {
 	log.Printf("doPostingQueryPos(%q)", query)
 	var (
 		wg       sync.WaitGroup
-		prefixed = make([][]entry, len(si.shards))
+		prefixed = make([][]fileMatches, len(si.shards))
 	)
 	for i := range si.shards {
 		wg.Add(1)
@@ -281,16 +271,24 @@ func (si *shardedIndex) doPostingQueryPos(query string) []entry {
 			if err != nil {
 				log.Fatalf("QueryPositional(%q): %v", query, err)
 			}
-			possible := make([]entry, len(matches))
-			for idx, match := range matches {
-				fn, err := ix.DocidMap.Lookup(match.Docid)
+			var possible []fileMatches
+			for len(matches) > 0 {
+				docid := matches[0].Docid
+				n := 1
+				// Find all matches within this document (source file).
+				for n < len(matches) && matches[n].Docid == docid {
+					n++
+				}
+
+				fn, err := ix.DocidMap.Lookup(docid)
 				if err != nil {
-					log.Fatalf("DocidMap.Lookup(%v): %v", match.Docid, err)
+					log.Fatalf("DocidMap.Lookup(%v): %v", docid, err)
 				}
-				possible[idx] = entry{
-					fn:  fn,
-					pos: match.Position,
-				}
+				possible = append(possible, fileMatches{
+					fn:      fn,
+					matches: matches[:n],
+				})
+				matches = matches[n:]
 			}
 			prefixed[i] = possible
 		}(i)
@@ -300,7 +298,7 @@ func (si *shardedIndex) doPostingQueryPos(query string) []entry {
 	for _, p := range prefixed {
 		l += len(p)
 	}
-	possible := make([]entry, 0, l)
+	possible := make([]fileMatches, 0, l)
 	for i := range si.shards {
 		possible = append(possible, prefixed[i]...)
 	}
@@ -336,10 +334,10 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 	if queryPos {
 		possible := si.doPostingQueryPos(string(s.Rune))
 		files := make(ranking.ResultPaths, 0, len(possible))
-		for _, entry := range possible {
+		for idx, entry := range possible {
 			result := ranking.ResultPath{
 				Path:     entry.fn,
-				Position: int(entry.pos),
+				MatchIdx: idx,
 			}
 			result.Rank(si.rankingMap, &rankingopts)
 			if result.Ranking > -1 {
@@ -349,7 +347,7 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 		files = sourcebackend.FilterByKeywords(&rewritten, files)
 		m.PostingNano = int64(time.Since(start))
 		if !skipFile {
-			filesSearched, matches, err := verifyMatches(string(s.Rune), files)
+			filesSearched, matches, err := verifyMatches(string(s.Rune), files, possible)
 			if err != nil {
 				return m, err
 			}
