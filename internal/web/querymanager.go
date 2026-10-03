@@ -102,8 +102,8 @@ type resultPointer struct {
 	// source backends.
 	pathHash uint64
 
-	// Used for per-package results. Points into a stringpool.StringPool
-	packageName *string
+	// Used for per-package results. Indexes into a stringpool.StringPool
+	packageIdx uint32
 }
 
 type pointerByRanking []resultPointer
@@ -565,12 +565,13 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 
 	bstate := s.perBackend[backendidx]
 	bstate.resultPointers = append(bstate.resultPointers, resultPointer{
-		backendidx:  backendidx,
-		ranking:     result.Ranking,
-		offset:      bstate.tempFileOffset,
-		length:      resultLen,
-		pathHash:    h.Sum64(),
-		packageName: bstate.packagePool.Get(result.Package)})
+		backendidx: backendidx,
+		ranking:    result.Ranking,
+		offset:     bstate.tempFileOffset,
+		length:     resultLen,
+		pathHash:   h.Sum64(),
+		packageIdx: bstate.packagePool.Intern(result.Package),
+	})
 	bstate.allPackages[result.Package] = true
 }
 
@@ -769,7 +770,7 @@ func (o *Opts) writeToDisk(queryid string) error {
 	byPkgSortingStarted := time.Now()
 	bypkg := make(map[string][]resultPointer)
 	for _, pointer := range pointers {
-		pkg := *pointer.packageName
+		pkg := s.perBackend[pointer.backendidx].packagePool.Get(pointer.packageIdx)
 		underscore := strings.Index(pkg, "_")
 		name := pkg[:underscore]
 		// Skip this result if it’s not in the newest version of the package.
