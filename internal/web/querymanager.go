@@ -92,18 +92,17 @@ func (p *ProgressUpdate) ObsoletedBy(newEvent *obsoletableEvent) bool {
 }
 
 type resultPointer struct {
-	backendidx int
+	backendidx uint32
+	// Used for per-package results. Indexes into a stringpool.StringPool
+	packageIdx uint32
 	ranking    float32
+	length     uint32
 	offset     int64
-	length     int
 
 	// Used as a tie-breaker when sorting by ranking to guarantee stable
 	// results, independent of the order in which the results are returned from
 	// source backends.
 	pathHash uint64
-
-	// Used for per-package results. Indexes into a stringpool.StringPool
-	packageIdx uint32
 }
 
 type pointerByRanking []resultPointer
@@ -565,10 +564,10 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 
 	bstate := s.perBackend[backendidx]
 	bstate.resultPointers = append(bstate.resultPointers, resultPointer{
-		backendidx: backendidx,
+		backendidx: uint32(backendidx),
 		ranking:    result.Ranking,
 		offset:     bstate.tempFileOffset,
-		length:     resultLen,
+		length:     uint32(resultLen),
 		pathHash:   h.Sum64(),
 		packageIdx: bstate.packagePool.Intern(result.Package),
 	})
