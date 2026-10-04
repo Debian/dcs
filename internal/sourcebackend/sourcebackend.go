@@ -1,10 +1,8 @@
 package sourcebackend
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"html"
 	"log"
 	"math/rand/v2"
 	"net/url"
@@ -169,19 +167,6 @@ func sendProgressUpdate(stream sourcebackendpb.SourceBackend_SearchServer, connM
 			FilesTotal:     uint64(filesTotal),
 		},
 	})
-}
-
-func countNL(b []byte) int {
-	n := 0
-	for {
-		i := bytes.IndexByte(b, '\n')
-		if i < 0 {
-			break
-		}
-		n++
-		b = b[i+1:]
-	}
-	return n
 }
 
 func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIndexRequest) (*sourcebackendpb.ReplaceIndexReply, error) {
@@ -359,9 +344,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	// While not strictly necessary, this will lead to better results being
 	// discovered (and returned!) earlier, so let’s spend a few cycles on
 	// sorting the list of potential files first.
-	if !queryPos {
-		sort.Sort(files)
-	}
+	sort.Sort(files)
 
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
 
@@ -394,11 +377,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	// needs to be done before we can return, otherwise it will try to use the
 	// (already closed) network connection, which is a fatal error.
 	const numProgressUpdater = 1
-	if queryPos {
-		wg.Add(numWorkers + numProgressUpdater)
-	} else {
-		wg.Add(len(files) + numProgressUpdater)
-	}
+	wg.Add(len(files) + numProgressUpdater)
 
 	go func() {
 		cnt := 0
@@ -435,195 +414,90 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	}()
 
 	querystr := ranking.NewQueryStr(in.Query)
+	expr := in.Query
+	if in.GetLiteral() {
+		expr = re.String() // quote
+	}
 
-	var workerFn func()
-	if queryPos {
-		work := make(chan ranking.ResultPath)
-		go func() {
-			for _, file := range files {
-				work <- file
-			}
-			close(work)
-		}()
-
-		workerFn = func() {
-			defer wg.Done()
-			buf := make([]byte, 0, 64*1024)
-			rqb := []byte(string(simplified.Rune))
-
-			for file := range work {
-				bundle := possible[file.MatchIdx].matches
-
-				// TODO: figure out how to safely clone a dcs/regexp
-				// Turns out open+read+close is significantly faster than
-				// mmap'ing a whole bunch of small files (most of our files are
-				// << 64 KB).
-				// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
-				f, err := s.UnpackedPath.Open(file.Path)
-				if err != nil {
-					log.Printf("%s %v", logprefix, err)
-					progress <- 1
-					continue
-				}
-				const extraBytes = 1024 // for context lines
-				// Assumption: bundle is ordered from low to high (if not, we
-				// need to traverse bundle).
-				max := int(bundle[len(bundle)-1].Position) + len(rqb) + extraBytes
-				if max > cap(buf) {
-					buf = make([]byte, 0, max)
-				}
-				n, err := f.Read(buf[:max])
-				f.Close()
-				if err != nil {
-					log.Printf("%s %v", logprefix, err)
-					progress <- 1
-					continue
-				}
-				b := buf[:n]
-
-				lastPos := -1
-				for _, m := range bundle {
-					fn := file // copy
-					pos := int(m.Position)
-					sourcePkgName := fn.Path[fn.SourcePkgIdx[0]:fn.SourcePkgIdx[1]]
-					if rankingopts.Pathmatch {
-						fn.Ranking += querystr.Match(&fn.Path)
-					}
-					if rankingopts.Sourcepkgmatch {
-						fn.Ranking += querystr.Match(&sourcePkgName)
-					}
-					if rankingopts.Weighted {
-						fn.Ranking += 0.1460 * querystr.Match(&fn.Path)
-						fn.Ranking += 0.0008 * querystr.Match(&sourcePkgName)
-					}
-
-					if pos+len(rqb) > len(b) || !bytes.Equal(b[pos:pos+len(rqb)], rqb) {
-						continue
-					}
-					if lastPos > -1 && !bytes.ContainsRune(b[lastPos:pos], '\n') {
-						continue // cap to one match per line, like grep()
-					}
-					//fmt.Printf("%s:%d\n", fn.Path, pos)
-					lastPos = pos
-
-					line := countNL(b[:pos]) + 1
-					match := regexp.Match{
-						Path: fn.Path,
-						Line: line,
-						//Context: string(line),
-					}
-					match.PathRank = ranking.PostRank(rankingopts, &match, &querystr)
-					five := index.FiveLines(b, pos)
-					connMu.Lock()
-					if err := stream.Send(&sourcebackendpb.SearchReply{
-						Type: sourcebackendpb.SearchReply_MATCH,
-						Match: &sourcebackendpb.Match{
-							Path:     fn.Path,
-							Line:     uint32(line),
-							Package:  fn.Path[:strings.Index(fn.Path, "/")],
-							Ctxp2:    html.EscapeString(five[0]),
-							Ctxp1:    html.EscapeString(five[1]),
-							Context:  html.EscapeString(five[2]),
-							Ctxn1:    html.EscapeString(five[3]),
-							Ctxn2:    html.EscapeString(five[4]),
-							Pathrank: match.PathRank,
-							Ranking:  fn.Ranking,
-						},
-					}); err != nil {
-						connMu.Unlock()
-						log.Printf("%s %v\n", logprefix, err)
-						// Drain the work channel, but without doing any work.
-						// This effectively exits the worker goroutine(s)
-						// cleanly.
-						progress <- 1
-						for range work {
-							progress <- 1
-						}
-						return
-					}
-					connMu.Unlock()
-				}
-				// Only send progress after all matches are sent
-				progress <- 1
-			}
+	work := make(chan ranking.ResultPath)
+	go func() {
+		for _, file := range files {
+			work <- file
 		}
-	} else {
-		work := make(chan ranking.ResultPath)
-		go func() {
-			for _, file := range files {
-				work <- file
+		close(work)
+	}()
+
+	workerFn := func() {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			log.Printf("%s\n", err)
+			return
+		}
+
+		grep := regexp.NewGrep(re)
+
+		for file := range work {
+			sourcePkgName := file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]]
+			if rankingopts.Pathmatch {
+				file.Ranking += querystr.Match(&file.Path)
 			}
-			close(work)
-		}()
-
-		workerFn = func() {
-			re, err := regexp.Compile(in.Query)
-			if err != nil {
-				log.Printf("%s\n", err)
-				return
+			if rankingopts.Sourcepkgmatch {
+				file.Ranking += querystr.Match(&sourcePkgName)
+			}
+			if rankingopts.Weighted {
+				file.Ranking += 0.1460 * querystr.Match(&file.Path)
+				file.Ranking += 0.0008 * querystr.Match(&sourcePkgName)
 			}
 
-			grep := regexp.NewGrep(re)
+			// TODO: figure out how to safely clone a dcs/regexp
+			//
+			// Turns out open+read+close is significantly faster than
+			// mmap'ing a whole bunch of small files (most of our files are
+			// << 64 KB).
+			// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
+			matches := grep.File(path.Join(s.UnpackedPath.Name(), file.Path))
+			for _, match := range matches {
+				match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
+				match.PathRank = file.Ranking
+				// NB: populating match.Ranking happens in
+				// cmd/dcs-web/querymanager because it depends on at least
+				// one other result.
 
-			for file := range work {
-				sourcePkgName := file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]]
-				if rankingopts.Pathmatch {
-					file.Ranking += querystr.Match(&file.Path)
-				}
-				if rankingopts.Sourcepkgmatch {
-					file.Ranking += querystr.Match(&sourcePkgName)
-				}
-				if rankingopts.Weighted {
-					file.Ranking += 0.1460 * querystr.Match(&file.Path)
-					file.Ranking += 0.0008 * querystr.Match(&sourcePkgName)
-				}
+				// TODO: ideally, we’d get sourcebackendpb.Match structs from grep.File(), let’s do that after profiling the decoding performance
 
-				// TODO: figure out how to safely clone a dcs/regexp
-				matches := grep.File(path.Join(s.UnpackedPath.Name(), file.Path))
-				for _, match := range matches {
-					match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
-					match.PathRank = file.Ranking
-					//match.Path = match.Path[len(*unpackedPath):]
-					// NB: populating match.Ranking happens in
-					// cmd/dcs-web/querymanager because it depends on at least
-					// one other result.
-
-					// TODO: ideally, we’d get sourcebackendpb.Match structs from grep.File(), let’s do that after profiling the decoding performance
-
-					path := match.Path[len(s.UnpackedPath.Name()):]
-					connMu.Lock()
-					if err := stream.Send(&sourcebackendpb.SearchReply{
-						Type: sourcebackendpb.SearchReply_MATCH,
-						Match: &sourcebackendpb.Match{
-							Path:     path,
-							Line:     uint32(match.Line),
-							Package:  path[:strings.Index(path, "/")],
-							Ctxp2:    match.Ctxp2,
-							Ctxp1:    match.Ctxp1,
-							Context:  match.Context,
-							Ctxn1:    match.Ctxn1,
-							Ctxn2:    match.Ctxn2,
-							Pathrank: match.PathRank,
-							Ranking:  match.Ranking,
-						},
-					}); err != nil {
-						connMu.Unlock()
-						log.Printf("%s %v\n", logprefix, err)
-						// Drain the work channel, but without doing any work.
-						// This effectively exits the worker goroutine(s)
-						// cleanly.
-						for range work {
-							progress <- 1
-							wg.Done()
-						}
-						break
-					}
+				path := file.Path
+				connMu.Lock()
+				if err := stream.Send(&sourcebackendpb.SearchReply{
+					Type: sourcebackendpb.SearchReply_MATCH,
+					Match: &sourcebackendpb.Match{
+						Path:     path,
+						Line:     uint32(match.Line),
+						Package:  path[:strings.Index(path, "/")],
+						Ctxp2:    match.Ctxp2,
+						Ctxp1:    match.Ctxp1,
+						Context:  match.Context,
+						Ctxn1:    match.Ctxn1,
+						Ctxn2:    match.Ctxn2,
+						Pathrank: match.PathRank,
+						Ranking:  match.Ranking,
+					},
+				}); err != nil {
 					connMu.Unlock()
+					log.Printf("%s %v\n", logprefix, err)
+					// Drain the work channel, but without doing any work.
+					// This effectively exits the worker goroutine(s)
+					// cleanly.
+					for range work {
+						progress <- 1
+						wg.Done()
+					}
+					break
 				}
-
-				progress <- 1
-				wg.Done()
+				connMu.Unlock()
 			}
+
+			progress <- 1
+			wg.Done()
 		}
 	}
 	for range numWorkers {

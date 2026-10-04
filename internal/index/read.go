@@ -1,7 +1,6 @@
 package index
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -463,55 +462,6 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 		}
 	}
 	return matches, nil
-}
-
-// FiveLines returns five \n-separated lines surrounding pos. The first two
-// lines are context above the line containing pos (which is always element
-// [2]), the last two lines are context below that line.
-func FiveLines(b []byte, pos int) [5]string {
-	//fmt.Printf("FiveLines(%q, %d)\n", string(b), pos)
-	var five [5]string
-	prev := pos
-	start := 2 // no before lines
-
-	// move prev to the beginning of the line in case the match starts in the
-	// middle of the line
-	if idx := bytes.LastIndexByte(b[:prev], '\n'); idx != -1 {
-		prev = idx + 1
-	} else {
-		prev = 0
-	}
-
-	for start > 0 {
-		// fmt.Printf("  looking for newline in %q\n  (would extract from: %q)\n", string(b[:prev]), string(b[prev:]))
-		if idx := bytes.LastIndexByte(b[:prev], '\n'); idx != -1 {
-			// fmt.Printf("  new line found at %d, could add one more context line\n", idx)
-			// idx points to the end of the line (\n),
-			// but we want to position prev at the start of the line.
-			if idx := bytes.LastIndexByte(b[:idx], '\n'); idx != -1 {
-				prev = idx + 1
-			} else {
-				prev = 0
-			}
-			start--
-		} else {
-			break
-		}
-		// fmt.Println()
-	}
-	// fmt.Printf("  will extract from: %q", string(b[prev:]))
-
-	if prev == -1 {
-		return five // TODO: BUG
-	}
-	// fmt.Printf("start=%d, prev=%d, window = %q\n", start, prev, b[prev:])
-	scanner := bufio.NewScanner(bytes.NewReader(b[prev:]))
-	for ; start < 5; start++ {
-		if scanner.Scan() {
-			five[start] = scanner.Text()
-		}
-	}
-	return five
 }
 
 func (i *Index) QueryPositional(query string) ([]Match, error) {
