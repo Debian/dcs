@@ -6,7 +6,7 @@ import (
 )
 
 func TestMatchContextAfter(t *testing.T) {
-	bufferSize := 1 << 20
+	bufferSize := 4096 // bufio.Reader
 	// The context data which is placed "after the fold", that is after one
 	// buffer’s worth of data.
 	contextAfterFold := "ctx1\nctx2\n"
@@ -36,7 +36,7 @@ func TestMatchContextAfter(t *testing.T) {
 		t.Fatalf("Compile(%#q): %v", "fnord", err)
 	}
 
-	g := Grep{Regexp: re}
+	g := NewGrep(re)
 	matches := g.Reader(strings.NewReader(string(buffer)), "input")
 	if len(matches) != 1 {
 		t.Fatalf("Expected precisely one match, got %d", len(matches))
@@ -66,7 +66,7 @@ func TestMatchContextAfter(t *testing.T) {
 }
 
 func TestMatchContextBefore(t *testing.T) {
-	bufferSize := 1 << 20
+	bufferSize := 4096 // bufio.Reader
 	// The context data which is placed "after the fold", that is after one
 	// buffer’s worth of data.
 	contextAfterFold := "ctx1\nctx2\n"
@@ -96,7 +96,7 @@ func TestMatchContextBefore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compile(%#q): %v", "ba", err)
 	}
-	g := Grep{Regexp: re}
+	g := NewGrep(re)
 	matches := g.Reader(strings.NewReader(string(buffer)), "input")
 	if len(matches) != 1 {
 		t.Fatalf("Expected precisely one match, got %d", len(matches))

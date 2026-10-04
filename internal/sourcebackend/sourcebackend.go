@@ -563,11 +563,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				return
 			}
 
-			grep := regexp.Grep{
-				Regexp: re,
-				Stdout: os.Stdout,
-				Stderr: os.Stderr,
-			}
+			grep := regexp.NewGrep(re)
 
 			for file := range work {
 				sourcePkgName := file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]]

@@ -5,6 +5,7 @@
 package regexp
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"reflect"
@@ -171,9 +172,9 @@ func grep(re *Regexp, b []byte) []int {
 		if i < 0 {
 			break
 		}
-		start := bytes.LastIndex(b[:i], nl) + 1
+		start := bytes.LastIndex(b[:i], []byte{'\n'}) + 1
 		end := min(i+1, len(b))
-		lineno += bytes.Count(b[:start], nl)
+		lineno += bytes.Count(b[:start], []byte{'\n'})
 		m = append(m, lineno)
 		if start < end && b[end-1] == '\n' {
 			lineno++
@@ -205,6 +206,7 @@ func TestGrep(t *testing.T) {
 			continue
 		}
 		g := tt.g
+		g.br = bufio.NewReader(nil)
 		g.Regexp = re
 		var out, errb bytes.Buffer
 		g.Stdout = &out

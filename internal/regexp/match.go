@@ -5,7 +5,7 @@
 package regexp
 
 import (
-	"bytes"
+	"bufio"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -387,7 +387,17 @@ type Grep struct {
 
 	Match bool
 
-	buf []byte
+	nr nlNormReader
+	br *bufio.Reader
+}
+
+func NewGrep(re *Regexp) *Grep {
+	return &Grep{
+		Regexp: re,
+		Stdout: os.Stdout,
+		Stderr: os.Stderr,
+		br:     bufio.NewReader(nil),
+	}
 }
 
 func (g *Grep) AddFlags() {
@@ -407,19 +417,41 @@ func (g *Grep) File(name string) []Match {
 	return g.Reader(f, name)
 }
 
-var nl = []byte{'\n'}
+// nlNormReader is a an io.Reader which normalizes newlines,
+// i.e. adds a \n at the end if the underlying reader does not end with one.
+type nlNormReader struct {
+	underlying io.Reader
+	last       byte
+}
 
-func countNL(b []byte) int {
-	n := 0
-	for {
-		i := bytes.IndexByte(b, '\n')
-		if i < 0 {
-			break
-		}
-		n++
-		b = b[i+1:]
+func newNlNormReader(r io.Reader) nlNormReader {
+	return nlNormReader{
+		underlying: r,
+		// last starts as '\n' so that an empty file stays empty
+		// instead of being turned into a '\n'. Likely irrelevant
+		// for DCS (right now), but seems like clean semantics.
+		last: '\n',
 	}
-	return n
+}
+
+// Read implements io.Reader.
+func (nnr *nlNormReader) Read(p []byte) (int, error) {
+	n, err := nnr.underlying.Read(p)
+	if n > 0 {
+		nnr.last = p[n-1]
+	}
+	if err == io.EOF && nnr.last != '\n' {
+		if n == len(p) {
+			// No room left in p. Return a nil error
+			// and add the newline in the next Read.
+			return n, nil
+		}
+		// Add a newline to the read buffer.
+		p[n] = '\n'
+		n++
+		nnr.last = '\n'
+	}
+	return n, err
 }
 
 type Match struct {
@@ -444,140 +476,48 @@ type Match struct {
 }
 
 func (g *Grep) Reader(r io.Reader, name string) []Match {
+	g.nr = newNlNormReader(r) // store in Grep to avoid per-file allocations
+	g.br.Reset(&g.nr)
+	var linebuf1, linebuf2 [2000]byte // TODO: const for max line length
+	prev1 := linebuf1[:0]
+	prev2 := linebuf2[:0]
 	var result []Match
-	if g.buf == nil {
-		// 1024KB
-		g.buf = make([]byte, 1<<20)
-	}
-	var (
-		buf         = g.buf[:0]
-		lineno      = 1
-		bufLineNo   = 0
-		beginText   = true
-		endText     = false
-		needContext = 0
-		lastp1      = ""
-		lastp2      = ""
-	)
-	for {
-		n, err := io.ReadFull(r, buf[len(buf):cap(buf)])
-		buf = buf[:len(buf)+n]
-		end := len(buf)
-		if err == nil {
-			// We only look at complete lines
-			end = bytes.LastIndex(buf, nl) + 1
-		} else {
-			endText = true
-		}
-		chunkStart := 0
-		bufLineNo = 0
-		//fmt.Printf("need to add %d context lines to the last match\n", needContext)
-		if needContext > 0 {
-			lineEnd := bytes.Index(buf[:end], nl)
-			if lineEnd != -1 {
-				result[len(result)-1].Ctxn1 = string(buf[:lineEnd])
-				//fmt.Printf("afterwards: ctxn1 = *%s*\n", result[len(result)-1].Ctxn1)
-				if needContext > 1 {
-					nextLineEnd := bytes.Index(buf[lineEnd+1:end], nl)
-					if nextLineEnd != -1 {
-						result[len(result)-1].Ctxn2 = string(buf[lineEnd+1 : lineEnd+1+nextLineEnd])
-						//fmt.Printf("afterwards: ctxn2 = *%s*\n", result[len(result)-1].Ctxn2)
-					}
-				}
-			}
-			needContext = 0
-		}
-
-		//fmt.Printf("looking at line *%s*\n", buf[0:end])
-		for chunkStart < end {
-			m1 := g.Regexp.Match(buf[chunkStart:end], beginText, endText) + chunkStart
-			beginText = false
-			if m1 < chunkStart {
-				break
-			}
-			g.Match = true
-			lineStart := bytes.LastIndex(buf[chunkStart:m1], nl) + 1 + chunkStart
-			lineEnd := min(m1+1, end)
-			//fmt.Printf("matching line: %s", buf[lineStart:lineEnd])
-
-			lineno += countNL(buf[chunkStart:lineStart])
-			line := html.EscapeString(string(buf[lineStart : lineEnd-1]))
-			match := Match{
-				Path:    name,
-				Line:    lineno,
-				Context: string(line),
-			}
-			// Let’s find the previous two lines, if possible.
-			bufLineNo = countNL(buf[:lineStart])
-			if bufLineNo >= 1 {
-				prev1Start := bytes.LastIndex(buf[:lineStart-1], nl) + 1
-				match.Ctxp1 = html.EscapeString(string(buf[prev1Start : lineStart-1]))
-				if bufLineNo >= 2 {
-					prev2Start := bytes.LastIndex(buf[:prev1Start-1], nl) + 1
-					match.Ctxp2 = html.EscapeString(string(buf[prev2Start : prev1Start-1]))
-				} else {
-					match.Ctxp2 = lastp1
-				}
-			} else {
-				match.Ctxp1 = lastp1
-				match.Ctxp2 = lastp2
-			}
-			needContext = 0
-			if lineEnd < end {
-				//fmt.Printf("lineEnd = %d, end = %d\n", lineEnd, end)
-				next1Start := bytes.Index(buf[lineEnd:end], nl)
-				//fmt.Printf("next1Start = %d\n", next1Start)
-				if next1Start != -1 {
-					next1Start = next1Start + lineEnd + 1
-					match.Ctxn1 = html.EscapeString(string(buf[lineEnd : next1Start-1]))
-					if next1Start < end {
-						next2Start := bytes.Index(buf[next1Start:end], nl)
-						if next2Start != -1 {
-							match.Ctxn2 = html.EscapeString(string(buf[next1Start : next1Start+next2Start]))
-						}
-					} else {
-						needContext = 1
-					}
-				}
-			} else {
-				needContext = 2
-			}
-			//fmt.Printf("ctxn1 = *%s*\n", match.Ctxn1)
-			//fmt.Printf("ctxn2 = *%s*\n", match.Ctxn2)
-			result = append(result, match)
-			lineno++
-			chunkStart = lineEnd
-		}
-		if err == nil {
-			lineno += countNL(buf[chunkStart:end])
-		}
-
-		// We are about to read again, so let’s store the last two lines in
-		// case the next match needs them.
-		if bufLineNo == 0 {
-			// This could be because there was no match and we didn’t count, so
-			// make sure we count.
-			bufLineNo = countNL(buf[:end])
-			//fmt.Printf("lineno = %d\n", bufLineNo)
-		}
-		if bufLineNo > 1 {
-			prev1Start := bytes.LastIndex(buf[:end-1], nl) + 1
-			lastp1 = html.EscapeString(string(buf[prev1Start : end-1]))
-			if bufLineNo > 2 {
-				prev2Start := bytes.LastIndex(buf[:prev1Start-1], nl) + 1
-				lastp2 = html.EscapeString(string(buf[prev2Start : prev1Start-1]))
-			}
-		}
-
-		// Copy the remaining elements to the front (everything after the next newline)
-		n = copy(buf, buf[end:])
-		buf = buf[:n]
-		if len(buf) == 0 && err != nil {
-			if err != io.EOF && err != io.ErrUnexpectedEOF {
+	for lineno := 1; ; lineno++ {
+		line, err := g.br.ReadSlice('\n')
+		if err != nil {
+			if err != io.EOF {
 				fmt.Fprintf(g.Stderr, "%s: %v\n", name, err)
 			}
-			break
+			return result
 		}
+		// Unconditionally strip the last character,
+		// which is always '\n' thanks to nlNormReader.
+		text := line[:len(line)-1]
+
+		// Store the current line as context line if the last line
+		// (or second to last line) were a match.
+		for i := max(len(result)-2, 0); i < len(result); i++ {
+			if lineno == result[i].Line+1 {
+				result[i].Ctxn1 = html.EscapeString(string(text))
+			} else if lineno == result[i].Line+2 {
+				result[i].Ctxn2 = html.EscapeString(string(text))
+			}
+		}
+
+		beginText := lineno == 1
+		const endText = false
+		if g.Regexp.Match(line, beginText, endText) >= 0 {
+			g.Match = true
+			result = append(result, Match{
+				Path:    name,
+				Line:    lineno,
+				Ctxp2:   html.EscapeString(string(prev2)),
+				Ctxp1:   html.EscapeString(string(prev1)),
+				Context: html.EscapeString(string(text)),
+			})
+		}
+
+		// Keep the previous two lines for context of upcoming matches.
+		prev1, prev2 = append(prev2[:0], text...), prev1
 	}
-	return result
 }
