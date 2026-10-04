@@ -153,7 +153,7 @@ type queryState struct {
 	tempFilesMu sync.Mutex
 	perBackend  []*perBackendState
 
-	resultPointers      []resultPointer
+	resultPointers      sortedPointers
 	resultPointersByPkg map[string][]resultPointer
 
 	allPackagesSorted []string
@@ -374,6 +374,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		filesTotal:     make([]int, len(common.SourceBackendStubs)),
 		filesProcessed: make([]int, len(common.SourceBackendStubs)),
 		perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
+		resultPointers: memPointers(nil),
 	}
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
@@ -791,7 +792,7 @@ func (o *Opts) writeToDisk(queryid string) error {
 		stateMu.Unlock()
 		return fmt.Errorf("query no longer exists")
 	}
-	s.resultPointers = pointers
+	s.resultPointers = memPointers(pointers)
 	s.resultPointersByPkg = bypkg
 	s.resultPages = pages
 	state[queryid] = s

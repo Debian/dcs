@@ -87,8 +87,12 @@ type resultWriter struct {
 	msg        sourcebackendpb.SearchReply
 }
 
-func (rw *resultWriter) fromPointers(pointers []resultPointer) error {
-	for idx, ptr := range pointers {
+func (rw *resultWriter) fromPointers(pointers sortedPointers) error {
+	idx := 0
+	for ptr, err := range pointers.All() {
+		if err != nil {
+			return err
+		}
 		mapping := rw.perBackend[ptr.backendidx]
 		if err := proto.Unmarshal(mapping.Data[ptr.offset:ptr.offset+int64(ptr.length)], &rw.msg); err != nil {
 			return err
@@ -100,6 +104,7 @@ func (rw *resultWriter) fromPointers(pointers []resultPointer) error {
 		if idx > 0 {
 			rw.w.Write([]byte{','})
 		}
+		idx++
 		m := rw.msg.Match
 		contextBefore := make([]string, 0, 2)
 		if m.Ctxp2 != "" {
@@ -200,7 +205,7 @@ func writePerPackageSearchResults(w io.Writer, state *queryState) error {
 			fmt.Fprintf(w, `,{"package": "%s", "results":[`, pkg)
 		}
 
-		if err := rw.fromPointers(byPkg[pkg]); err != nil {
+		if err := rw.fromPointers(memPointers(byPkg[pkg])); err != nil {
 			return err
 		}
 		w.Write([]byte{']', '}'})

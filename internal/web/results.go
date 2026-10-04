@@ -30,16 +30,20 @@ func writeResults(queryid string, page int, results io.Writer, w http.ResponseWr
 	pointers := state.resultPointers
 	stateMu.RUnlock()
 	start := page * resultsPerPage
-	if page < 0 || start > len(pointers) {
+	if page < 0 || start > pointers.Len() {
 		return httpError(http.StatusNotFound, fmt.Errorf("No such page."))
 	}
-	end := min((page+1)*resultsPerPage, len(pointers))
+	end := min((page+1)*resultsPerPage, pointers.Len())
 
 	if strings.HasSuffix(r.URL.Path, ".json") {
 		startJsonResponse(w)
 	}
 
-	if err := writeFromPointers(queryid, results, pointers[start:end]); err != nil {
+	chunk, err := pointers.Slice(start, end)
+	if err != nil {
+		return err
+	}
+	if err := writeFromPointers(queryid, results, chunk); err != nil {
 		return fmt.Errorf("Could not return results: %v", err)
 	}
 	return nil
