@@ -366,15 +366,15 @@ type Index struct {
 	Pos      *PForReader   // positions for all trigrams
 	Posrel   *PosrelReader // position relationships for all trigrams
 
-	// buffers for both i.Matches() calls
-	firstBuffer *bufferPair
-	lastBuffer  *bufferPair
+	// buffers for the docids of both trigrams in QueryPositional
+	firstDocids *reusableBuffer
+	lastDocids  *reusableBuffer
 }
 
 func Open(dir string) (*Index, error) {
 	var i Index
-	i.firstBuffer = newBufferPair()
-	i.lastBuffer = newBufferPair()
+	i.firstDocids = &reusableBuffer{}
+	i.lastDocids = &reusableBuffer{}
 	var err error
 	if i.DocidMap, err = newDocidReader(dir); err != nil {
 		return nil, err
@@ -431,6 +431,28 @@ func (i *Index) matchesWithBufferDirect(t Trigram, buffers *bufferPair) (docids 
 		return nil, nil, nil, err
 	}
 	return docids, pos, posrel, nil
+}
+
+// positional decodes the docids and returns the posrel stream
+// for the specified trigram, and resets the pos DeltaReader
+// such that it reads (= decodes) positions for the trigram.
+func (i *Index) positional(t Trigram, docidBuf *reusableBuffer, pos *DeltaReader) (docids []uint32, posrel []byte, _ error) {
+	var meta MetaEntry
+	if found := i.Pos.metaEntry1(&meta, t); !found {
+		return nil, nil, errNotFound
+	}
+
+	pos.Reset(&meta, i.Pos.data.Data)
+
+	docids, err := i.Docid.deltasWithBuffer(t, docidBuf)
+	if err != nil {
+		return nil, nil, err
+	}
+	posrel, err = i.Posrel.DataBytes(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	return docids, posrel, nil
 }
 
 func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, error) {
@@ -514,23 +536,23 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 
 	var (
 		fdocids []uint32
-		fpos    []uint32
+		fpos    = NewDeltaReader()
 		fposrel []byte
 
 		ldocids []uint32
-		lpos    []uint32
+		lpos    = NewDeltaReader()
 		lposrel []byte
 	)
 
 	eg.Go(func() error {
 		var err error
-		fdocids, fpos, fposrel, err = i.matchesWithBufferDirect(first.t, i.firstBuffer)
+		fdocids, fposrel, err = i.positional(first.t, i.firstDocids, fpos)
 		return err
 	})
 
 	eg.Go(func() error {
 		var err error
-		ldocids, lpos, lposrel, err = i.matchesWithBufferDirect(last.t, i.lastBuffer)
+		ldocids, lposrel, err = i.positional(last.t, i.lastDocids, lpos)
 		return err
 	})
 
@@ -562,8 +584,13 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 		lprevP    uint32
 	)
 
+	var (
+		fblock, lblock []uint32
+		lblocks        int // number of blocks read from lpos
+	)
+
 	var j int // not reset to skip already-inspected parts of last
-	llpos := len(lpos)
+	llpos := lpos.entries
 	jInc := func(add int) {
 		j += add
 		if j >= llpos {
@@ -575,25 +602,32 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 			lprevP = 0
 		}
 
-		lprevP += lpos[j]
+		// Seek to the right TurboPFor block if needed.
+		for ; lblocks <= j/256; lblocks++ {
+			lblock = lpos.Read()
+		}
+		lprevP += lblock[j%256]
 	}
 	jInc(0)
-	for i := 0; i < len(fpos); i++ {
+	for i := 0; i < fpos.entries; i++ {
+		if i%256 == 0 {
+			fblock = fpos.Read() // decode another block
+		}
 		if ((fposrel[i/8] >> (uint(i) % 8)) & 1) == 1 {
 			fdocidIdx++
 			fprevD += fdocids[fdocidIdx]
 			fprevP = 0
 		}
-		fprevP += fpos[i]
+		fprevP += fblock[i%256]
 
 		docid := fprevD
 		pos := uint32(int(fprevP) + delta)
-		for j < len(lpos) && lprevD < docid {
+		for j < llpos && lprevD < docid {
 			// Skip pos entries until posrel contains a 1 (i.e. docid change):
 			jInc(1 + bits.TrailingZeros16((uint16(lposrel[(j+1)/8])|0xFF00)>>(uint((j+1))%8)))
 		}
 
-		for ; j < len(lpos) && lprevD == docid; jInc(1) {
+		for ; j < llpos && lprevD == docid; jInc(1) {
 			// TODO: support regexp queries by using greater-than comparison instead of equals
 			if lprevP < pos {
 				continue
