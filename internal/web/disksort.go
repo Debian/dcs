@@ -1,6 +1,9 @@
 package web
 
-import "iter"
+import (
+	"iter"
+	"sort"
+)
 
 // disksort.go implements sorting search result pointers such that
 // most queries will be handled entirely in-memory (RAM),
@@ -41,4 +44,18 @@ func (mp memPointers) All() iter.Seq2[resultPointer, error] {
 			}
 		}
 	}
+}
+
+type diskWriter struct {
+	buf []resultPointer
+}
+
+func (dw *diskWriter) Add(p resultPointer) {
+	// TODO: flush to disk when needed
+	dw.buf = append(dw.buf, p)
+}
+
+func (dw *diskWriter) Flush() (sortedPointers, error) {
+	sort.Sort(pointerByRanking(dw.buf))
+	return memPointers(dw.buf), nil
 }

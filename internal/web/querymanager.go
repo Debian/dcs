@@ -112,10 +112,20 @@ func (s pointerByRanking) Len() int {
 }
 
 func (s pointerByRanking) Less(i, j int) bool {
-	if s[i].ranking == s[j].ranking {
-		return s[i].pathHash > s[j].pathHash
+	a, b := &s[i], &s[j]
+	// Sort by ranking, primarily.
+	if a.ranking != b.ranking {
+		return a.ranking > b.ranking
 	}
-	return s[i].ranking > s[j].ranking
+	// For equal ranking, break via the pathHash.
+	if a.pathHash != b.pathHash {
+		return a.pathHash > b.pathHash
+	}
+	// For equal path hash, break via backendidx and offset.
+	if a.backendidx != b.backendidx {
+		return a.backendidx > b.backendidx
+	}
+	return a.offset < b.offset
 }
 
 func (s pointerByRanking) Swap(i, j int) {
@@ -130,7 +140,6 @@ type perBackendState struct {
 	tempFileWriter *bufio.Writer
 	tempFileOffset int64
 	packagePool    *stringpool.StringPool
-	resultPointers []resultPointer
 	allPackages    map[string]bool
 }
 
@@ -153,20 +162,14 @@ type queryState struct {
 	tempFilesMu sync.Mutex
 	perBackend  []*perBackendState
 
+	numResults          int
+	resultWriter        diskWriter
 	resultPointers      sortedPointers
 	resultPointersByPkg map[string][]resultPointer
 
 	allPackagesSorted []string
 
 	FirstPathRank float32
-}
-
-func (qs *queryState) numResults() int {
-	var result int
-	for _, bstate := range qs.perBackend {
-		result += len(bstate.resultPointers)
-	}
-	return result
 }
 
 var (
@@ -465,13 +468,13 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 			Ended:          s.ended,
 			StartedFromNow: time.Since(s.started),
 			Duration:       s.ended.Sub(s.started),
-			NumResults:     s.numResults(),
+			NumResults:     s.numResults,
 			NumResultPages: s.resultPages,
 			FilesTotal:     slices.Clone(s.filesTotal),
 			FilesProcessed: slices.Clone(s.filesProcessed),
 		}
 		if stats[idx].NumResults == 0 && stats[idx].Done {
-			stats[idx].NumResults = s.numResults()
+			stats[idx].NumResults = s.numResults
 		}
 		idx++
 	}
@@ -564,7 +567,8 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 	}
 
 	bstate := s.perBackend[backendidx]
-	bstate.resultPointers = append(bstate.resultPointers, resultPointer{
+	s.numResults++
+	s.resultWriter.Add(resultPointer{
 		backendidx: uint32(backendidx),
 		ranking:    result.Ranking,
 		offset:     bstate.tempFileOffset,
@@ -712,11 +716,8 @@ func (o *Opts) writeToDisk(queryid string) error {
 		stateMu.Unlock()
 		return fmt.Errorf("query no longer exists")
 	}
-	pointers := make([]resultPointer, 0, s.numResults())
-	for _, bstate := range s.perBackend {
-		pointers = append(pointers, bstate.resultPointers...)
-	}
-	if len(pointers) == 0 {
+	numResults := s.numResults
+	if numResults == 0 {
 		log.Printf("[%s] not writing, no results.\n", queryid)
 		stateMu.Unlock()
 		return nil
@@ -755,21 +756,27 @@ func (o *Opts) writeToDisk(queryid string) error {
 	state[queryid] = s
 	stateMu.Unlock()
 
-	log.Printf("[%s] sorting, %d results, %d packages.\n", queryid, len(pointers), len(packages))
+	log.Printf("[%s] sorting, %d results, %d packages.\n", queryid, numResults, len(packages))
 	pointerSortingStarted := time.Now()
-	sort.Sort(pointerByRanking(pointers))
+	sorted, err := s.resultWriter.Flush()
+	if err != nil {
+		return err
+	}
 	log.Printf("[%s] pointer sorting done (%v).\n", queryid, time.Since(pointerSortingStarted))
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.
 	o.ensureEnoughSpaceAvailable()
 
-	pages := int(math.Ceil(float64(len(pointers)) / float64(resultsPerPage)))
+	pages := int(math.Ceil(float64(numResults) / float64(resultsPerPage)))
 
 	// Now save the results into their package-specific files.
 	byPkgSortingStarted := time.Now()
 	bypkg := make(map[string][]resultPointer)
-	for _, pointer := range pointers {
+	for pointer, err := range sorted.All() {
+		if err != nil {
+			return err
+		}
 		pkg := s.perBackend[pointer.backendidx].packagePool.Get(pointer.packageIdx)
 		underscore := strings.Index(pkg, "_")
 		name := pkg[:underscore]
@@ -792,7 +799,7 @@ func (o *Opts) writeToDisk(queryid string) error {
 		stateMu.Unlock()
 		return fmt.Errorf("query no longer exists")
 	}
-	s.resultPointers = memPointers(pointers)
+	s.resultPointers = sorted
 	s.resultPointersByPkg = bypkg
 	s.resultPages = pages
 	state[queryid] = s
@@ -828,7 +835,7 @@ func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebac
 	for _, total := range s.filesTotal {
 		filesTotal += total
 	}
-	numResults := s.numResults()
+	numResults := s.numResults
 	stateMu.Unlock()
 
 	if allSet && filesProcessed == filesTotal {
