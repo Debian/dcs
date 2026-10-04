@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"hash/fnv"
@@ -22,6 +23,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/Debian/dcs/internal/frequency"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
@@ -103,6 +105,24 @@ type resultPointer struct {
 	// results, independent of the order in which the results are returned from
 	// source backends.
 	pathHash uint64
+}
+
+func (rp *resultPointer) Marshal(b *[32]byte) {
+	binary.LittleEndian.PutUint32(b[0:], rp.backendidx)
+	binary.LittleEndian.PutUint32(b[4:], rp.packageIdx)
+	binary.LittleEndian.PutUint32(b[8:], math.Float32bits(rp.ranking))
+	binary.LittleEndian.PutUint32(b[12:], rp.length)
+	binary.LittleEndian.PutUint64(b[16:], uint64(rp.offset))
+	binary.LittleEndian.PutUint64(b[24:], rp.pathHash)
+}
+
+func (rp *resultPointer) Unmarshal(b *[32]byte) {
+	rp.backendidx = binary.LittleEndian.Uint32(b[0:])
+	rp.packageIdx = binary.LittleEndian.Uint32(b[4:])
+	rp.ranking = math.Float32frombits(binary.LittleEndian.Uint32(b[8:]))
+	rp.length = binary.LittleEndian.Uint32(b[12:])
+	rp.offset = int64(binary.LittleEndian.Uint64(b[16:]))
+	rp.pathHash = binary.LittleEndian.Uint64(b[24:])
 }
 
 type pointerByRanking []resultPointer
@@ -258,7 +278,10 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 
 		switch msg.Type {
 		case sourcebackendpb.SearchReply_MATCH:
-			storeResult(queryid, backendidx, msg.Match, len(b))
+			if err := storeResult(queryid, backendidx, msg.Match, len(b)); err != nil {
+				log.Printf("[%s] [src:%s] Error writing result: %v\n", queryid, src, err)
+				return
+			}
 		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
 			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
 			if orderlyFinished {
@@ -366,6 +389,15 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		return true, nil
 	}
 
+	// TODO: it’d be so much better if we would correctly handle ESPACE errors
+	// in the code below (and above), but for that we need to carefully test it.
+	o.ensureEnoughSpaceAvailable()
+
+	dir := filepath.Join(o.QueryResultsPath, queryid)
+	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
+		return false, fmt.Errorf("could not create %q: %w", dir, err)
+	}
+
 	// TODO: without this line, searches would fail too early.
 	// Debug and figure out why.
 	ctx = context.Background()
@@ -378,15 +410,12 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		filesProcessed: make([]int, len(common.SourceBackendStubs)),
 		perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
 		resultPointers: memPointers(nil),
-	}
-
-	// TODO: it’d be so much better if we would correctly handle ESPACE errors
-	// in the code below (and above), but for that we need to carefully test it.
-	o.ensureEnoughSpaceAvailable()
-
-	dir := filepath.Join(o.QueryResultsPath, queryid)
-	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-		return false, fmt.Errorf("could not create %q: %w", dir, err)
+		resultWriter: diskWriter{
+			// NOTE: append overshoots by up to 25%, so the 64 MB here
+			// will be exceeded by up to 25% in practice.
+			flushThreshold: int(64 * 1024 * 1024 / unsafe.Sizeof(resultPointer{})),
+			dir:            dir,
+		},
 	}
 
 	for i := 0; i < len(common.SourceBackendStubs); i++ {
@@ -510,7 +539,7 @@ func sendPaginationUpdate(queryid string, s *queryState) {
 	}
 }
 
-func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, resultLen int) {
+func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, resultLen int) error {
 	h := fnv.New64()
 	io.WriteString(h, result.Path)
 
@@ -520,7 +549,7 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 	var firstPathRank float32
 	s, ok := state[queryid]
 	if !ok {
-		return
+		return fmt.Errorf("query %s not found", queryid)
 	}
 	firstPathRank = s.FirstPathRank
 
@@ -567,8 +596,8 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 	}
 
 	bstate := s.perBackend[backendidx]
-	s.numResults++
-	s.resultWriter.Add(resultPointer{
+	bstate.allPackages[result.Package] = true
+	err := s.resultWriter.Add(resultPointer{
 		backendidx: uint32(backendidx),
 		ranking:    result.Ranking,
 		offset:     bstate.tempFileOffset,
@@ -576,7 +605,11 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 		pathHash:   h.Sum64(),
 		packageIdx: bstate.packagePool.Intern(result.Package),
 	})
-	bstate.allPackages[result.Package] = true
+	if err != nil {
+		return err
+	}
+	s.numResults++
+	return nil
 }
 
 func failQuery(queryid string) {
