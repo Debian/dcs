@@ -414,7 +414,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	}()
 
 	querystr := ranking.NewQueryStr(in.Query)
-	expr := in.Query
+	expr := "(?m)" + in.Query // (?m) makes ^ and $ work per line
 	if in.GetLiteral() {
 		expr = re.String() // quote
 	}
