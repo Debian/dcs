@@ -231,7 +231,7 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 			FilesTotal:     uint64(filesTotal),
 		})
 
-		addEventMarshal(queryid, &Error{
+		s.addEventMarshal(&Error{
 			Type:      "error",
 			ErrorType: "backendunavailable",
 		})
@@ -468,11 +468,13 @@ type queryStats struct {
 func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
-		addEventMarshal(cancel, &Error{
-			Type:      "error",
-			ErrorType: "cancelled",
-		})
-		finishQuery(cancel)
+		if s, ok := lookupQuery(cancel); ok {
+			s.addEventMarshal(&Error{
+				Type:      "error",
+				ErrorType: "cancelled",
+			})
+			finishQuery(cancel)
+		}
 		http.Redirect(w, r, "/queryz", http.StatusFound)
 		return
 	}
@@ -524,7 +526,7 @@ func sendPaginationUpdate(queryid string, s *queryState) {
 	}
 
 	if s.resultPages > 0 {
-		addEventMarshal(queryid, &Pagination{
+		s.addEventMarshal(&Pagination{
 			Type:        "pagination",
 			QueryId:     queryid,
 			ResultPages: s.resultPages,
@@ -583,7 +585,7 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 		if err := WriteMatchJSON(result, &b); err != nil {
 			log.Fatalf("Could not marshal result as JSON: %v\n", err)
 		}
-		addEvent(queryid, b.Bytes(), &result)
+		s.addEvent(b.Bytes(), &result)
 
 		stateMu.Lock()
 	}
@@ -607,7 +609,11 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 
 func failQuery(queryid string) {
 	failedQueries.Inc()
-	addEventMarshal(queryid, &Error{
+	s, ok := lookupQuery(queryid)
+	if !ok {
+		return
+	}
+	s.addEventMarshal(&Error{
 		Type:      "error",
 		ErrorType: "failed",
 	})
@@ -624,7 +630,7 @@ func finishQuery(queryid string) {
 	started := s.started
 	stateMu.RUnlock()
 	log.Printf("[%s] done (in %v), closing all client channels.\n", queryid, time.Since(started))
-	addEvent(queryid, []byte{}, nil)
+	s.addEvent([]byte{}, nil)
 
 	queryDurations.Observe(float64(time.Since(started) / time.Millisecond))
 }
@@ -874,7 +880,7 @@ func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebac
 
 	if allSet {
 		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
-		addEventMarshal(queryid, &ProgressUpdate{
+		s.addEventMarshal(&ProgressUpdate{
 			Type:           "progress",
 			QueryId:        queryid,
 			FilesProcessed: filesProcessed,

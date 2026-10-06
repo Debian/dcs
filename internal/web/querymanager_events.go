@@ -38,13 +38,9 @@ type event struct {
 	obsolete *atomic.Bool
 }
 
-func addEvent(queryid string, data []byte, origdata any) {
+func (s *queryState) addEvent(data []byte, origdata any) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	s, ok := state[queryid]
-	if !ok {
-		return // defense in depth; prevent a panic
-	}
 	original, _ := origdata.(obsoletableEvent)
 	s.events = append(s.events, event{
 		data:     data,
@@ -59,28 +55,21 @@ func addEvent(queryid string, data []byte, origdata any) {
 		activeQueries.Sub(1)
 		frequency.DecUsers()
 	}
-	state[queryid] = s
-
-	state[queryid].newEvent.Broadcast()
+	s.newEvent.Broadcast()
 }
 
 // Like addEvent, but marshals data using encoding/json.
-func addEventMarshal(queryid string, data any) {
+func (s *queryState) addEventMarshal(data any) {
 	bytes, err := json.Marshal(data)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	addEvent(queryid, bytes, data)
+	s.addEvent(bytes, data)
 
 	if original, ok := data.(obsoletableEvent); ok {
 		stateMu.Lock()
 		defer stateMu.Unlock()
-
-		s, ok := state[queryid]
-		if !ok {
-			return // query no longer exists
-		}
 
 		// We cannot obsolete events once the query is done, because then all
 		// events before the done marker may get obsoleted (e.g. all progress
@@ -104,17 +93,15 @@ func addEventMarshal(queryid string, data any) {
 	}
 }
 
-func getEvent(queryid string, lastseen int) (event, int, bool) {
+func (s *queryState) getEvent(lastseen int) (event, int, bool) {
 	// We need to prevent new events being added, otherwise we could deadlock.
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	s, ok := state[queryid]
-	for ok && lastseen+1 >= len(s.events) {
-		log.Printf("[%s] lastseen=%d, waiting\n", queryid, lastseen)
+	for !s.released && lastseen+1 >= len(s.events) {
+		log.Printf("[%s] lastseen=%d, waiting\n", s.queryid, lastseen)
 		s.newEvent.Wait()
-		s, ok = state[queryid]
 	}
-	if !ok {
+	if s.released {
 		return event{}, 0, false
 	}
 	ev := s.events[lastseen+1]

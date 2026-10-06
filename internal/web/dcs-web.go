@@ -143,7 +143,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	_, cached, err := o.maybeStartQuery(ctx, identifier, src, q)
+	s, cached, err := o.maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %+v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
@@ -168,7 +168,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	lastseen := -1
 	sent := 0
 	for {
-		message, sequence, ok := getEvent(identifier, lastseen)
+		message, sequence, ok := s.getEvent(lastseen)
 		if !ok {
 			log.Printf("[%s] query no longer exists", src)
 			return
@@ -311,7 +311,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	_, cached, err := s.opts.maybeStartQuery(ctx, identifier, src, q)
+	state, cached, err := s.opts.maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		return fmt.Errorf("query(%s): %v", query, err)
 	}
@@ -332,7 +332,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 
 	lastseen := -1
 	for {
-		message, sequence, ok := getEvent(identifier, lastseen)
+		message, sequence, ok := state.getEvent(lastseen)
 		if !ok {
 			return fmt.Errorf("query no longer exists")
 		}
