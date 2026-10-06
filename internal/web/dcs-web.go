@@ -227,9 +227,9 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "No such query.", http.StatusNotFound)
 			return
 		}
-		stateMu.RLock()
+		s.mu.Lock()
 		packages := s.allPackagesSorted
-		stateMu.RUnlock()
+		s.mu.Unlock()
 
 		if matches[2] == "json" {
 			startJsonResponse(w)
@@ -371,9 +371,9 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 		// TODO: canonical code
 		return fmt.Errorf("not found")
 	}
-	stateMu.RLock()
+	state.mu.Lock()
 	resultPointers := state.resultPointers
-	stateMu.RUnlock()
+	state.mu.Unlock()
 
 	perBackend, err := perBackendFromState(state)
 	if err != nil {

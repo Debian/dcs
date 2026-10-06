@@ -173,31 +173,31 @@ func resultWriterFor(w io.Writer, state *queryState) (*resultWriter, error) {
 	}, nil
 }
 
-func writeSearchResults(w io.Writer, state *queryState) error {
-	rw, err := resultWriterFor(w, state)
+func writeSearchResults(w io.Writer, s *queryState) error {
+	rw, err := resultWriterFor(w, s)
 	if err != nil {
 		return err
 	}
 	defer rw.Close()
-	stateMu.RLock()
-	resultPointers := state.resultPointers
-	stateMu.RUnlock()
+	s.mu.Lock()
+	resultPointers := s.resultPointers
+	s.mu.Unlock()
 	if err := rw.fromPointers(resultPointers); err != nil {
 		return err
 	}
 	return nil
 }
 
-func writePerPackageSearchResults(w io.Writer, state *queryState) error {
-	rw, err := resultWriterFor(w, state)
+func writePerPackageSearchResults(w io.Writer, s *queryState) error {
+	rw, err := resultWriterFor(w, s)
 	if err != nil {
 		return err
 	}
 	defer rw.Close()
-	stateMu.RLock()
-	pkgs := state.allPackagesSorted
-	byPkg := state.resultPointersByPkg
-	stateMu.RUnlock()
+	s.mu.Lock()
+	pkgs := s.allPackagesSorted
+	byPkg := s.resultPointersByPkg
+	s.mu.Unlock()
 	for idx, pkg := range pkgs {
 		if idx == 0 {
 			fmt.Fprintf(w, `{"package": "%s", "results":[`, pkg)
@@ -305,7 +305,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	log.Printf("[%s] serving API results\n", queryid)
 
-	stateMu.RLock()
+	s.mu.Lock()
 	latency := time.Since(s.started)
 	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
 
@@ -315,7 +315,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	}
 	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
 	startJsonResponse(w)
-	stateMu.RUnlock()
+	s.mu.Unlock()
 
 	if err := writeResults(w, s); err != nil {
 		return err

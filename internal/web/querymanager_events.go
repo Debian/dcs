@@ -39,8 +39,8 @@ type event struct {
 }
 
 func (s *queryState) addEvent(data []byte, origdata any) {
-	stateMu.Lock()
-	defer stateMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	original, _ := origdata.(obsoletableEvent)
 	s.events = append(s.events, event{
 		data:     data,
@@ -68,8 +68,8 @@ func (s *queryState) addEventMarshal(data any) {
 	s.addEvent(bytes, data)
 
 	if original, ok := data.(obsoletableEvent); ok {
-		stateMu.Lock()
-		defer stateMu.Unlock()
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
 		// We cannot obsolete events once the query is done, because then all
 		// events before the done marker may get obsoleted (e.g. all progress
@@ -95,8 +95,8 @@ func (s *queryState) addEventMarshal(data any) {
 
 func (s *queryState) getEvent(lastseen int) (event, int, bool) {
 	// We need to prevent new events being added, otherwise we could deadlock.
-	stateMu.Lock()
-	defer stateMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	for !s.released && lastseen+1 >= len(s.events) {
 		log.Printf("[%s] lastseen=%d, waiting\n", s.queryid, lastseen)
 		s.newEvent.Wait()
@@ -109,8 +109,8 @@ func (s *queryState) getEvent(lastseen int) (event, int, bool) {
 }
 
 func (s *queryState) completed() bool {
-	stateMu.Lock()
-	defer stateMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.released {
 		return true // do not block indefinitely
 	}

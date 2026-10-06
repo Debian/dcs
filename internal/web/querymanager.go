@@ -208,10 +208,10 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
 	defer func() {
-		stateMu.RLock()
+		s.mu.Lock()
 		filesTotal := s.filesTotal[backendidx]
 		filesProcessed := s.filesProcessed[backendidx]
-		stateMu.RUnlock()
+		s.mu.Unlock()
 
 		if filesProcessed == filesTotal {
 			return
@@ -284,9 +284,9 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 		}
 
 		bstate.tempFileOffset += int64(len(b))
-		stateMu.RLock()
+		s.mu.Lock()
 		done = s.done
-		stateMu.RUnlock()
+		s.mu.Unlock()
 	}
 
 	// Drain the stream: the above loop might finish early (when the query is cancelled)
@@ -308,11 +308,13 @@ func (s *queryState) expired() bool {
 }
 
 func releaseQueryLocked(s *queryState) {
+	s.mu.Lock()
 	s.released = true
+	s.newEvent.Broadcast() // unblock getEvent
+	s.mu.Unlock()
 	for _, state := range s.perBackend {
 		state.tempFile.Close()
 	}
-	s.newEvent.Broadcast() // unblock getEvent
 }
 
 func lookupQuery(queryid string) (*queryState, bool) {
@@ -341,7 +343,7 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 				if len(state) < 10 {
 					break
 				}
-				if !s.done {
+				if !s.completed() {
 					continue
 				}
 				releaseQueryLocked(s)
@@ -384,7 +386,6 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		queryid:        queryid,
 		started:        time.Now(),
 		query:          query,
-		newEvent:       sync.NewCond(&stateMu),
 		filesTotal:     make([]int, len(common.SourceBackendStubs)),
 		filesProcessed: make([]int, len(common.SourceBackendStubs)),
 		perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
@@ -396,6 +397,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 			dir:            dir,
 		},
 	}
+	querystate.newEvent = sync.NewCond(&querystate.mu)
 
 	for i := 0; i < len(common.SourceBackendStubs); i++ {
 		querystate.filesTotal[i] = -1
@@ -469,6 +471,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	stats := make([]queryStats, len(state))
 	idx := 0
 	for queryid, s := range state {
+		s.mu.Lock()
 		stats[idx] = queryStats{
 			Searchterm:     s.query,
 			QueryId:        queryid,
@@ -486,6 +489,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		if stats[idx].NumResults == 0 && stats[idx].Done {
 			stats[idx].NumResults = s.numResults
 		}
+		s.mu.Unlock()
 		idx++
 	}
 	stateMu.RUnlock()
@@ -525,8 +529,8 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 	io.WriteString(h, result.Path)
 
 	// Check if we need to consider this result for the top 10.
-	stateMu.Lock()
-	defer stateMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if s.released {
 		return fmt.Errorf("query %s no longer exists", s.queryid)
@@ -560,7 +564,7 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 		sort.Sort(pointerByRanking(combined))
 		copy(s.results[:], combined[:10])
 		// Temporarily unlock while writing the results to disk.
-		stateMu.Unlock()
+		s.mu.Unlock()
 
 		// The result entered the top 10, so send it to the client(s) for
 		// immediate display.
@@ -573,7 +577,7 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 		}
 		s.addEvent(b.Bytes(), &result)
 
-		stateMu.Lock()
+		s.mu.Lock()
 	}
 
 	bstate := s.perBackend[backendidx]
@@ -662,9 +666,9 @@ func (o *Opts) ensureEnoughSpaceAvailable() {
 }
 
 func (s *queryState) writeFromPointers(f io.Writer, pointers []resultPointer) error {
-	stateMu.RLock()
+	s.mu.Lock()
 	firstPathRank := s.FirstPathRank
-	stateMu.RUnlock()
+	s.mu.Unlock()
 
 	s.tempFilesMu.Lock()
 	defer s.tempFilesMu.Unlock()
@@ -709,11 +713,11 @@ func (s *queryState) writeFromPointers(f io.Writer, pointers []resultPointer) er
 
 func (o *Opts) writeToDisk(s *queryState) error {
 	// Get the slice with results and unset it on the state so that processing can continue.
-	stateMu.Lock()
+	s.mu.Lock()
 	numResults := s.numResults
 	if numResults == 0 {
 		log.Printf("[%s] not writing, no results.\n", s.queryid)
-		stateMu.Unlock()
+		s.mu.Unlock()
 		return nil
 	}
 	idx := 0
@@ -747,7 +751,7 @@ func (o *Opts) writeToDisk(s *queryState) error {
 	}
 	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s first result, first stored)
 	s.allPackagesSorted = packages
-	stateMu.Unlock()
+	s.mu.Unlock()
 
 	log.Printf("[%s] sorting, %d results, %d packages.\n", s.queryid, numResults, len(packages))
 	pointerSortingStarted := time.Now()
@@ -786,20 +790,20 @@ func (o *Opts) writeToDisk(s *queryState) error {
 	}
 	log.Printf("[%s] by-pkg sorting done (%v).\n", s.queryid, time.Since(byPkgSortingStarted))
 
-	stateMu.Lock()
+	s.mu.Lock()
 	s.resultPointers = sorted
 	s.resultPointersByPkg = bypkg
 	s.resultPages = pages
-	stateMu.Unlock()
+	s.mu.Unlock()
 
 	s.sendPaginationUpdate()
 	return nil
 }
 
 func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
-	stateMu.Lock()
+	s.mu.Lock()
 	if s.released {
-		stateMu.Unlock()
+		s.mu.Unlock()
 		log.Printf("query %s no longer exists", s.queryid)
 		return
 	}
@@ -824,7 +828,7 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 		filesTotal += total
 	}
 	numResults := s.numResults
-	stateMu.Unlock()
+	s.mu.Unlock()
 
 	if allSet && filesProcessed == filesTotal {
 		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", s.queryid, backendidx)
