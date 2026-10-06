@@ -255,9 +255,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	perpackage := (matches[2] == "perpackage_2_")
-	stateMu.RLock()
-	s, ok := state[queryid]
-	stateMu.RUnlock()
+	s, ok := lookupQuery(queryid)
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return

@@ -199,23 +199,15 @@ var (
 	state   = make(map[string]*queryState)
 )
 
-func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend sourcebackendpb.SourceBackendClient, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
+func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, backend sourcebackendpb.SourceBackendClient, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
 	defer func() {
 		stateMu.RLock()
-		s, ok := state[queryid]
-		var filesTotal int
-		var filesProcessed int
-		if ok {
-			filesTotal = s.filesTotal[backendidx]
-			filesProcessed = s.filesProcessed[backendidx]
-		}
+		filesTotal := s.filesTotal[backendidx]
+		filesProcessed := s.filesProcessed[backendidx]
 		stateMu.RUnlock()
-		if !ok {
-			return // query no longer exists
-		}
 
 		if filesProcessed == filesTotal {
 			return
@@ -226,7 +218,7 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 		}
 
 		s.perBackend[backendidx].tempFileWriter.Flush()
-		o.storeProgress(queryid, backendidx, &sourcebackendpb.ProgressUpdate{
+		o.storeProgress(s, backendidx, &sourcebackendpb.ProgressUpdate{
 			FilesProcessed: uint64(filesTotal),
 			FilesTotal:     uint64(filesTotal),
 		})
@@ -241,17 +233,10 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 	defer cancelfunc()
 	stream, err := backend.Search(ctx, searchRequest)
 	if err != nil {
-		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", queryid, src, err)
+		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", s.queryid, src, err)
 		return
 	}
 
-	stateMu.RLock()
-	s, ok := state[queryid]
-	stateMu.RUnlock()
-	if !ok {
-		log.Printf("[%s] [src:%s] query no longer exists\n", queryid, src)
-		return
-	}
 	bstate := s.perBackend[backendidx]
 	tempFileWriter := bstate.tempFileWriter
 	orderlyFinished := false
@@ -260,28 +245,28 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 	for !done {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			log.Printf("[%s] [src:%s] EOF\n", queryid, src)
+			log.Printf("[%s] [src:%s] EOF\n", s.queryid, src)
 			return
 		}
 		if err != nil {
-			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", queryid, src, err)
+			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", s.queryid, src, err)
 			return
 		}
 
 		b, err := proto.Marshal(msg)
 		if err != nil {
-			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", queryid, src, err)
+			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", s.queryid, src, err)
 			return
 		}
 		if _, err := tempFileWriter.Write(b); err != nil {
-			log.Printf("[%s] [src:%s] Error writing proto: %v\n", queryid, src, err)
+			log.Printf("[%s] [src:%s] Error writing proto: %v\n", s.queryid, src, err)
 			return
 		}
 
 		switch msg.Type {
 		case sourcebackendpb.SearchReply_MATCH:
-			if err := storeResult(queryid, backendidx, msg.Match, len(b)); err != nil {
-				log.Printf("[%s] [src:%s] Error writing result: %v\n", queryid, src, err)
+			if err := s.storeResult(backendidx, msg.Match, len(b)); err != nil {
+				log.Printf("[%s] [src:%s] Error writing result: %v\n", s.queryid, src, err)
 				return
 			}
 		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
@@ -291,15 +276,12 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 				// before clients start requesting it.
 				tempFileWriter.Flush()
 			}
-			o.storeProgress(queryid, backendidx, msg.ProgressUpdate)
+			o.storeProgress(s, backendidx, msg.ProgressUpdate)
 		}
 
 		bstate.tempFileOffset += int64(len(b))
 		stateMu.RLock()
-		s, ok := state[queryid]
-		if ok {
-			done = s.done
-		}
+		done = s.done
 		stateMu.RUnlock()
 	}
 
@@ -314,7 +296,7 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 		// stream as well.
 		cancelfunc()
 	}
-	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, src)
+	log.Printf("[%s] [src:%s] query done, disconnecting\n", s.queryid, src)
 }
 
 func (s *queryState) expired() bool {
@@ -444,7 +426,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		return existing, true, nil
 	}
 	for idx, backend := range common.SourceBackendStubs {
-		go o.queryBackend(ctx, queryid, src, backend, idx, searchRequest)
+		go o.queryBackend(ctx, querystate, src, backend, idx, searchRequest)
 	}
 	return querystate, false, nil
 }
@@ -473,7 +455,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 				Type:      "error",
 				ErrorType: "cancelled",
 			})
-			finishQuery(cancel)
+			s.finishQuery()
 		}
 		http.Redirect(w, r, "/queryz", http.StatusFound)
 		return
@@ -517,7 +499,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Caller needs to hold s.clientsMu
-func sendPaginationUpdate(queryid string, s *queryState) {
+func (s *queryState) sendPaginationUpdate() {
 	type Pagination struct {
 		// Set to “pagination”.
 		Type        string
@@ -528,25 +510,25 @@ func sendPaginationUpdate(queryid string, s *queryState) {
 	if s.resultPages > 0 {
 		s.addEventMarshal(&Pagination{
 			Type:        "pagination",
-			QueryId:     queryid,
+			QueryId:     s.queryid,
 			ResultPages: s.resultPages,
 		})
 	}
 }
 
-func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, resultLen int) error {
+func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, resultLen int) error {
 	h := fnv.New64()
 	io.WriteString(h, result.Path)
 
 	// Check if we need to consider this result for the top 10.
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	var firstPathRank float32
-	s, ok := state[queryid]
-	if !ok {
-		return fmt.Errorf("query %s not found", queryid)
+
+	if s.released {
+		return fmt.Errorf("query %s no longer exists", s.queryid)
 	}
-	firstPathRank = s.FirstPathRank
+
+	firstPathRank := s.FirstPathRank
 
 	if firstPathRank > 0 {
 		// Now store the combined ranking of PathRanking (pre) and Ranking (post).
@@ -607,29 +589,20 @@ func storeResult(queryid string, backendidx int, result *sourcebackendpb.Match, 
 	return nil
 }
 
-func failQuery(queryid string) {
+func (s *queryState) failQuery() {
 	failedQueries.Inc()
-	s, ok := lookupQuery(queryid)
-	if !ok {
-		return
-	}
 	s.addEventMarshal(&Error{
 		Type:      "error",
 		ErrorType: "failed",
 	})
-	finishQuery(queryid)
+	s.finishQuery()
 }
 
-func finishQuery(queryid string) {
+func (s *queryState) finishQuery() {
 	stateMu.RLock()
-	s, ok := state[queryid]
-	if !ok {
-		stateMu.RUnlock()
-		return
-	}
 	started := s.started
 	stateMu.RUnlock()
-	log.Printf("[%s] done (in %v), closing all client channels.\n", queryid, time.Since(started))
+	log.Printf("[%s] done (in %v), closing all client channels.\n", s.queryid, time.Since(started))
 	s.addEvent([]byte{}, nil)
 
 	queryDurations.Observe(float64(time.Since(started) / time.Millisecond))
@@ -733,17 +706,12 @@ func (s *queryState) writeFromPointers(f io.Writer, pointers []resultPointer) er
 	return nil
 }
 
-func (o *Opts) writeToDisk(queryid string) error {
+func (o *Opts) writeToDisk(s *queryState) error {
 	// Get the slice with results and unset it on the state so that processing can continue.
 	stateMu.Lock()
-	s, ok := state[queryid]
-	if !ok {
-		stateMu.Unlock()
-		return fmt.Errorf("query no longer exists")
-	}
 	numResults := s.numResults
 	if numResults == 0 {
-		log.Printf("[%s] not writing, no results.\n", queryid)
+		log.Printf("[%s] not writing, no results.\n", s.queryid)
 		stateMu.Unlock()
 		return nil
 	}
@@ -757,7 +725,7 @@ func (o *Opts) writeToDisk(queryid string) error {
 			name := pkg[:underscore]
 			ver, err := version.Parse(pkg[underscore+1:])
 			if err != nil {
-				log.Printf("[%s] parsing version %q failed: %v\n", queryid, pkg[underscore+1:], err)
+				log.Printf("[%s] parsing version %q failed: %v\n", s.queryid, pkg[underscore+1:], err)
 				continue
 			}
 
@@ -778,16 +746,15 @@ func (o *Opts) writeToDisk(queryid string) error {
 	}
 	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s first result, first stored)
 	s.allPackagesSorted = packages
-	state[queryid] = s
 	stateMu.Unlock()
 
-	log.Printf("[%s] sorting, %d results, %d packages.\n", queryid, numResults, len(packages))
+	log.Printf("[%s] sorting, %d results, %d packages.\n", s.queryid, numResults, len(packages))
 	pointerSortingStarted := time.Now()
 	sorted, err := s.resultWriter.Flush()
 	if err != nil {
 		return err
 	}
-	log.Printf("[%s] pointer sorting done (%v).\n", queryid, time.Since(pointerSortingStarted))
+	log.Printf("[%s] pointer sorting done (%v).\n", s.queryid, time.Since(pointerSortingStarted))
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.
@@ -816,31 +783,26 @@ func (o *Opts) writeToDisk(queryid string) error {
 		pkgresults = append(pkgresults, pointer)
 		bypkg[name] = pkgresults
 	}
-	log.Printf("[%s] by-pkg sorting done (%v).\n", queryid, time.Since(byPkgSortingStarted))
+	log.Printf("[%s] by-pkg sorting done (%v).\n", s.queryid, time.Since(byPkgSortingStarted))
 
 	stateMu.Lock()
-	s, ok = state[queryid]
-	if !ok {
-		stateMu.Unlock()
-		return fmt.Errorf("query no longer exists")
-	}
 	s.resultPointers = sorted
 	s.resultPointersByPkg = bypkg
 	s.resultPages = pages
-	state[queryid] = s
 	stateMu.Unlock()
 
-	sendPaginationUpdate(queryid, s)
+	s.sendPaginationUpdate()
 	return nil
 }
 
-func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
+func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourcebackendpb.ProgressUpdate) {
 	stateMu.Lock()
-	s, ok := state[queryid]
-	if !ok {
+	if s.released {
 		stateMu.Unlock()
-		return // query no longer exists
+		log.Printf("query %s no longer exists", s.queryid)
+		return
 	}
+
 	s.filesTotal[backendidx] = int(progress.FilesTotal)
 	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
 	allSet := true
@@ -864,27 +826,27 @@ func (o *Opts) storeProgress(queryid string, backendidx int, progress *sourcebac
 	stateMu.Unlock()
 
 	if allSet && filesProcessed == filesTotal {
-		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", queryid, backendidx)
-		if err := o.writeToDisk(queryid); err != nil {
-			log.Printf("[%s] writeToDisk() failed: %v\n", queryid, err)
-			failQuery(queryid)
+		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", s.queryid, backendidx)
+		if err := o.writeToDisk(s); err != nil {
+			log.Printf("[%s] writeToDisk() failed: %v\n", s.queryid, err)
+			s.failQuery()
 		}
 	}
 
 	if allSet {
-		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
+		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", s.queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
 		s.addEventMarshal(&ProgressUpdate{
 			Type:           "progress",
-			QueryId:        queryid,
+			QueryId:        s.queryid,
 			FilesProcessed: filesProcessed,
 			FilesTotal:     filesTotal,
 			Results:        numResults,
 		})
 		if filesProcessed == filesTotal {
-			finishQuery(queryid)
+			s.finishQuery()
 		}
 	} else {
-		log.Printf("[%s] [src:%d] progress: %d of %d\n", queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
+		log.Printf("[%s] [src:%d] progress: %d of %d\n", s.queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
 	}
 }
 
@@ -910,44 +872,19 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, fmt.Sprintf("Could not convert %q into a number: %v", matches[2], err), http.StatusBadRequest)
 		return
 	}
-	stateMu.RLock()
-	s, ok := state[queryid]
-	var done bool
-	if ok {
-		done = s.done
-	}
-	stateMu.RUnlock()
+	s, ok := lookupQuery(queryid)
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
 	}
-	if !done {
-		started := time.Now()
-		for time.Since(started) < 60*time.Second {
-			stateMu.RLock()
-			s, ok = state[queryid]
-			if !ok {
-				stateMu.RUnlock()
-				log.Printf("[%s] query no longer exists\n", queryid)
-				http.Error(w, "Query no longer exists.", http.StatusInternalServerError)
-				return
-			}
-			if s.done {
-				stateMu.RUnlock()
-				break
-			}
-			stateMu.RUnlock()
-			time.Sleep(100 * time.Millisecond)
-		}
-		stateMu.RLock()
-		s, ok := state[queryid]
-		done := ok && s.done
-		stateMu.RUnlock()
-		if !done {
-			log.Printf("[%s] query not yet finished, cannot produce per-package results\n", queryid)
-			http.Error(w, "Query not finished yet.", http.StatusInternalServerError)
-			return
-		}
+	started := time.Now()
+	for !s.completed() && time.Since(started) < 60*time.Second {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if !s.completed() {
+		log.Printf("[%s] query not yet finished, cannot produce per-package results\n", queryid)
+		http.Error(w, "Query not finished yet.", http.StatusInternalServerError)
+		return
 	}
 
 	// For compatibility with old versions, we serve the files that are
