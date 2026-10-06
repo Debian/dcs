@@ -121,11 +121,10 @@ func getEvent(queryid string, lastseen int) (event, int, bool) {
 	return ev, lastseen + 1, true
 }
 
-func queryCompleted(queryid string) bool {
+func (s *queryState) completed() bool {
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	s, ok := state[queryid]
-	if !ok {
+	if s.released {
 		return true // do not block indefinitely
 	}
 	return s.done

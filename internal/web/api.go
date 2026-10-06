@@ -296,7 +296,11 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	// TODO: more efficient way than polling to get notified when the query
 	// is done
-	for !queryCompleted(queryid) {
+	s, ok := lookupQuery(queryid)
+	if !ok {
+		return fmt.Errorf("BUG: query state for %q not found", queryid)
+	}
+	for !s.completed() {
 		time.Sleep(10 * time.Millisecond)
 	}
 

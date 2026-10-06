@@ -264,7 +264,13 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
 		return
 	}
-	if !queryCompleted(queryid) {
+	s, ok := lookupQuery(queryid)
+	if !ok {
+		log.Printf("[%s] query no longer exists\n", queryid)
+		http.Error(w, "Query no longer exists.", http.StatusInternalServerError)
+		return
+	}
+	if !s.completed() {
 		// Prevent caching, as the placeholder is temporary.
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")

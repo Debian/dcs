@@ -164,11 +164,13 @@ type perBackendState struct {
 }
 
 type queryState struct {
+	queryid  string
 	started  time.Time
 	ended    time.Time
 	events   []event
 	newEvent *sync.Cond
 	done     bool
+	released bool // evicted (what a failed state map lookup used to mean)
 	query    string
 
 	results [10]resultPointer
@@ -335,10 +337,18 @@ func queryExists(queryid string) bool {
 }
 
 func releaseQueryLocked(s *queryState) {
+	s.released = true
 	for _, state := range s.perBackend {
 		state.tempFile.Close()
 	}
 	s.newEvent.Broadcast() // unblock getEvent
+}
+
+func lookupQuery(queryid string) (*queryState, bool) {
+	stateMu.RLock()
+	defer stateMu.RUnlock()
+	s, ok := state[queryid]
+	return s, ok
 }
 
 func startQuery(queryid string, querystate *queryState) error {
@@ -403,6 +413,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 	ctx = context.Background()
 
 	querystate := &queryState{
+		queryid:        queryid,
 		started:        time.Now(),
 		query:          query,
 		newEvent:       sync.NewCond(&stateMu),
