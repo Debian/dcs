@@ -259,15 +259,10 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := o.maybeStartQuery(ctx, queryid, src, q); err != nil {
+	s, _, err := o.maybeStartQuery(ctx, queryid, src, q)
+	if err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
-		return
-	}
-	s, ok := lookupQuery(queryid)
-	if !ok {
-		log.Printf("[%s] query no longer exists\n", queryid)
-		http.Error(w, "Query no longer exists.", http.StatusInternalServerError)
 		return
 	}
 	if !s.completed() {

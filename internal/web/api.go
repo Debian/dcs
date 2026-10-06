@@ -289,17 +289,14 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return fmt.Errorf("Invalid query: %v", err)
 	}
 
-	if _, err := a.opts.maybeStartQuery(ctx, queryid, src, q); err != nil {
+	s, _, err := a.opts.maybeStartQuery(ctx, queryid, src, q)
+	if err != nil {
 		metricErroredQueries.With(srcLabel).Inc()
 		return fmt.Errorf("Could not start query: %v", err)
 	}
 
 	// TODO: more efficient way than polling to get notified when the query
 	// is done
-	s, ok := lookupQuery(queryid)
-	if !ok {
-		return fmt.Errorf("BUG: query state for %q not found", queryid)
-	}
 	for !s.completed() {
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -309,24 +306,18 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	log.Printf("[%s] serving API results\n", queryid)
 
 	stateMu.RLock()
-	state, exists := state[queryid]
-	if !exists {
-		stateMu.RUnlock()
-		return fmt.Errorf("BUG: query state for %q not found", queryid)
-	}
-
-	latency := time.Since(state.started)
+	latency := time.Since(s.started)
 	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
 
 	filesTotal := 0
-	for _, total := range state.filesTotal {
+	for _, total := range s.filesTotal {
 		filesTotal += total
 	}
 	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
 	startJsonResponse(w)
 	stateMu.RUnlock()
 
-	if err := writeResults(w, state); err != nil {
+	if err := writeResults(w, s); err != nil {
 		return err
 	}
 

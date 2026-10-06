@@ -143,7 +143,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	cached, err := o.maybeStartQuery(ctx, identifier, src, q)
+	_, cached, err := o.maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %+v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
@@ -311,7 +311,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	cached, err := s.opts.maybeStartQuery(ctx, identifier, src, q)
+	_, cached, err := s.opts.maybeStartQuery(ctx, identifier, src, q)
 	if err != nil {
 		return fmt.Errorf("query(%s): %v", query, err)
 	}

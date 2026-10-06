@@ -317,23 +317,8 @@ func (o *Opts) queryBackend(ctx context.Context, queryid, src string, backend so
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", queryid, src)
 }
 
-// queryExistsLocked returns whether state for the query exists and whether
-// that state is expired.
-func queryExistsLocked(queryid string) (bool, bool) {
-	querystate, exists := state[queryid]
-	if !exists {
-		return false, false
-	}
-	return true, time.Since(querystate.started) > 30*time.Minute
-}
-
-// queryExists returns true if a query with the specified queryid exists and is
-// not expired yet.
-func queryExists(queryid string) bool {
-	stateMu.RLock()
-	defer stateMu.RUnlock()
-	exists, expired := queryExistsLocked(queryid)
-	return exists && !expired
+func (s *queryState) expired() bool {
+	return time.Since(s.started) > 30*time.Minute
 }
 
 func releaseQueryLocked(s *queryState) {
@@ -351,18 +336,16 @@ func lookupQuery(queryid string) (*queryState, bool) {
 	return s, ok
 }
 
-func startQuery(queryid string, querystate *queryState) error {
+func startQuery(querystate *queryState) (*queryState, bool) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
-	exists, expired := queryExistsLocked(queryid)
-	if exists {
-		if expired {
-			// Prepare for reusing the query slot by releasing resources.
-			releaseQueryLocked(state[queryid])
-		} else {
+	if s, ok := state[querystate.queryid]; ok {
+		if !s.expired() {
 			// This query is already active, do not interfere.
-			return fmt.Errorf("query already exists")
+			return s, true
 		}
+		// Prepare for reusing the query slot by releasing resources.
+		releaseQueryLocked(s)
 	} else {
 		// See if we need to garbage collect old queries. This is unnecessary when
 		// the query is expired, as we can just re-use the previous slot.
@@ -381,10 +364,10 @@ func startQuery(queryid string, querystate *queryState) error {
 			log.Printf("Garbage collection done. %d queries remaining", len(state))
 		}
 	}
-	state[queryid] = querystate
+	state[querystate.queryid] = querystate
 	activeQueries.Add(1)
 	frequency.IncUsers()
-	return nil
+	return querystate, false
 }
 
 // XXX: Starting a new query while there may still be clients reading that
@@ -392,11 +375,10 @@ func startQuery(queryid string, querystate *queryState) error {
 // querystate instead of the string identifier.
 
 // maybeStartQuery starts a specified query if that query does not already
-// exist. Returns whether the query existed and any errors during query
-// creation.
-func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) (bool, error) {
-	if queryExists(queryid) {
-		return true, nil
+// exist. Returns the *queryState and whether the query existed.
+func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) (*queryState, bool, error) {
+	if s, ok := lookupQuery(queryid); ok && !s.expired() {
+		return s, true, nil
 	}
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
@@ -405,7 +387,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 
 	dir := filepath.Join(o.QueryResultsPath, queryid)
 	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
-		return false, fmt.Errorf("could not create %q: %w", dir, err)
+		return nil, false, fmt.Errorf("could not create %q: %w", dir, err)
 	}
 
 	// TODO: without this line, searches would fail too early.
@@ -434,7 +416,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
 		f, err := os.Create(path)
 		if err != nil {
-			return false, fmt.Errorf("could not create %q: %w", path, err)
+			return nil, false, fmt.Errorf("could not create %q: %w", path, err)
 		}
 		querystate.perBackend[i] = &perBackendState{
 			packagePool:    stringpool.NewStringPool(),
@@ -457,14 +439,14 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		Literal:      rewritten.Query().Get("literal") == "1",
 	}
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
-	if err := startQuery(queryid, querystate); err != nil {
-		// Another goroutine must have raced us since we called queryExists().
-		return true, nil
+	if existing, ok := startQuery(querystate); ok {
+		// Another goroutine must have raced us since we called lookupQuery().
+		return existing, true, nil
 	}
 	for idx, backend := range common.SourceBackendStubs {
 		go o.queryBackend(ctx, queryid, src, backend, idx, searchRequest)
 	}
-	return false, nil
+	return querystate, false, nil
 }
 
 type queryStats struct {
