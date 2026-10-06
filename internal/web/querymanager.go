@@ -164,14 +164,22 @@ type perBackendState struct {
 }
 
 type queryState struct {
+	// config (never changed)
 	queryid  string
+	query    string
 	started  time.Time
-	ended    time.Time
-	events   []event
 	newEvent *sync.Cond
+
+	// This guards concurrent access to any perBackend[].tempFile.
+	tempFilesMu sync.Mutex
+	perBackend  []*perBackendState
+
+	// state (protected by mu)
+	mu       sync.Mutex
+	events   []event
+	ended    time.Time
 	done     bool
 	released bool // evicted (what a failed state map lookup used to mean)
-	query    string
 
 	results [10]resultPointer
 
@@ -179,10 +187,6 @@ type queryState struct {
 	filesProcessed []int
 
 	resultPages int
-
-	// This guards concurrent access to any perBackend[].tempFile.
-	tempFilesMu sync.Mutex
-	perBackend  []*perBackendState
 
 	numResults          int
 	resultWriter        diskWriter
@@ -599,13 +603,10 @@ func (s *queryState) failQuery() {
 }
 
 func (s *queryState) finishQuery() {
-	stateMu.RLock()
-	started := s.started
-	stateMu.RUnlock()
-	log.Printf("[%s] done (in %v), closing all client channels.\n", s.queryid, time.Since(started))
+	log.Printf("[%s] done (in %v), closing all client channels.\n", s.queryid, time.Since(s.started))
 	s.addEvent([]byte{}, nil)
 
-	queryDurations.Observe(float64(time.Since(started) / time.Millisecond))
+	queryDurations.Observe(float64(time.Since(s.started) / time.Millisecond))
 }
 
 func fsBytes(path string) (available uint64, total uint64) {
