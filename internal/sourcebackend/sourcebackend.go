@@ -365,14 +365,14 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 	// blocked on the connection (and the goroutines need to keep the write
 	// buffer in memory until the write is done).
 	//
-	// So instead, we start 100 worker goroutines and feed them work through a
+	// So instead, we start 32 worker goroutines and feed them work through a
 	// single channel. Due to these goroutines being blocked on writing,
 	// the grepping will naturally become slower.
 	progress := make(chan int)
 
 	var wg sync.WaitGroup
 
-	numWorkers := min(len(files), 100)
+	numWorkers := min(len(files), 32)
 	// We add the additional 1 for the progress updater goroutine. It also
 	// needs to be done before we can return, otherwise it will try to use the
 	// (already closed) network connection, which is a fatal error.
