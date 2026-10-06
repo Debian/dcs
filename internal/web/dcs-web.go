@@ -222,17 +222,14 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		queryid := matches[1]
-		stateMu.RLock()
-		s, ok := state[queryid]
-		var packages []string
-		if ok {
-			packages = s.allPackagesSorted
-		}
-		stateMu.RUnlock()
+		s, ok := lookupQuery(queryid)
 		if !ok {
 			http.Error(w, "No such query.", http.StatusNotFound)
 			return
 		}
+		stateMu.RLock()
+		packages := s.allPackagesSorted
+		stateMu.RUnlock()
 
 		if matches[2] == "json" {
 			startJsonResponse(w)
@@ -259,7 +256,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	perpackage := (matches[2] == "perpackage_2_")
 	stateMu.RLock()
-	_, ok := state[queryid]
+	s, ok := state[queryid]
 	stateMu.RUnlock()
 	if !ok {
 		http.Error(w, "No such query.", http.StatusNotFound)
@@ -267,9 +264,9 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !perpackage {
-		err = writeResults(queryid, page, w, w, r)
+		err = s.writeResults(page, w, w, r)
 	} else {
-		err = writePerPkgResults(queryid, page, w, w, r)
+		err = s.writePerPkgResults(page, w, w, r)
 	}
 	handleError(w, err)
 }
@@ -371,17 +368,14 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 
 	log.Printf("Results(queryid=%s, src=%s)", queryid, src)
 
-	stateMu.RLock()
-	state, ok := state[queryid]
-	var resultPointers sortedPointers
-	if ok {
-		resultPointers = state.resultPointers
-	}
-	stateMu.RUnlock()
+	state, ok := lookupQuery(queryid)
 	if !ok {
 		// TODO: canonical code
 		return fmt.Errorf("not found")
 	}
+	stateMu.RLock()
+	resultPointers := state.resultPointers
+	stateMu.RUnlock()
 
 	perBackend, err := perBackendFromState(state)
 	if err != nil {

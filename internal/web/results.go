@@ -20,14 +20,9 @@ func startJsonResponse(w http.ResponseWriter) {
 	w.Header().Set("Expires", cacheUntil)
 }
 
-func writeResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
+func (s *queryState) writeResults(page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
 	stateMu.RLock()
-	state, ok := state[queryid]
-	if !ok {
-		stateMu.RUnlock()
-		return httpError(http.StatusNotFound, fmt.Errorf("query no longer exists"))
-	}
-	pointers := state.resultPointers
+	pointers := s.resultPointers
 	stateMu.RUnlock()
 	start := page * resultsPerPage
 	if page < 0 || start > pointers.Len() {
@@ -43,21 +38,16 @@ func writeResults(queryid string, page int, results io.Writer, w http.ResponseWr
 	if err != nil {
 		return err
 	}
-	if err := writeFromPointers(queryid, results, chunk); err != nil {
+	if err := s.writeFromPointers(results, chunk); err != nil {
 		return fmt.Errorf("Could not return results: %v", err)
 	}
 	return nil
 }
 
-func writePerPkgResults(queryid string, page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
+func (s *queryState) writePerPkgResults(page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
 	stateMu.RLock()
-	state, ok := state[queryid]
-	if !ok {
-		stateMu.RUnlock()
-		return httpError(http.StatusNotFound, fmt.Errorf("query no longer exists"))
-	}
-	packages := state.allPackagesSorted
-	bypkg := state.resultPointersByPkg
+	packages := s.allPackagesSorted
+	bypkg := s.resultPointersByPkg
 	stateMu.RUnlock()
 
 	start := page * packagesPerPage
@@ -78,7 +68,7 @@ func writePerPkgResults(queryid string, page int, results io.Writer, w http.Resp
 		} else {
 			fmt.Fprintf(results, `,{"Package": "%s", "Results":`, pkg)
 		}
-		if err := writeFromPointers(queryid, results, bypkg[pkg]); err != nil {
+		if err := s.writeFromPointers(results, bypkg[pkg]); err != nil {
 			return fmt.Errorf("Could not return results: %v", err)
 		}
 		results.Write([]byte("}"))

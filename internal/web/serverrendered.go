@@ -110,21 +110,17 @@ func updatePagination(currentpage int, resultpages int, baseurl string) string {
 	return result
 }
 
-func readPackagesFile(queryid string) []string {
+func (s *queryState) readPackagesFile() []string {
 	stateMu.RLock()
 	defer stateMu.RUnlock()
-	s, ok := state[queryid]
-	if !ok {
-		return nil
-	}
 	packages := s.allPackagesSorted
 	end := min(100, len(packages))
 	return packages[:end]
 }
 
-func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, page int) {
+func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, page int) {
 	var buffer bytes.Buffer
-	if err := writePerPkgResults(queryid, page, &buffer, w, r); err != nil {
+	if err := s.writePerPkgResults(page, &buffer, w, r); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -171,17 +167,14 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, queryid string, pa
 		}
 	}
 
-	packages := readPackagesFile(queryid)
+	packages := s.readPackagesFile()
 
 	basequery := r.URL.Query()
 	basequery.Del("page")
 	baseurl := r.URL
 	baseurl.RawQuery = basequery.Encode()
 	stateMu.RLock()
-	var pages int
-	if s, ok := state[queryid]; ok {
-		pages = int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
-	}
+	pages := int(math.Ceil(float64(len(s.allPackagesSorted)) / float64(packagesPerPage)))
 	stateMu.RUnlock()
 	pagination := updatePagination(page, pages, baseurl.String())
 
@@ -286,12 +279,12 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[%s] server-rendering page %d\n", queryid, page)
 
 	if r.Form.Get("perpkg") == "1" {
-		renderPerPackage(w, r, queryid, page)
+		renderPerPackage(w, r, s, page)
 		return
 	}
 
 	var buffer bytes.Buffer
-	if err := writeResults(queryid, page, &buffer, w, r); err != nil {
+	if err := s.writeResults(page, &buffer, w, r); err != nil {
 		handleError(w, err)
 		return
 	}
@@ -326,17 +319,14 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	packages := readPackagesFile(queryid)
+	packages := s.readPackagesFile()
 
 	basequery := r.URL.Query()
 	basequery.Del("page")
 	baseurl := r.URL
 	baseurl.RawQuery = basequery.Encode()
 	stateMu.RLock()
-	var resultPages int
-	if s, ok := state[queryid]; ok {
-		resultPages = s.resultPages
-	}
+	resultPages := s.resultPages
 	pagination := updatePagination(page, resultPages, baseurl.String())
 	stateMu.RUnlock()
 
