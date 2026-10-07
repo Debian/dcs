@@ -314,7 +314,9 @@ func Start(hashKey, blockKey, dataDir string) (*Instance, error) {
 			filepath.Join(*localdcsPath, "key.pem"),
 			false,
 			func(s *grpc.Server) {
-				sourcebackendpb.RegisterSourceBackendServer(s, srv)
+				sourcebackendpb.RegisterSourceBackendServer(s, &sourcebackend.GRPCServer{
+					Server: srv,
+				})
 			}))
 	}()
 

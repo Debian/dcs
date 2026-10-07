@@ -64,7 +64,9 @@ func search(args []string) error {
 	}
 
 	conn, cleanup := rpctest.Loopback(func(s *grpc.Server) {
-		sourcebackendpb.RegisterSourceBackendServer(s, srv)
+		sourcebackendpb.RegisterSourceBackendServer(s, &sourcebackend.GRPCServer{
+			Server: srv,
+		})
 	})
 	defer cleanup()
 	cl := sourcebackendpb.NewSourceBackendClient(conn)

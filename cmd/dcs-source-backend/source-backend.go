@@ -114,6 +114,8 @@ func main() {
 		*tlsKeyPath,
 		*requireClientAuth,
 		func(s *grpc.Server) {
-			sourcebackendpb.RegisterSourceBackendServer(s, srv)
+			sourcebackendpb.RegisterSourceBackendServer(s, &sourcebackend.GRPCServer{
+				Server: srv,
+			})
 		}))
 }

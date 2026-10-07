@@ -134,9 +134,6 @@ type SourceReply struct {
 }
 
 type Server struct {
-	// For forward compatibility
-	sourcebackendpb.UnimplementedSourceBackendServer
-
 	mu                 sync.Mutex
 	Index              *index.Index
 	UnpackedPath       *os.Root
@@ -146,41 +143,19 @@ type Server struct {
 }
 
 // Serves a single file for displaying it in /show
-func (s *Server) File(ctx context.Context, in *sourcebackendpb.FileRequest) (*sourcebackendpb.FileReply, error) {
-	log.Printf("requested filename *%s*\n", in.Path)
-
-	contents, err := s.UnpackedPath.ReadFile(in.Path)
-	if err != nil {
-		return nil, err
-	}
-	return &sourcebackendpb.FileReply{
-		Contents: contents,
-	}, nil
+func (s *Server) ReadFile(path string) ([]byte, error) {
+	return s.UnpackedPath.ReadFile(path)
 }
 
-func sendProgressUpdate(stream sourcebackendpb.SourceBackend_SearchServer, connMu *sync.Mutex, filesProcessed, filesTotal int) error {
-	connMu.Lock()
-	defer connMu.Unlock()
-	return stream.Send(&sourcebackendpb.SearchReply{
-		Type: sourcebackendpb.SearchReply_PROGRESS_UPDATE,
-		ProgressUpdate: &sourcebackendpb.ProgressUpdate{
-			FilesProcessed: uint64(filesProcessed),
-			FilesTotal:     uint64(filesTotal),
-		},
-	})
-}
-
-func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIndexRequest) (*sourcebackendpb.ReplaceIndexReply, error) {
-	newShard := in.ReplacementPath
-
+func (s *Server) ReplaceIndex(newShard string) error {
 	file, err := os.Open(filepath.Dir(s.IndexPath))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer file.Close()
 	names, err := file.Readdirnames(-1)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, name := range names {
@@ -191,7 +166,7 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 			log.Printf("Trying to load %q\n", newShard)
 			newIndex, err := index.Open(newShard)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			s.mu.Lock()
 			oldIndex := s.Index
@@ -200,11 +175,11 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 			defer oldIndex.Close()
 
 			if err := renameio.Symlink(newShard, s.IndexPath); err != nil {
-				return nil, err
+				return err
 			}
 			fis, err := os.ReadDir(filepath.Dir(s.IndexPath))
 			if err != nil {
-				return nil, err
+				return err
 			}
 			for _, fi := range fis {
 				if !strings.HasPrefix(fi.Name(), "full.") {
@@ -215,14 +190,14 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 				}
 				log.Printf("Removing old index %q", fi.Name())
 				if err := os.RemoveAll(filepath.Join(filepath.Dir(s.IndexPath), fi.Name())); err != nil {
-					return nil, err
+					return err
 				}
 			}
-			return &sourcebackendpb.ReplaceIndexReply{}, nil
+			return nil
 		}
 	}
 
-	return nil, fmt.Errorf("No such shard.")
+	return fmt.Errorf("No such shard.")
 }
 
 // TODO: fix the indexing code path to ensure valid UTF8
@@ -287,8 +262,16 @@ func (s *Server) query(query *index.Query) ([]string, error) {
 	return possible, nil
 }
 
-func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendpb.SourceBackend_SearchServer) error {
-	connMu := new(sync.Mutex)
+type SearchSink interface {
+	// Match is called for each found match.
+	// Returning an error stops the search.
+	Match(m *sourcebackendpb.Match) error
+
+	// Returning an error stops the search.
+	Progress(filesProcessed, filesTotal int) error
+}
+
+func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, sink SearchSink) error {
 	logprefix := fmt.Sprintf("[%q]", in.Query)
 
 	flags := syntax.Perl
@@ -360,7 +343,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 	// Send the first progress update so that clients know how many files are
 	// going to be searched.
-	if err := sendProgressUpdate(stream, connMu, 0, len(files)); err != nil {
+	if err := sink.Progress(0, len(files)); err != nil {
 		return fmt.Errorf("%s %v\n", logprefix, err)
 	}
 
@@ -400,9 +383,9 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 
 			// Skip the progress update if cnt == len(files) to avoid
 			// signaling completion multiple times (here and in the
-			// unconditional sendProgressUpdate below).
+			// unconditional sink.Progress below).
 			if cnt < len(files) && time.Since(lastProgressUpdate) > progressInterval {
-				if err := sendProgressUpdate(stream, connMu, cnt, len(files)); err != nil {
+				if err := sink.Progress(cnt, len(files)); err != nil {
 					if !errorShown {
 						log.Printf("%s %v\n", logprefix, err)
 						// We need to read the 'progress' channel, so we cannot
@@ -415,7 +398,7 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 			}
 		}
 
-		if err := sendProgressUpdate(stream, connMu, len(files), len(files)); err != nil {
+		if err := sink.Progress(len(files), len(files)); err != nil {
 			log.Printf("%s %v\n", logprefix, err)
 		}
 		close(progress)
@@ -476,23 +459,18 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 				// TODO: ideally, we’d get sourcebackendpb.Match structs from grep.File(), let’s do that after profiling the decoding performance
 
 				path := file.Path
-				connMu.Lock()
-				if err := stream.Send(&sourcebackendpb.SearchReply{
-					Type: sourcebackendpb.SearchReply_MATCH,
-					Match: &sourcebackendpb.Match{
-						Path:     path,
-						Line:     uint32(match.Line),
-						Package:  path[:strings.Index(path, "/")],
-						Ctxp2:    ensureValidUTF8(match.Ctxp2),
-						Ctxp1:    ensureValidUTF8(match.Ctxp1),
-						Context:  ensureValidUTF8(match.Context),
-						Ctxn1:    ensureValidUTF8(match.Ctxn1),
-						Ctxn2:    ensureValidUTF8(match.Ctxn2),
-						Pathrank: match.PathRank,
-						Ranking:  match.Ranking,
-					},
+				if err := sink.Match(&sourcebackendpb.Match{
+					Path:     path,
+					Line:     uint32(match.Line),
+					Package:  path[:strings.Index(path, "/")],
+					Ctxp2:    ensureValidUTF8(match.Ctxp2),
+					Ctxp1:    ensureValidUTF8(match.Ctxp1),
+					Context:  ensureValidUTF8(match.Context),
+					Ctxn1:    ensureValidUTF8(match.Ctxn1),
+					Ctxn2:    ensureValidUTF8(match.Ctxn2),
+					Pathrank: match.PathRank,
+					Ranking:  match.Ranking,
 				}); err != nil {
-					connMu.Unlock()
 					log.Printf("%s %v\n", logprefix, err)
 					// Drain the work channel, but without doing any work.
 					// This effectively exits the worker goroutine(s)
@@ -503,7 +481,6 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 					}
 					break
 				}
-				connMu.Unlock()
 			}
 
 			progress <- 1
