@@ -115,12 +115,12 @@ function track(ev) {
 function addSearchResult(results, result) {
     var context = [];
 
-    // NB: All of the following context lines are already HTML-escaped by the server.
-    context.push(result.ctxp2);
-    context.push(result.ctxp1);
-    context.push('<strong>' + result.context + '</strong>');
-    context.push(result.ctxn1);
-    context.push(result.ctxn2);
+    // The server sends the lines as they are, so escape for HTML here.
+    context.push(escapeForHTML(result.ctxp2));
+    context.push(escapeForHTML(result.ctxp1));
+    context.push('<strong>' + escapeForHTML(result.context) + '</strong>');
+    context.push(escapeForHTML(result.ctxn1));
+    context.push(escapeForHTML(result.ctxn2));
     // Remove any empty context lines (e.g. when the match is close to the
     // beginning or end of the file).
     context = context.filter(function(ctx) { return ctx.trim() != ""; });

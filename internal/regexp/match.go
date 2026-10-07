@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"os"
 	"regexp/syntax"
@@ -454,6 +453,10 @@ func (nnr *nlNormReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// Match represents a matching line, with its context lines.
+//
+// All lines are the bytes of the file as they are:
+// perhaps invalid UTF-8, not HTML-escaped.
 type Match struct {
 	Path string
 	Line int
@@ -497,10 +500,11 @@ func (g *Grep) Reader(r io.Reader, name string) []Match {
 		// Store the current line as context line if the last line
 		// (or second to last line) were a match.
 		for i := max(len(result)-2, 0); i < len(result); i++ {
-			if lineno == result[i].Line+1 {
-				result[i].Ctxn1 = html.EscapeString(string(text))
-			} else if lineno == result[i].Line+2 {
-				result[i].Ctxn2 = html.EscapeString(string(text))
+			switch lineno {
+			case result[i].Line + 1:
+				result[i].Ctxn1 = string(text)
+			case result[i].Line + 2:
+				result[i].Ctxn2 = string(text)
 			}
 		}
 
@@ -511,9 +515,9 @@ func (g *Grep) Reader(r io.Reader, name string) []Match {
 			result = append(result, Match{
 				Path:    name,
 				Line:    lineno,
-				Ctxp2:   html.EscapeString(string(prev2)),
-				Ctxp1:   html.EscapeString(string(prev1)),
-				Context: html.EscapeString(string(text)),
+				Ctxp2:   string(prev2),
+				Ctxp1:   string(prev1),
+				Context: string(text),
 			})
 		}
 

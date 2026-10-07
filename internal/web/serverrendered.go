@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"html"
 	"html/template"
 	"io"
 	"log"
@@ -38,15 +39,14 @@ type halfRenderedResult struct {
 }
 
 func maybeAppendContext(context []string, line string) []string {
-	if strings.TrimSpace(line) != "" {
-		replaced := line
-		for strings.HasPrefix(replaced, "\t") {
-			replaced = strings.Replace(replaced, "\t", "    ", 1)
-		}
-		return append(context, replaced)
-	} else {
-		return context
+	if strings.TrimSpace(line) == "" {
+		return context // nothing to append
 	}
+	replaced := line
+	for strings.HasPrefix(replaced, "\t") {
+		replaced = strings.Replace(replaced, "\t", "    ", 1)
+	}
+	return append(context, html.EscapeString(replaced))
 }
 
 func splitPath(path string) (sourcePackage string, relativePath string) {
@@ -145,7 +145,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 			var context []string
 			context = maybeAppendContext(context, result.Ctxp2)
 			context = maybeAppendContext(context, result.Ctxp1)
-			context = append(context, "<strong>"+result.Context+"</strong>")
+			context = append(context, "<strong>"+html.EscapeString(result.Context)+"</strong>")
 			context = maybeAppendContext(context, result.Ctxn1)
 			context = maybeAppendContext(context, result.Ctxn2)
 
@@ -302,7 +302,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		var context []string
 		context = maybeAppendContext(context, result.Ctxp2)
 		context = maybeAppendContext(context, result.Ctxp1)
-		context = append(context, "<strong>"+result.Context+"</strong>")
+		context = append(context, "<strong>"+html.EscapeString(result.Context)+"</strong>")
 		context = maybeAppendContext(context, result.Ctxn1)
 		context = maybeAppendContext(context, result.Ctxn2)
 

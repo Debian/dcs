@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
@@ -222,6 +223,15 @@ func (s *Server) ReplaceIndex(ctx context.Context, in *sourcebackendpb.ReplaceIn
 	}
 
 	return nil, fmt.Errorf("No such shard.")
+}
+
+// TODO: fix the indexing code path to ensure valid UTF8
+// (currently it seems to only reject *some* invalid UTF8)
+func ensureValidUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	return strings.ToValidUTF8(s, "\uFFFD")
 }
 
 type fileMatches struct {
@@ -473,11 +483,11 @@ func (s *Server) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendp
 						Path:     path,
 						Line:     uint32(match.Line),
 						Package:  path[:strings.Index(path, "/")],
-						Ctxp2:    match.Ctxp2,
-						Ctxp1:    match.Ctxp1,
-						Context:  match.Context,
-						Ctxn1:    match.Ctxn1,
-						Ctxn2:    match.Ctxn2,
+						Ctxp2:    ensureValidUTF8(match.Ctxp2),
+						Ctxp1:    ensureValidUTF8(match.Ctxp1),
+						Context:  ensureValidUTF8(match.Context),
+						Ctxn1:    ensureValidUTF8(match.Ctxn1),
+						Ctxn2:    ensureValidUTF8(match.Ctxn2),
 						Pathrank: match.PathRank,
 						Ranking:  match.Ranking,
 					},
