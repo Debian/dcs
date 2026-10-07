@@ -143,7 +143,7 @@ type Server struct {
 }
 
 // Serves a single file for displaying it in /show
-func (s *Server) ReadFile(path string) ([]byte, error) {
+func (s *Server) ReadFile(_ context.Context, path string) ([]byte, error) {
 	return s.UnpackedPath.ReadFile(path)
 }
 

@@ -22,6 +22,7 @@ import (
 	"github.com/Debian/dcs/internal/filter"
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/index"
+	"github.com/google/renameio/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
@@ -346,6 +347,14 @@ func (s *server) mergeToShard() error {
 	log.Printf("merged into shard %s\n", tmpIndexPath)
 
 	successfulMerges.Inc()
+
+	if s.sourceBackendAddr == "" {
+		// No source backend running in this setup.
+		// Replace the symlink directly, dcs-web polls for changes.
+		oldname := filepath.Base(tmpIndexPath)
+		newname := filepath.Join(s.shardPath, "full")
+		return renameio.Symlink(oldname, newname)
+	}
 
 	conn, err := grpcutil.DialTLS(s.sourceBackendAddr, s.tlsCertPath, s.tlsKeyPath)
 	if err != nil {

@@ -30,7 +30,7 @@ type Backend interface {
 }
 
 func Init(tlsCertPath, tlsKeyPath, sourceBackends string, templates fs.FS) {
-	loadTemplates(templates)
+	LoadTemplates(templates)
 	addrs := strings.Split(sourceBackends, ",")
 	Backends = make([]Backend, len(addrs))
 	for idx, addr := range addrs {
@@ -42,7 +42,7 @@ func Init(tlsCertPath, tlsKeyPath, sourceBackends string, templates fs.FS) {
 	}
 }
 
-func loadTemplates(templates fs.FS) {
+func LoadTemplates(templates fs.FS) {
 	var err error
 	Templates = template.New("foo").Funcs(template.FuncMap{
 		"staticHash": static.Hash,

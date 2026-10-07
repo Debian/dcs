@@ -500,6 +500,9 @@ type Opts struct {
 	RedirectURL          string
 	PrintVersion         bool
 	SourceBackends       string
+	SourceIndexes        string
+	RankingDataPath      string
+	UsePositionalIndex   bool
 	UseSourcesDebianNet  bool
 	QueryResultsPath     string
 }
@@ -515,7 +518,16 @@ func (o *Opts) Main(ln net.Listener) error {
 		return fmt.Errorf("critical.min.css not found (did you not run make static?)")
 	}
 	common.CriticalCss = template.CSS(string(criticalCSS))
-	common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
+	if o.SourceIndexes != "" {
+		common.LoadTemplates(templates)
+		backends, err := o.openSourceIndexes()
+		if err != nil {
+			return err
+		}
+		common.Backends = backends
+	} else {
+		common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
+	}
 
 	if o.HashKeyStr == "" {
 		return fmt.Errorf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))

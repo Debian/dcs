@@ -18,7 +18,7 @@ type GRPCServer struct {
 // Serves a single file for displaying it in /show
 func (s *GRPCServer) File(ctx context.Context, in *sourcebackendpb.FileRequest) (*sourcebackendpb.FileReply, error) {
 	log.Printf("requested filename *%s*\n", in.Path)
-	contents, err := s.Server.ReadFile(in.Path)
+	contents, err := s.Server.ReadFile(ctx, in.Path)
 	if err != nil {
 		return nil, err
 	}

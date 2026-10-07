@@ -65,7 +65,19 @@ func main() {
 
 	flag.StringVar(&opts.SourceBackends, "source_backends",
 		"localhost:28082",
-		"host:port (multiple values are comma-separated) of the source-backend(s)")
+		"host:port (multiple values are comma-separated) of the source-backend(s), see also -source_indexes")
+
+	flag.StringVar(&opts.SourceIndexes, "source_indexes",
+		"",
+		"local directory paths (multiple values are comma-separated) of an index shard, containing unpacked sources (src) and a source index (full/) to serve, as an alternative to -source_backends")
+
+	flag.StringVar(&opts.RankingDataPath, "ranking_data_path",
+		"/var/dcs/ranking.json",
+		"Path to the JSON containing ranking data (with -source_indexes)")
+
+	flag.BoolVar(&opts.UsePositionalIndex, "use_positional_index",
+		false,
+		"use the pos and posrel index sections for identifier queries (with -source_indexes)")
 
 	flag.BoolVar(&opts.UseSourcesDebianNet, "use_sources_debian_net",
 		false,
