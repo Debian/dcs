@@ -203,7 +203,66 @@ var (
 	state   = make(map[string]*queryState)
 )
 
-func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, backend sourcebackendpb.SourceBackendClient, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
+type sink struct {
+	opts       *Opts
+	queryState *queryState
+	backendidx int
+
+	// mu guards the perBackend.tempFileWriter
+	mu sync.Mutex
+}
+
+// Match implements sourcebackend.SearchSink.
+func (s *sink) Match(m *sourcebackendpb.Match) error {
+	b, err := proto.Marshal(&sourcebackendpb.SearchReply{
+		Type:  sourcebackendpb.SearchReply_MATCH,
+		Match: m,
+	})
+	if err != nil {
+		return fmt.Errorf("encoding proto: %v", err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	bstate := s.queryState.perBackend[s.backendidx]
+	if _, err := bstate.tempFileWriter.Write(b); err != nil {
+		return fmt.Errorf("writing proto: %v", err)
+	}
+
+	if err := s.queryState.storeResult(s.backendidx, m, len(b)); err != nil {
+		return fmt.Errorf("writing result: %v", err)
+	}
+
+	bstate.tempFileOffset += int64(len(b))
+	if s.queryState.completed() {
+		return fmt.Errorf("query was cancelled")
+	}
+
+	return nil
+}
+
+// Progress implements sourcebackend.SearchSink.
+func (s *sink) Progress(filesProcessed, filesTotal int) error {
+	orderlyFinished := filesProcessed == filesTotal
+	if orderlyFinished {
+		// Flush before storeProgress so that the file is on disk
+		// before clients start requesting it.
+		s.mu.Lock()
+		bstate := s.queryState.perBackend[s.backendidx]
+		bstate.tempFileWriter.Flush()
+		s.mu.Unlock()
+	}
+	s.opts.storeProgress(s.queryState, s.backendidx, &sourcebackendpb.ProgressUpdate{
+		FilesProcessed: uint64(filesProcessed),
+		FilesTotal:     uint64(filesTotal),
+	})
+	if s.queryState.completed() && filesProcessed < filesTotal {
+		return fmt.Errorf("query was cancelled")
+	}
+	return nil
+}
+
+func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, backend common.Backend, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
 	// When exiting this function, check that all results were processed. If
 	// not, the backend query must have failed for some reason. Send a progress
 	// update to prevent the query from running forever.
@@ -235,70 +294,14 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 
 	ctx, cancelfunc := context.WithCancel(ctx)
 	defer cancelfunc()
-	stream, err := backend.Search(ctx, searchRequest)
+	err := backend.Search(ctx, searchRequest, &sink{
+		opts:       o,
+		queryState: s,
+		backendidx: backendidx,
+	})
 	if err != nil {
 		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", s.queryid, src, err)
 		return
-	}
-
-	bstate := s.perBackend[backendidx]
-	tempFileWriter := bstate.tempFileWriter
-	orderlyFinished := false
-	done := false
-
-	for !done {
-		msg, err := stream.Recv()
-		if err == io.EOF {
-			log.Printf("[%s] [src:%s] EOF\n", s.queryid, src)
-			return
-		}
-		if err != nil {
-			log.Printf("[%s] [src:%s] Error decoding result stream: %v\n", s.queryid, src, err)
-			return
-		}
-
-		b, err := proto.Marshal(msg)
-		if err != nil {
-			log.Printf("[%s] [src:%s] Error encoding proto: %v\n", s.queryid, src, err)
-			return
-		}
-		if _, err := tempFileWriter.Write(b); err != nil {
-			log.Printf("[%s] [src:%s] Error writing proto: %v\n", s.queryid, src, err)
-			return
-		}
-
-		switch msg.Type {
-		case sourcebackendpb.SearchReply_MATCH:
-			if err := s.storeResult(backendidx, msg.Match, len(b)); err != nil {
-				log.Printf("[%s] [src:%s] Error writing result: %v\n", s.queryid, src, err)
-				return
-			}
-		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
-			orderlyFinished = msg.ProgressUpdate.FilesProcessed == msg.ProgressUpdate.FilesTotal
-			if orderlyFinished {
-				// Flush before storeProgress so that the file is on disk
-				// before clients start requesting it.
-				tempFileWriter.Flush()
-			}
-			o.storeProgress(s, backendidx, msg.ProgressUpdate)
-		}
-
-		bstate.tempFileOffset += int64(len(b))
-		s.mu.Lock()
-		done = s.done
-		s.mu.Unlock()
-	}
-
-	// Drain the stream: the above loop might finish early (when the query is cancelled)
-	if orderlyFinished {
-		// We got everything we need, but we need to try receiving one more
-		// message to make gRPC realize the streaming RPC is finished (by
-		// reading an EOF).
-		stream.Recv()
-	} else {
-		// The query was cancelled before it could complete, so cancel the
-		// stream as well.
-		cancelfunc()
 	}
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", s.queryid, src)
 }
@@ -386,9 +389,9 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		queryid:        queryid,
 		started:        time.Now(),
 		query:          query,
-		filesTotal:     make([]int, len(common.SourceBackendStubs)),
-		filesProcessed: make([]int, len(common.SourceBackendStubs)),
-		perBackend:     make([]*perBackendState, len(common.SourceBackendStubs)),
+		filesTotal:     make([]int, len(common.Backends)),
+		filesProcessed: make([]int, len(common.Backends)),
+		perBackend:     make([]*perBackendState, len(common.Backends)),
 		resultPointers: memPointers(nil),
 		resultWriter: diskWriter{
 			// NOTE: append overshoots by up to 25%, so the 64 MB here
@@ -399,7 +402,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 	}
 	querystate.newEvent = sync.NewCond(&querystate.mu)
 
-	for i := 0; i < len(common.SourceBackendStubs); i++ {
+	for i := 0; i < len(common.Backends); i++ {
 		querystate.filesTotal[i] = -1
 		path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
 		f, err := os.Create(path)
@@ -431,7 +434,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		// Another goroutine must have raced us since we called lookupQuery().
 		return existing, true, nil
 	}
-	for idx, backend := range common.SourceBackendStubs {
+	for idx, backend := range common.Backends {
 		go o.queryBackend(ctx, querystate, src, backend, idx, searchRequest)
 	}
 	return querystate, false, nil
@@ -811,7 +814,7 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	s.filesTotal[backendidx] = int(progress.FilesTotal)
 	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
 	allSet := true
-	for i := 0; i < len(common.SourceBackendStubs); i++ {
+	for i := 0; i < len(common.Backends); i++ {
 		if s.filesTotal[i] == -1 {
 			log.Printf("total number for backend %d missing\n", i)
 			allSet = false

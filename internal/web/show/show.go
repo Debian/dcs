@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/shardmapping"
 	"github.com/Debian/dcs/internal/web/common"
 	"github.com/Debian/dcs/internal/web/health"
@@ -47,10 +46,8 @@ func Show(useSourcesDebianNet bool) http.HandlerFunc {
 			return
 		}
 		pkg := before
-		shard := common.SourceBackendStubs[shardmapping.TaskIdxForPackage(pkg, len(common.SourceBackendStubs))]
-		resp, err := shard.File(context.Background(), &sourcebackendpb.FileRequest{
-			Path: filename,
-		})
+		shard := common.Backends[shardmapping.TaskIdxForPackage(pkg, len(common.Backends))]
+		resp, err := shard.ReadFile(context.Background(), filename)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -63,7 +60,7 @@ func Show(useSourcesDebianNet bool) http.HandlerFunc {
 		// yields a string whose successive bytes are the elements of the slice.".
 		// We don’t iterate over this string, we just pass it directly to the
 		// user’s browser, which can then deal with the bytes :-).
-		lines := strings.Split(string(resp.Contents), "\n")
+		lines := strings.Split(string(resp), "\n")
 		highestLineNr := fmt.Sprintf("%d", len(lines))
 
 		// Since Go templates don’t offer any way to use {{$idx+1}}, we need to
