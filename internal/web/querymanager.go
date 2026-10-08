@@ -177,11 +177,13 @@ type queryState struct {
 	// state
 	done chan struct{} // closed when done
 	// state (protected by mu)
-	mu       sync.Mutex
-	events   []event
-	ended    time.Time
-	released bool    // evicted (what a failed state map lookup used to mean)
-	errors   []error // one error per failed backend
+	mu        sync.Mutex
+	events    []event
+	ended     time.Time
+	released  bool    // evicted (what a failed state map lookup used to mean)
+	errors    []error // one error per failed backend
+	cancel    context.CancelFunc
+	cancelled bool
 
 	results [10]resultPointer
 
@@ -206,6 +208,8 @@ var (
 )
 
 type sink struct {
+	ctx context.Context // for respecting cancellation
+
 	opts       *Opts
 	queryState *queryState
 	backendidx int
@@ -216,6 +220,10 @@ type sink struct {
 
 // Match implements sourcebackend.SearchSink.
 func (s *sink) Match(m *sourcebackendpb.Match) error {
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
+
 	b, err := proto.Marshal(&sourcebackendpb.SearchReply{
 		Type:  sourcebackendpb.SearchReply_MATCH,
 		Match: m,
@@ -245,6 +253,10 @@ func (s *sink) Match(m *sourcebackendpb.Match) error {
 
 // Progress implements sourcebackend.SearchSink.
 func (s *sink) Progress(filesProcessed, filesTotal int) error {
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
+
 	orderlyFinished := filesProcessed == filesTotal
 	if orderlyFinished {
 		// Flush before storeProgress so that the file is on disk
@@ -268,6 +280,7 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 	ctx, cancelfunc := context.WithCancel(ctx)
 	defer cancelfunc()
 	err := backend.Search(ctx, searchRequest, &sink{
+		ctx:        ctx,
 		opts:       o,
 		queryState: s,
 		backendidx: backendidx,
@@ -418,6 +431,15 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 }
 
 func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRequest *sourcebackendpb.SearchRequest) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.mu.Lock()
+	cancelled := s.cancelled // did cancellation race us?
+	s.cancel = cancel
+	s.mu.Unlock()
+	if cancelled {
+		cancel()
+	}
 	var wg sync.WaitGroup
 	for idx, backend := range common.Backends {
 		wg.Go(func() {
@@ -452,11 +474,13 @@ func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
 		if s, ok := lookupQuery(cancel); ok {
-			s.addEventMarshal(&Error{
-				Type:      "error",
-				ErrorType: "cancelled",
-			})
-			o.finishQuery(s)
+			s.mu.Lock()
+			cancel := s.cancel
+			s.cancelled = true
+			s.mu.Unlock()
+			if cancel != nil {
+				cancel()
+			}
 		}
 		http.Redirect(w, r, "/queryz", http.StatusFound)
 		return
@@ -613,6 +637,7 @@ func (o *Opts) finishQuery(s *queryState) {
 	}
 	numResults := s.numResults
 	errors := s.errors
+	cancelled := s.cancelled
 	s.mu.Unlock()
 
 	log.Printf("[%s] query done on all backends, writing to disk.\n", s.queryid)
@@ -625,7 +650,14 @@ func (o *Opts) finishQuery(s *queryState) {
 		})
 	}
 
-	if len(errors) > 0 {
+	switch {
+	case cancelled:
+		s.addEventMarshal(&Error{
+			Type:      "error",
+			ErrorType: "cancelled",
+		})
+
+	case len(errors) > 0:
 		s.addEventMarshal(&Error{
 			Type:      "error",
 			ErrorType: "backendunavailable",
