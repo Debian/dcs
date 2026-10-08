@@ -613,7 +613,7 @@ func (o *Opts) Main(ln net.Listener) error {
 
 	mux.HandleFunc("/results/", ResultsHandler)
 	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
-	mux.HandleFunc("/queryz", QueryzHandler)
+	mux.HandleFunc("/queryz", o.QueryzHandler)
 	mux.HandleFunc("/track", Track)
 
 	traced := http.NewServeMux()

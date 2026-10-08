@@ -180,7 +180,8 @@ type queryState struct {
 	mu       sync.Mutex
 	events   []event
 	ended    time.Time
-	released bool // evicted (what a failed state map lookup used to mean)
+	released bool    // evicted (what a failed state map lookup used to mean)
+	errors   []error // one error per failed backend
 
 	results [10]resultPointer
 
@@ -263,36 +264,7 @@ func (s *sink) Progress(filesProcessed, filesTotal int) error {
 	return nil
 }
 
-func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, backend common.Backend, backendidx int, searchRequest *sourcebackendpb.SearchRequest) {
-	// When exiting this function, check that all results were processed. If
-	// not, the backend query must have failed for some reason. Send a progress
-	// update to prevent the query from running forever.
-	defer func() {
-		s.mu.Lock()
-		filesTotal := s.filesTotal[backendidx]
-		filesProcessed := s.filesProcessed[backendidx]
-		s.mu.Unlock()
-
-		if filesProcessed == filesTotal {
-			return
-		}
-
-		if filesTotal == -1 {
-			filesTotal = 0
-		}
-
-		s.perBackend[backendidx].tempFileWriter.Flush()
-		o.storeProgress(s, backendidx, &sourcebackendpb.ProgressUpdate{
-			FilesProcessed: uint64(filesTotal),
-			FilesTotal:     uint64(filesTotal),
-		})
-
-		s.addEventMarshal(&Error{
-			Type:      "error",
-			ErrorType: "backendunavailable",
-		})
-	}()
-
+func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, backend common.Backend, backendidx int, searchRequest *sourcebackendpb.SearchRequest) error {
 	ctx, cancelfunc := context.WithCancel(ctx)
 	defer cancelfunc()
 	err := backend.Search(ctx, searchRequest, &sink{
@@ -300,11 +272,13 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 		queryState: s,
 		backendidx: backendidx,
 	})
+	s.perBackend[backendidx].tempFileWriter.Flush()
 	if err != nil {
 		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", s.queryid, src, err)
-		return
+		return err
 	}
 	log.Printf("[%s] [src:%s] query done, disconnecting\n", s.queryid, src)
+	return nil
 }
 
 func (s *queryState) expired() bool {
@@ -439,10 +413,23 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		// Another goroutine must have raced us since we called lookupQuery().
 		return existing, true, nil
 	}
-	for idx, backend := range common.Backends {
-		go o.queryBackend(ctx, querystate, src, backend, idx, searchRequest)
-	}
+	go o.runQuery(ctx, querystate, src, searchRequest)
 	return querystate, false, nil
+}
+
+func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRequest *sourcebackendpb.SearchRequest) {
+	var wg sync.WaitGroup
+	for idx, backend := range common.Backends {
+		wg.Go(func() {
+			if err := o.queryBackend(ctx, s, src, backend, idx, searchRequest); err != nil {
+				s.mu.Lock()
+				s.errors = append(s.errors, err)
+				s.mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	o.finishQuery(s)
 }
 
 type queryStats struct {
@@ -461,7 +448,7 @@ type queryStats struct {
 	FilesProcessed []int
 }
 
-func QueryzHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
 		if s, ok := lookupQuery(cancel); ok {
@@ -469,7 +456,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 				Type:      "error",
 				ErrorType: "cancelled",
 			})
-			s.finishQuery()
+			o.finishQuery(s)
 		}
 		http.Redirect(w, r, "/queryz", http.StatusFound)
 		return
@@ -605,16 +592,55 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 	return nil
 }
 
-func (s *queryState) failQuery() {
-	failedQueries.Inc()
-	s.addEventMarshal(&Error{
-		Type:      "error",
-		ErrorType: "failed",
-	})
-	s.finishQuery()
-}
+func (o *Opts) finishQuery(s *queryState) {
+	if s.completed() {
+		return // already finished
+	}
 
-func (s *queryState) finishQuery() {
+	s.mu.Lock()
+	for idx := range s.filesTotal {
+		filesTotal := s.filesTotal[idx]
+		if filesTotal == -1 {
+			filesTotal = 0
+		}
+		s.filesTotal[idx] = filesTotal
+		s.filesProcessed[idx] = filesTotal
+	}
+
+	filesTotal := 0
+	for _, total := range s.filesTotal {
+		filesTotal += total
+	}
+	numResults := s.numResults
+	errors := s.errors
+	s.mu.Unlock()
+
+	log.Printf("[%s] query done on all backends, writing to disk.\n", s.queryid)
+	if err := o.writeToDisk(s); err != nil {
+		log.Printf("[%s] writeToDisk() failed: %v\n", s.queryid, err)
+		failedQueries.Inc()
+		s.addEventMarshal(&Error{
+			Type:      "error",
+			ErrorType: "failed",
+		})
+	}
+
+	if len(errors) > 0 {
+		s.addEventMarshal(&Error{
+			Type:      "error",
+			ErrorType: "backendunavailable",
+		})
+	}
+
+	log.Printf("[%s] (sending) progress: %d\n", s.queryid, filesTotal)
+	s.addEventMarshal(&ProgressUpdate{
+		Type:           "progress",
+		QueryId:        s.queryid,
+		FilesProcessed: filesTotal,
+		FilesTotal:     filesTotal,
+		Results:        numResults,
+	})
+
 	log.Printf("[%s] done (in %v), closing all client channels.\n", s.queryid, time.Since(s.started))
 	s.addEvent([]byte{}, nil)
 
@@ -838,15 +864,7 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	numResults := s.numResults
 	s.mu.Unlock()
 
-	if allSet && filesProcessed == filesTotal {
-		log.Printf("[%s] [src:%d] query done on all backends, writing to disk.\n", s.queryid, backendidx)
-		if err := o.writeToDisk(s); err != nil {
-			log.Printf("[%s] writeToDisk() failed: %v\n", s.queryid, err)
-			s.failQuery()
-		}
-	}
-
-	if allSet {
+	if allSet && filesProcessed < filesTotal {
 		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", s.queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
 		s.addEventMarshal(&ProgressUpdate{
 			Type:           "progress",
@@ -855,9 +873,6 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 			FilesTotal:     filesTotal,
 			Results:        numResults,
 		})
-		if filesProcessed == filesTotal {
-			s.finishQuery()
-		}
 	} else {
 		log.Printf("[%s] [src:%d] progress: %d of %d\n", s.queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
 	}
