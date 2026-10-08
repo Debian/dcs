@@ -295,10 +295,10 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return fmt.Errorf("Could not start query: %v", err)
 	}
 
-	// TODO: more efficient way than polling to get notified when the query
-	// is done
-	for !s.completed() {
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-s.done:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 
 	metricSuccessfulQueries.With(srcLabel).Inc()

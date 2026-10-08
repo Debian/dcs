@@ -174,11 +174,12 @@ type queryState struct {
 	tempFilesMu sync.Mutex
 	perBackend  []*perBackendState
 
+	// state
+	done chan struct{} // closed when done
 	// state (protected by mu)
 	mu       sync.Mutex
 	events   []event
 	ended    time.Time
-	done     bool
 	released bool // evicted (what a failed state map lookup used to mean)
 
 	results [10]resultPointer
@@ -313,6 +314,9 @@ func (s *queryState) expired() bool {
 func releaseQueryLocked(s *queryState) {
 	s.mu.Lock()
 	s.released = true
+	if !s.completed() {
+		close(s.done)
+	}
 	s.newEvent.Broadcast() // unblock getEvent
 	s.mu.Unlock()
 	for _, state := range s.perBackend {
@@ -388,6 +392,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 	querystate := &queryState{
 		queryid:        queryid,
 		started:        time.Now(),
+		done:           make(chan struct{}),
 		query:          query,
 		filesTotal:     make([]int, len(common.Backends)),
 		filesProcessed: make([]int, len(common.Backends)),
@@ -479,7 +484,7 @@ func QueryzHandler(w http.ResponseWriter, r *http.Request) {
 			Searchterm:     s.query,
 			QueryId:        queryid,
 			NumEvents:      len(s.events),
-			Done:           s.done,
+			Done:           s.completed(),
 			Started:        s.started,
 			Ended:          s.ended,
 			StartedFromNow: time.Since(s.started),
@@ -885,9 +890,10 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
 	}
-	started := time.Now()
-	for !s.completed() && time.Since(started) < 60*time.Second {
-		time.Sleep(100 * time.Millisecond)
+	select {
+	case <-s.done:
+	case <-time.After(60 * time.Second):
+	case <-r.Context().Done():
 	}
 	if !s.completed() {
 		log.Printf("[%s] query not yet finished, cannot produce per-package results\n", queryid)

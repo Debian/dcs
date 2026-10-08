@@ -49,8 +49,8 @@ func (s *queryState) addEvent(data []byte, origdata any) {
 	// An empty message marks the query as finished, but further errors can
 	// occur, so we store whether we’ve seen an empty message for use in
 	// queryCompleted().
-	if !s.done && len(data) == 0 {
-		s.done = true
+	if len(data) == 0 && !s.completed() {
+		close(s.done)
 		s.ended = time.Now()
 		activeQueries.Sub(1)
 		frequency.DecUsers()
@@ -74,7 +74,7 @@ func (s *queryState) addEventMarshal(data any) {
 		// We cannot obsolete events once the query is done, because then all
 		// events before the done marker may get obsoleted (e.g. all progress
 		// updates, for a query with 0 files).
-		if s.done {
+		if s.completed() {
 			return
 		}
 
@@ -109,10 +109,10 @@ func (s *queryState) getEvent(lastseen int) (event, int, bool) {
 }
 
 func (s *queryState) completed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.released {
-		return true // do not block indefinitely
+	select {
+	case <-s.done:
+		return true
+	default:
+		return false
 	}
-	return s.done
 }
