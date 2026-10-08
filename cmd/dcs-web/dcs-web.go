@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/Debian/dcs/internal/web"
 )
@@ -86,6 +87,10 @@ func main() {
 	flag.StringVar(&opts.QueryResultsPath, "query_results_path",
 		"/tmp/qr/",
 		"Path where query results files (page_0.json etc.) are stored")
+
+	flag.DurationVar(&opts.QueryTimeout, "query_timeout",
+		10*time.Minute,
+		"Duration after which a query is cancelled (timeout)")
 
 	flag.BoolVar(&opts.TLSRequireClientAuth, "tls_require_client_auth",
 		true,

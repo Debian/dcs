@@ -505,6 +505,7 @@ type Opts struct {
 	UsePositionalIndex   bool
 	UseSourcesDebianNet  bool
 	QueryResultsPath     string
+	QueryTimeout         time.Duration
 }
 
 func (o *Opts) Main(ln net.Listener) error {

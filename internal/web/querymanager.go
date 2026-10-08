@@ -431,7 +431,12 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 }
 
 func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRequest *sourcebackendpb.SearchRequest) {
-	ctx, cancel := context.WithCancel(ctx)
+	var cancel context.CancelFunc
+	if timeout := o.QueryTimeout; timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 	s.mu.Lock()
 	cancelled := s.cancelled // did cancellation race us?
