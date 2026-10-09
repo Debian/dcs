@@ -487,8 +487,8 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 }
 
 func (i *Index) QueryPositional(query string) ([]Match, error) {
-	if len(query) < 4 {
-		return nil, nil // not yet implemented
+	if len(query) < 3 {
+		return nil, nil // too short: a trigram needs 3 characters
 	}
 	type planEntry struct {
 		offset  int
@@ -517,6 +517,9 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 		}
 		return nil, err
 	}
+	// For a query that consists of 3 bytes only,
+	// last will be the same trigram as first,
+	// at distance 0 (harmless, yields correct results).
 	last, err := readMeta(len(query) - 3)
 	if err != nil {
 		if errors.Is(err, errNotFound) {

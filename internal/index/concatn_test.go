@@ -69,8 +69,8 @@ func result(docid uint32, filename string, pos uint32) searchResult {
 func searchIndex(t *testing.T, indexDir string, query string) []searchResult {
 	t.Helper()
 
-	if len(query) < 4 {
-		t.Fatalf("Query must be at least 4 characters for positional search, got %q", query)
+	if len(query) < 3 {
+		t.Fatalf("Query must be at least 3 characters for positional search, got %q", query)
 	}
 
 	idx, err := Open(indexDir)
