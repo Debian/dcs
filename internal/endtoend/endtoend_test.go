@@ -6,7 +6,6 @@ import (
 	"flag"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -25,10 +24,7 @@ import (
 )
 
 func TestEndToEnd(t *testing.T) {
-	temp, err := os.MkdirTemp("", "dcs-endtoend")
-	if err != nil {
-		t.Fatal(err)
-	}
+	temp := t.TempDir()
 	// TODO: refactor localdcs.Start to take options
 	flag.Set("localdcs_path", temp)
 	flag.Set("shard_path", filepath.Join(temp, "shard"))
