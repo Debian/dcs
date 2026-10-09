@@ -25,7 +25,9 @@ func rewriteFilters(query url.Values, filtersRe *regexp.Regexp) url.Values {
 		value := matches[2]
 
 		filter = strings.Replace(filter, "pkg", "package", 1)
-		if filter == "-file" {
+		if filter == "file" {
+			filter = "path"
+		} else if filter == "-file" {
 			filter = "npath"
 		} else if strings.HasPrefix(filter, "-") {
 			filter = "n" + filter[1:]

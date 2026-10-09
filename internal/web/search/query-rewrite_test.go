@@ -123,6 +123,17 @@ func TestRewriteQuery(t *testing.T) {
 		t.Fatalf("Expected npath %q, got %q", "foo", file)
 	}
 
+	// Verify that file is translated to path
+	rewritten = rewrite(t, "/search?q=searchterm+file:foo")
+	querystr = rewritten.Query().Get("q")
+	if querystr != "searchterm" {
+		t.Fatalf("Expected search query %q, got %q", "searchterm", querystr)
+	}
+	file = rewritten.Query().Get("path")
+	if file != "foo" {
+		t.Fatalf("Expected path %q, got %q", "foo", file)
+	}
+
 	// Verify that the multiple keywords work as expected
 	rewritten = rewrite(t, "/search?q=searchterm+package%3Ai3-WM+filetype%3Ac")
 	querystr = rewritten.Query().Get("q")
