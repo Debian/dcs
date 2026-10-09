@@ -255,6 +255,11 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 		return nil, fmt.Errorf("no such package")
 	}
 
+	// Delay garbage collection until any in-progress merging is done
+	// to avoid making that merge fail by deleting files from under it.
+	s.mergesem <- struct{}{}        // acquire
+	defer func() { <-s.mergesem }() // release
+
 	if err := os.RemoveAll(filepath.Join(s.shardPath, "src", pkg)); err != nil {
 		return nil, err
 	}
