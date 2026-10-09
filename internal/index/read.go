@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math/bits"
+	"os"
 	"path/filepath"
 	"sort"
+	"sync/atomic"
 
 	"github.com/Debian/dcs/internal/mmap"
 	"github.com/Debian/dcs/internal/turbopfor/pfordec"
@@ -360,6 +363,8 @@ func (pr *PosrelReader) Close() error {
 }
 
 type Index struct {
+	dir string
+
 	DocidMap *DocidReader  // docid → filename mapping
 	Docid    *PForReader   // docids for all trigrams
 	Pos      *PForReader   // positions for all trigrams
@@ -368,13 +373,29 @@ type Index struct {
 	// buffers for the docids of both trigrams in QueryPositional
 	firstDocids *reusableBuffer
 	lastDocids  *reusableBuffer
+
+	// refs counts how many queries are currently using the index.
+	// refs starts at 1 and calling Delete() decreases it,
+	// which will either immediately delete the index (no queries)
+	// or delete the index once all queries on the index are done.
+	refs atomic.Int32
 }
 
 func Open(dir string) (*Index, error) {
-	var i Index
+	// Evaluate symlinks so that the directory path we store remains valid
+	// (symlinks are replaced as the index files are replaced).
+	var err error
+	dir, err = filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	i := Index{
+		dir: dir,
+	}
+	i.refs.Store(1)
 	i.firstDocids = &reusableBuffer{}
 	i.lastDocids = &reusableBuffer{}
-	var err error
 	if i.DocidMap, err = newDocidReader(dir); err != nil {
 		return nil, err
 	}
@@ -392,6 +413,35 @@ func Open(dir string) (*Index, error) {
 	}
 
 	return &i, nil
+}
+
+func (i *Index) Delete() {
+	if i.refs.Add(-1) > 0 {
+		return
+	}
+	i.closeAndDelete()
+}
+
+func (i *Index) closeAndDelete() {
+	// Delete() was called and the last query is done,
+	// Close+Delete this index.
+	log.Printf("Deleting old index %s", i.dir)
+	if err := i.Close(); err != nil {
+		log.Printf("Closing old index %s: %v", i.dir, err)
+	}
+	if err := os.RemoveAll(i.dir); err != nil {
+		log.Printf("Deleting old index: %v", err)
+	}
+}
+
+func (i *Index) Use() (release func()) {
+	i.refs.Add(1)
+	return func() {
+		if i.refs.Add(-1) > 0 {
+			return // Delete() was not called
+		}
+		i.closeAndDelete()
+	}
 }
 
 type Match struct {

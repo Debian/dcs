@@ -172,26 +172,12 @@ func (s *Server) ReplaceIndex(newShard string) error {
 			oldIndex := s.Index
 			s.Index = newIndex
 			s.mu.Unlock()
-			defer oldIndex.Close()
+
+			// Delete the old index either now or when all queries are done.
+			oldIndex.Delete()
 
 			if err := renameio.Symlink(newShard, s.IndexPath); err != nil {
 				return err
-			}
-			fis, err := os.ReadDir(filepath.Dir(s.IndexPath))
-			if err != nil {
-				return err
-			}
-			for _, fi := range fis {
-				if !strings.HasPrefix(fi.Name(), "full.") {
-					continue
-				}
-				if fi.Name() == name {
-					continue
-				}
-				log.Printf("Removing old index %q", fi.Name())
-				if err := os.RemoveAll(filepath.Join(filepath.Dir(s.IndexPath), fi.Name())); err != nil {
-					return err
-				}
 			}
 			return nil
 		}
@@ -214,11 +200,11 @@ type fileMatches struct {
 	matches []index.Match
 }
 
-func (s *Server) queryPositional(literal string) ([]fileMatches, error) {
+func (s *Server) queryPositional(ix *index.Index, literal string) ([]fileMatches, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	log.Printf("queryPositional(%q)", literal)
-	matches, err := s.Index.QueryPositional(literal)
+	matches, err := ix.QueryPositional(literal)
 	if err != nil {
 		return nil, fmt.Errorf("ix.QueryPositional(%q): %v", literal, err)
 	}
@@ -233,7 +219,7 @@ func (s *Server) queryPositional(literal string) ([]fileMatches, error) {
 		for n < len(matches) && matches[n].Docid == docid {
 			n++
 		}
-		fn, err := s.Index.DocidMap.Lookup(docid)
+		fn, err := ix.DocidMap.Lookup(docid)
 		if err != nil {
 			return nil, fmt.Errorf("DocidMap.Lookup(%v): %v", docid, err)
 		}
@@ -247,14 +233,14 @@ func (s *Server) queryPositional(literal string) ([]fileMatches, error) {
 	return possible, nil
 }
 
-func (s *Server) query(query *index.Query) ([]string, error) {
+func (s *Server) query(ix *index.Index, query *index.Query) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	post := s.Index.PostingQuery(query)
+	post := ix.PostingQuery(query)
 	possible := make([]string, len(post))
 	var err error
 	for idx, docid := range post {
-		possible[idx], err = s.Index.DocidMap.Lookup(docid)
+		possible[idx], err = ix.DocidMap.Lookup(docid)
 		if err != nil {
 			return nil, err
 		}
@@ -273,6 +259,12 @@ type SearchSink interface {
 
 func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, sink SearchSink) error {
 	logprefix := fmt.Sprintf("[%q]", in.Query)
+
+	s.mu.Lock()
+	ix := s.Index
+	release := ix.Use()
+	s.mu.Unlock()
+	defer release()
 
 	flags := syntax.Perl
 	if in.GetLiteral() {
@@ -298,7 +290,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	var files ranking.ResultPaths
 	var possible []fileMatches
 	if queryPos {
-		possible, err = s.queryPositional(string(simplified.Rune))
+		possible, err = s.queryPositional(ix, string(simplified.Rune))
 		if err != nil {
 			return err
 		}
@@ -314,7 +306,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			}
 		}
 	} else {
-		possible, err := s.query(index.RegexpQuery(re))
+		possible, err := s.query(ix, index.RegexpQuery(re))
 		if err != nil {
 			return err
 		}
