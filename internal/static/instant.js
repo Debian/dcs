@@ -613,7 +613,7 @@ window.addEventListener('load', function() {
     window.addEventListener('popstate', function(ev) {
         var sp = new URLSearchParams(location.search.slice(1));
         var perpkg = (sp.get('perpkg') === '1');
-        var nr = getDefault(sp, 'page', 0);
+        var nr = parseInt(getDefault(sp, 'page', 0));
         document.getElementById('enable-perpackage').checked = perpkg;
         changeGrouping();
         if (perpkg) {
