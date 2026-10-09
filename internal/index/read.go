@@ -1,6 +1,7 @@
 package index
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync/atomic"
 
 	"github.com/Debian/dcs/internal/mmap"
@@ -708,4 +710,21 @@ func (i *Index) Close() error {
 		return err
 	}
 	return nil
+}
+
+// ReadPackageNames returns the names (pkg_ver)
+// of all packages which are indexed in dir.
+func ReadPackageNames(dir string) (map[string]bool, error) {
+	docidMap, err := newDocidReader(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer docidMap.Close()
+	scanner := bufio.NewScanner(docidMap.All())
+	pkgs := make(map[string]bool)
+	for scanner.Scan() {
+		name, _, _ := strings.Cut(scanner.Text(), "/")
+		pkgs[name] = true
+	}
+	return pkgs, scanner.Err()
 }

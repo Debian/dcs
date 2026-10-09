@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -261,9 +262,9 @@ func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.Garb
 	s.mergesem <- struct{}{}        // acquire
 	defer func() { <-s.mergesem }() // release
 
-	if err := os.RemoveAll(filepath.Join(s.shardPath, "src", pkg)); err != nil {
-		return nil, err
-	}
+	// NOTE: s.shardPath/src/pkg stays on disk (queries on the merged
+	// index still read these files) and is deleted in mergeToShard().
+	// (There, the absence of the idx/pkg directory is a signal.)
 
 	if err := os.RemoveAll(filepath.Join(s.shardPath, "idx", pkg)); err != nil {
 		return nil, err
@@ -298,6 +299,62 @@ func (s *server) cleanupUnsuccessfulMerges() error {
 		}
 	}
 	return firstErr
+}
+
+func (s *server) cleanupUnreferencedSources() error {
+	log.Printf("cleaning up unreferenced src/pkg")
+
+	// Store all referenced packages in keep.
+	keep := make(map[string]bool)
+	full, err := os.ReadDir(s.shardPath)
+	if err != nil {
+		return err
+	}
+	for _, fi := range full {
+		if !strings.HasPrefix(fi.Name(), "full.") {
+			continue
+		}
+		log.Printf("keeping packages referenced in %s", fi.Name())
+		dir := filepath.Join(s.shardPath, fi.Name())
+		pkgs, err := index.ReadPackageNames(dir)
+		if err != nil {
+			return fmt.Errorf("ReadPackageNames(%s): %v", dir, err)
+		}
+		maps.Copy(keep, pkgs)
+	}
+
+	// Read src/ first so that it is consistent with idx/.
+	srcs, err := os.ReadDir(filepath.Join(s.shardPath, "src"))
+	if err != nil {
+		return err
+	}
+
+	// Keep all packages for which the partial index is still on disk.
+	// (Not yet garbage-collected.)
+	idxs, err := os.ReadDir(filepath.Join(s.shardPath, "idx"))
+	if err != nil {
+		return err
+	}
+	for _, fi := range idxs {
+		if tmp, ok := strings.CutSuffix(fi.Name(), ".tmp"); ok {
+			// idx/i3-wm_4.5.2-1.tmp should also keep
+			// src/i3-wm_4.5.2-1 around, which will be created.
+			keep[tmp] = true
+		}
+		keep[fi.Name()] = true
+	}
+
+	// Go through srcs and delete everything not in keep.
+	for _, fi := range srcs {
+		if keep[fi.Name()] {
+			continue
+		}
+		log.Printf("deleting src/%s: no index mentions it anymore", fi.Name())
+		if err := os.RemoveAll(filepath.Join(s.shardPath, "src", fi.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func keepMostRecentVersion(names []string) ([]string, error) {
@@ -363,6 +420,10 @@ func (s *server) mergeToShard() error {
 
 	if err := s.cleanupUnsuccessfulMerges(); err != nil {
 		log.Printf("cleanupUnsuccessfulMerges: %v", err)
+	}
+
+	if err := s.cleanupUnreferencedSources(); err != nil {
+		log.Printf("cleanupUnreferencedSources: %v", err)
 	}
 
 	tmpIndexPath := filepath.Join(s.shardPath, fmt.Sprintf("full.%d", time.Now().Unix()))
