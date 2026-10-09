@@ -560,22 +560,19 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 		return fmt.Errorf("query %s no longer exists", s.queryid)
 	}
 
-	firstPathRank := s.FirstPathRank
-
-	if firstPathRank > 0 {
-		// Now store the combined ranking of PathRanking (pre) and Ranking (post).
-		// We add the values because they are both percentages.
-		// To make the Ranking (post) less significant, we multiply it with
-		// 1/10 * FirstPathRank. We used to use maxPathRanking here, but
-		// requiring that means delaying the search until all results are
-		// there. Instead, FirstPathRank is a good enough approximation (but
-		// different enough for each query that we can’t hardcode it).
-		result.Ranking = result.Pathrank + ((firstPathRank * 0.1) * result.Ranking)
-	} else {
+	if s.FirstPathRank == 0 {
 		// This code path (and lock acquisition) gets executed only on the
 		// first result.
 		s.FirstPathRank = result.Pathrank
 	}
+	// Now store the combined ranking of PathRanking (pre) and Ranking (post).
+	// We add the values because they are both percentages.
+	// To make the Ranking (post) less significant, we multiply it with
+	// 1/10 * FirstPathRank. We used to use maxPathRanking here, but
+	// requiring that means delaying the search until all results are
+	// there. Instead, FirstPathRank is a good enough approximation (but
+	// different enough for each query that we can’t hardcode it).
+	result.Ranking = result.Pathrank + ((s.FirstPathRank * 0.1) * result.Ranking)
 
 	if result.Ranking > s.results[9].ranking {
 		// TODO: find the first s.result[] for the same package. then check again if the result is worthy of replacing that per-package result
