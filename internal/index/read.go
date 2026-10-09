@@ -9,7 +9,6 @@ import (
 	"math/bits"
 	"path/filepath"
 	"sort"
-	"sync"
 
 	"github.com/Debian/dcs/internal/mmap"
 	"github.com/Debian/dcs/internal/turbopfor/pfordec"
@@ -399,8 +398,6 @@ type Match struct {
 	Docid    uint32
 	Position uint32 // byte offset of the trigram within the document
 }
-
-var mu sync.Mutex
 
 func (i *Index) Matches(t Trigram) ([]Match, error) {
 	return i.matchesWithBuffer(t, newBufferPair())
