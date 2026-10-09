@@ -512,10 +512,16 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 	}
 	first, err := readMeta(0)
 	if err != nil {
+		if errors.Is(err, errNotFound) {
+			return nil, nil // no matches, not an error
+		}
 		return nil, err
 	}
 	last, err := readMeta(len(query) - 3)
 	if err != nil {
+		if errors.Is(err, errNotFound) {
+			return nil, nil // no matches, not an error
+		}
 		return nil, err
 	}
 

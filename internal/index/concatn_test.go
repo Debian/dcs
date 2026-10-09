@@ -1,7 +1,6 @@
 package index
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,9 +81,6 @@ func searchIndex(t *testing.T, indexDir string, query string) []searchResult {
 
 	matches, err := idx.QueryPositional(query)
 	if err != nil {
-		if errors.Is(err, errNotFound) {
-			return nil // no matches
-		}
 		t.Fatalf("QueryPositional(%q): %v", query, err)
 	}
 
