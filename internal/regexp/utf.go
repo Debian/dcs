@@ -5,6 +5,7 @@
 package regexp
 
 import (
+	"fmt"
 	"regexp/syntax"
 	"unicode"
 	"unicode/utf8"
@@ -64,6 +65,10 @@ func toByteProg(prog *syntax.Prog) error {
 			// execution takes care of that for us.
 			b.init(prog, uint32(pc), i.Out)
 			b.addRange(0, unicode.MaxRune, false)
+		}
+
+		if limit := 100_000; len(prog.Inst) > limit {
+			return fmt.Errorf("regular expression is too complex (expands to >%d instructions), use a smaller repetition count", limit)
 		}
 	}
 	return nil
