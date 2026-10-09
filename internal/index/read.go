@@ -496,41 +496,28 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 		entries uint32
 	}
 	qb := []byte(query)
-	plan := make([]planEntry, len(query)-2)
-	// TODO: maybe parallelize building the plan?
-	for j := 0; j < len(query)-2; j++ {
+	readMeta := func(j int) (planEntry, error) {
 		t := Trigram(uint32(qb[j])<<16 |
 			uint32(qb[j+1])<<8 |
 			uint32(qb[j+2]))
 		meta, _, err := i.Pos.metaEntry(t)
 		if err != nil {
-			return nil, err
+			return planEntry{}, err
 		}
-		plan[j] = planEntry{
+		return planEntry{
 			offset:  j,
 			t:       t,
 			entries: meta.Entries,
-		}
+		}, nil
 	}
-	plan[1] = plan[len(plan)-1]
-	// TODO: figure out if query planning measurably decreases query latency in
-	// production or not. For querylog-benchpos.txt, it’s a net loss: while the
-	// posting lists for some queries are decoded much faster, the probability
-	// of false positives is much lower whenthe first and last trigram
-	// match. This results in more file/position tuples to verify, hence more
-	// mmap() syscalls, hence a longer overall runtime.
-	//
-	// sort.Slice(plan, func(i, j int) bool { return plan[i].entries < plan[j].entries })
-	first := plan[0]
-	last := plan[1]
-
-	// for _, p := range plan {
-	// 	if math.Abs(float64(p.offset)-float64(first.offset)) < 3 {
-	// 		continue
-	// 	}
-	// 	last = p
-	// 	break
-	// }
+	first, err := readMeta(0)
+	if err != nil {
+		return nil, err
+	}
+	last, err := readMeta(len(query) - 3)
+	if err != nil {
+		return nil, err
+	}
 
 	var eg errgroup.Group
 
@@ -572,7 +559,6 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 		fposrel, lposrel = lposrel, fposrel
 		delta *= -1
 	}
-	//log.Printf("plan[0] = %+v, plan[1] = %+v, delta = %d, flipped = %v", first, last, delta, flipped)
 
 	var (
 		fdocidIdx = -1

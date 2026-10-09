@@ -221,6 +221,39 @@ func TestConcatNSingleSource(t *testing.T) {
 	}
 }
 
+func TestConcatNFirstLast(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	srcDir := filepath.Join(tmpDir, "src")
+	writeFiles(t, srcDir, map[string]string{
+		"test.txt": "hello world test",
+		"z.txt":    "start, spaces:   , end",
+	})
+	createIndex(t, srcDir, srcDir+".idx")
+
+	dest := filepath.Join(tmpDir, "merged")
+	if err := ConcatN(dest, []string{srcDir + ".idx"}); err != nil {
+		t.Fatalf("ConcatN failed with single source: %v", err)
+	}
+
+	for _, tt := range []struct {
+		query string
+		want  []searchResult
+	}{
+		{
+			query: "start, spaces:   , end",
+			want: []searchResult{
+				result(1, "z.txt", 0),
+			},
+		},
+	} {
+		results := searchIndex(t, dest, tt.query)
+		if diff := cmp.Diff(tt.want, results); diff != "" {
+			t.Errorf("searchIndex(%q): unexpected results: diff (-want +got):\n%s", tt.query, diff)
+		}
+	}
+}
+
 func TestConcatNMany(t *testing.T) {
 	tmpDir := t.TempDir()
 
