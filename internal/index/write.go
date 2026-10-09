@@ -282,6 +282,11 @@ func (w *Writer) Flush() error {
 		if err := w.intermediateFlush(); err != nil {
 			return err
 		}
+		// Re-glob to pick up the just-flushed index file.
+		intermediate, err = filepath.Glob(filepath.Join(w.dir, "intermediate.*.tmp"))
+		if err != nil {
+			return err
+		}
 	}
 
 	// Merge all intermediate indexes into the final directory.
