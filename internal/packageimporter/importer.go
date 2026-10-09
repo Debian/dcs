@@ -26,6 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"pault.ag/go/debian/version"
 
 	"github.com/Debian/dcs/internal/proto/packageimporterpb"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
@@ -299,9 +300,53 @@ func (s *server) cleanupUnsuccessfulMerges() error {
 	return firstErr
 }
 
+func keepMostRecentVersion(names []string) ([]string, error) {
+	type pkgWithVersion struct {
+		nameWithVersion string
+		ver             version.Version
+	}
+	// mostRecent maps from package name (without version) to pkgWithVersion
+	mostRecent := make(map[string]pkgWithVersion)
+	for _, nameWithVersion := range names {
+		n, v, ok := strings.Cut(nameWithVersion, "_")
+		if !ok {
+			return nil, fmt.Errorf("BUG: unexpected Debian package name %q (no underscore)", nameWithVersion)
+		}
+
+		new, err := version.Parse(v)
+		if err != nil {
+			return nil, fmt.Errorf("BUG: parsing Debian version %q: %v", v, err)
+		}
+		if current, ok := mostRecent[n]; ok {
+			if version.Compare(new, current.ver) > 0 {
+				log.Printf("ignoring old package %s in favor of newer %s", current.nameWithVersion, nameWithVersion)
+				mostRecent[n] = pkgWithVersion{
+					nameWithVersion: nameWithVersion,
+					ver:             new,
+				}
+			}
+		} else {
+			mostRecent[n] = pkgWithVersion{
+				nameWithVersion: nameWithVersion,
+				ver:             new,
+			}
+		}
+	}
+	result := make([]string, 0, len(mostRecent))
+	for _, pwv := range mostRecent {
+		result = append(result, pwv.nameWithVersion)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
 // Merges all packages in *unpackedPath into a big index shard.
 func (s *server) mergeToShard() error {
 	names, err := s.packageNames()
+	if err != nil {
+		return err
+	}
+	names, err = keepMostRecentVersion(names)
 	if err != nil {
 		return err
 	}
