@@ -1,21 +1,16 @@
 // Takes care of feeding packages to the dcs-package-importer processes running
 // on index/source backends.
 //
-// Notifications about new packages can be delivered via the /lookfor endpoint
-// on demand (e.g. by dcs-tail-fedmsg).
-//
-// Additionally, every hour, the “Sources” file will be downloaded and its
+// Every hour, the “Sources” file will be downloaded and its
 // contents are compared to the contents of our index/source backends.
 package main
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"flag"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -86,18 +81,6 @@ var (
 	mergeStates   = make(map[int]mergeState)
 	mergeStatesMu sync.Mutex
 
-	failedLookfor = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "lookfor_failed",
-			Help: "Failed lookfor requests.",
-		})
-
-	successfulLookfor = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "lookfor_successful",
-			Help: "Successful lookfor requests.",
-		})
-
 	successfulGarbageCollect = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "garbage_collect_successful",
@@ -118,8 +101,6 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(failedLookfor)
-	prometheus.MustRegister(successfulLookfor)
 	prometheus.MustRegister(successfulGarbageCollect)
 	prometheus.MustRegister(successfulSanityFeed)
 	prometheus.MustRegister(lastSanityCheckStarted)
@@ -221,107 +202,6 @@ func feedfiles(pkg string, pkgfiles []string) {
 		if err := feed(pkg, filepath.Base(url), resp.Body); err != nil {
 			log.Printf("feed(%q, %q): %v", pkg, filepath.Base(url), err)
 		}
-	}
-}
-
-func lookforHandler(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	r.Body.Close()
-
-	go lookfor(r.Form.Get("file"))
-}
-
-func poolPath(filename string) string {
-	firstLevel := string(filename[0])
-	if strings.HasPrefix(filename, "lib") {
-		firstLevel = filename[:len("libx")]
-	}
-	return "pool/main/" + firstLevel + "/" + filename[:strings.Index(filename, "_")] + "/" + filename
-}
-
-// Tries to download a package directly from http://incoming.debian.org
-// (typically called from dcs-tail-fedmsg).
-// See also https://lists.debian.org/debian-devel-announce/2014/08/msg00008.html
-func lookfor(dscName string) {
-	log.Printf("Looking for %q\n", dscName)
-	startedLooking := time.Now()
-	attempt := 0
-	for {
-		if attempt > 0 {
-			// Exponential backoff starting with 8s.
-			backoff := time.Duration(math.Pow(2, float64(attempt)+2)) * time.Second
-			log.Printf("Starting attempt %d. Waiting %v\n", attempt+1, backoff)
-			time.Sleep(backoff)
-		}
-		attempt++
-
-		// We only try to get this file for 25 minutes. Something is probably
-		// wrong if it does not succeed within that time, and we want to keep
-		// goroutines from piling up. The periodic sanity check will find the
-		// package a bit later then.
-		if time.Since(startedLooking) > 25*time.Minute {
-			failedLookfor.Inc()
-			log.Printf("Not looking for %q anymore. Sanity check will catch it.\n", dscName)
-			return
-		}
-
-		url := "http://incoming.debian.org/debian-buildd/" + poolPath(dscName)
-		resp, err := http.Get(url)
-		if err != nil {
-			log.Printf("Could not HTTP GET %q: %v\n", url, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != 200 {
-			log.Printf("HTTP status for %q: %s\n", url, resp.Status)
-			continue
-		}
-		log.Printf("Downloading %q from incoming.debian.org\n", dscName)
-		var dscContents bytes.Buffer
-		// Store a copy of the content in dscContents.
-		reader := io.TeeReader(resp.Body, &dscContents)
-		pr, err := control.NewParagraphReader(reader, keyring)
-		if err != nil {
-			log.Printf("Invalid dsc file: %v\n", err)
-			return
-		}
-		paragraphs, err := pr.All()
-		if err != nil {
-			log.Printf("Invalid dsc file: %v\n", err)
-			return
-		}
-
-		if len(paragraphs) != 1 {
-			log.Printf("Expected parsing exactly one paragraph, got %d. Skipping.\n", len(paragraphs))
-			return
-		}
-		pkg := paragraphs[0]
-
-		for _, line := range strings.Split(pkg.Values["Files"], "\n") {
-			parts := strings.Split(strings.TrimSpace(line), " ")
-			// pkg.Values["Files"] has a newline at the end, so we get one empty line.
-			if len(parts) < 3 {
-				continue
-			}
-			fileUrl := "http://incoming.debian.org/debian-buildd/" + poolPath(parts[2])
-			resp, err := http.Get(fileUrl)
-			if err != nil {
-				log.Printf("Could not HTTP GET %q: %v\n", url, err)
-				return
-			}
-			defer resp.Body.Close()
-			if err := feed(strings.TrimSuffix(dscName, ".dsc"), parts[2], resp.Body); err != nil {
-				log.Printf("Could not feed %q: %v\n", url, err)
-			}
-		}
-		dscReader := bytes.NewReader(dscContents.Bytes())
-		if err := feed(strings.TrimSuffix(dscName, ".dsc"), dscName, dscReader); err != nil {
-			log.Printf("Could not feed %q: %v\n", dscName, err)
-		}
-		log.Printf("Fed %q.\n", dscName)
-		successfulLookfor.Inc()
-		return
 	}
 }
 
@@ -590,7 +470,7 @@ func main() {
 		go merge()
 	}
 
-	// Calls checkSources() every hour (sanity check, so that /lookfor is not critical).
+	// Calls checkSources() every hour
 	go func() {
 		for {
 			checkSources()
@@ -612,7 +492,6 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/lookfor", lookforHandler)
 	http.Handle("/metrics", promhttp.Handler())
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
