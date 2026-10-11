@@ -136,6 +136,8 @@ type SourceReply struct {
 type Server struct {
 	mu                 sync.Mutex
 	index              *index.Index
+	base               *index.Index
+	hidden             map[string]bool
 	UnpackedPath       *os.Root
 	IndexPath          string
 	UsePositionalIndex bool
@@ -148,14 +150,49 @@ func (s *Server) LoadIndex(indexDir string) error {
 		return err
 	}
 
+	// Also load the base index if this is an overlay index.
+	var newBase *index.Index
+	var hidden map[string]bool
+	if _, err := os.Lstat(filepath.Join(indexDir, "base")); err == nil {
+		newBase, err = index.Open(filepath.Join(indexDir, "base"))
+		if err != nil {
+			newIndex.Close()
+			return fmt.Errorf("opening base index: %v", err)
+		}
+		// These packages have changed relative to the base index
+		// and their base index results will be ignored.
+		// This typically means the overlay index has a newer version,
+		// or (rarely) that the package was removed from Debian.
+		b, err := os.ReadFile(filepath.Join(indexDir, "base.hidden.list"))
+		if err != nil {
+			newIndex.Close()
+			newBase.Close()
+			return err
+		}
+		hidden = make(map[string]bool)
+		for line := range strings.SplitSeq(string(b), "\n") {
+			pkg := strings.TrimSpace(line)
+			if pkg == "" {
+				continue
+			}
+			hidden[pkg] = true
+		}
+	}
+
 	s.mu.Lock()
 	oldIndex := s.index
+	oldBase := s.base
 	s.index = newIndex
+	s.base = newBase
+	s.hidden = hidden
 	s.mu.Unlock()
 
 	if oldIndex != nil {
-		// Delete the old index either now or when all queries are done.
-		oldIndex.Delete()
+		oldIndex.CloseWhenUnused()
+	}
+
+	if oldBase != nil {
+		oldBase.CloseWhenUnused()
 	}
 
 	return nil
@@ -211,7 +248,7 @@ type fileMatches struct {
 	matches []index.Match
 }
 
-func (s *Server) queryPositional(ix *index.Index, literal string) ([]fileMatches, error) {
+func (s *Server) queryPositional(ix *index.Index, hidden map[string]bool, literal string) ([]fileMatches, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	log.Printf("queryPositional(%q)", literal)
@@ -234,26 +271,30 @@ func (s *Server) queryPositional(ix *index.Index, literal string) ([]fileMatches
 		if err != nil {
 			return nil, fmt.Errorf("DocidMap.Lookup(%v): %v", docid, err)
 		}
-		possible = append(possible, fileMatches{
-			fn:      fn,
-			matches: matches[:n],
-		})
+		if pkg, _, _ := strings.Cut(fn, "/"); !hidden[pkg] {
+			possible = append(possible, fileMatches{
+				fn:      fn,
+				matches: matches[:n],
+			})
+		}
 		matches = matches[n:]
 	}
 
 	return possible, nil
 }
 
-func (s *Server) query(ix *index.Index, query *index.Query) ([]string, error) {
+func (s *Server) query(ix *index.Index, hidden map[string]bool, query *index.Query) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	post := ix.PostingQuery(query)
-	possible := make([]string, len(post))
-	var err error
-	for idx, docid := range post {
-		possible[idx], err = ix.DocidMap.Lookup(docid)
+	possible := make([]string, 0, len(post))
+	for _, docid := range post {
+		fn, err := ix.DocidMap.Lookup(docid)
 		if err != nil {
 			return nil, err
+		}
+		if pkg, _, _ := strings.Cut(fn, "/"); !hidden[pkg] {
+			possible = append(possible, fn)
 		}
 	}
 	return possible, nil
@@ -273,9 +314,15 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 
 	s.mu.Lock()
 	ix := s.index
-	release := ix.Use()
+	releaseIx := ix.Use()
+	defer releaseIx()
+	base := s.base
+	if base != nil {
+		releaseBase := base.Use()
+		defer releaseBase()
+	}
+	hidden := s.hidden
 	s.mu.Unlock()
-	defer release()
 
 	flags := syntax.Perl
 	if in.GetLiteral() {
@@ -301,9 +348,16 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	var files ranking.ResultPaths
 	var possible []fileMatches
 	if queryPos {
-		possible, err = s.queryPositional(ix, string(simplified.Rune))
+		possible, err = s.queryPositional(ix, nil, string(simplified.Rune))
 		if err != nil {
 			return err
+		}
+		if base != nil {
+			tmp, err := s.queryPositional(base, hidden, string(simplified.Rune))
+			if err != nil {
+				return err
+			}
+			possible = append(possible, tmp...)
 		}
 		files = make(ranking.ResultPaths, 0, len(possible))
 		for idx, entry := range possible {
@@ -317,9 +371,17 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			}
 		}
 	} else {
-		possible, err := s.query(ix, index.RegexpQuery(re))
+		query := index.RegexpQuery(re)
+		possible, err := s.query(ix, nil, query)
 		if err != nil {
 			return err
+		}
+		if base != nil {
+			tmp, err := s.query(base, hidden, query)
+			if err != nil {
+				return err
+			}
+			possible = append(possible, tmp...)
 		}
 
 		// Rank all the paths.

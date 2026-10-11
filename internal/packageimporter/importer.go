@@ -283,14 +283,18 @@ func (s *server) cleanupUnsuccessfulMerges() error {
 	if err != nil {
 		return err
 	}
+	base, err := filepath.EvalSymlinks(filepath.Join(link, "base"))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	var firstErr error
 	for _, fi := range fis {
 		if !strings.HasPrefix(fi.Name(), "full.") {
 			continue
 		}
 		abs := filepath.Join(s.shardPath, fi.Name())
-		if abs == link {
-			log.Printf("keeping %q (symlink destination)", fi.Name())
+		if abs == link || abs == base {
+			log.Printf("keeping %q (served)", fi.Name())
 			continue
 		}
 		log.Printf("deleting unsuccessful merge attempt %q", fi.Name())

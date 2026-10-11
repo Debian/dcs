@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math/bits"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -417,32 +415,20 @@ func Open(dir string) (*Index, error) {
 	return &i, nil
 }
 
-func (i *Index) Delete() {
+func (i *Index) CloseWhenUnused() {
 	if i.refs.Add(-1) > 0 {
-		return
+		return // queries still in progress
 	}
-	i.closeAndDelete()
-}
-
-func (i *Index) closeAndDelete() {
-	// Delete() was called and the last query is done,
-	// Close+Delete this index.
-	log.Printf("Deleting old index %s", i.dir)
-	if err := i.Close(); err != nil {
-		log.Printf("Closing old index %s: %v", i.dir, err)
-	}
-	if err := os.RemoveAll(i.dir); err != nil {
-		log.Printf("Deleting old index: %v", err)
-	}
+	i.Close()
 }
 
 func (i *Index) Use() (release func()) {
 	i.refs.Add(1)
 	return func() {
 		if i.refs.Add(-1) > 0 {
-			return // Delete() was not called
+			return // CloseWhenUnused() was not yet called
 		}
-		i.closeAndDelete()
+		i.Close()
 	}
 }
 
