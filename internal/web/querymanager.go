@@ -290,7 +290,6 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 		log.Printf("[%s] [src:%s] Search RPC failed: %v\n", s.queryid, src, err)
 		return err
 	}
-	log.Printf("[%s] [src:%s] query done, disconnecting\n", s.queryid, src)
 	return nil
 }
 
@@ -408,7 +407,6 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 			allPackages:    make(map[string]bool),
 		}
 	}
-	log.Printf("querystate = %v\n", querystate)
 
 	// Rewrite the query into a query for source backends.
 	fakeUrl, err := url.Parse("?" + query)
@@ -666,7 +664,6 @@ func (o *Opts) finishQuery(s *queryState) {
 		})
 	}
 
-	log.Printf("[%s] (sending) progress: %d\n", s.queryid, filesTotal)
 	s.addEventMarshal(&ProgressUpdate{
 		Type:           "progress",
 		QueryId:        s.queryid,
@@ -686,7 +683,6 @@ func fsBytes(path string) (available uint64, total uint64) {
 	if err := syscall.Statfs(path, &stat); err != nil {
 		log.Fatalf("Could not stat filesystem for %q: %v\n", path, err)
 	}
-	log.Printf("Available bytes on %q: %d\n", path, stat.Bavail*uint64(stat.Bsize))
 	available = stat.Bavail * uint64(stat.Bsize)
 	total = stat.Blocks * uint64(stat.Bsize)
 	return available, total
@@ -881,7 +877,6 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	allSet := true
 	for i := 0; i < len(common.Backends); i++ {
 		if s.filesTotal[i] == -1 {
-			log.Printf("total number for backend %d missing\n", i)
 			allSet = false
 			break
 		}
@@ -898,18 +893,21 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	numResults := s.numResults
 	s.mu.Unlock()
 
-	if allSet && filesProcessed < filesTotal {
-		log.Printf("[%s] [src:%d] (sending) progress: %d of %d\n", s.queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
-		s.addEventMarshal(&ProgressUpdate{
-			Type:           "progress",
-			QueryId:        s.queryid,
-			FilesProcessed: filesProcessed,
-			FilesTotal:     filesTotal,
-			Results:        numResults,
-		})
-	} else {
-		log.Printf("[%s] [src:%d] progress: %d of %d\n", s.queryid, backendidx, progress.FilesProcessed, progress.FilesTotal)
+	if !allSet {
+		// progress reporting makes no sense yet:
+		// the total number of work items (files) is not yet known.
+		return
 	}
+	if filesProcessed == filesTotal {
+		return // query already done
+	}
+	s.addEventMarshal(&ProgressUpdate{
+		Type:           "progress",
+		QueryId:        s.queryid,
+		FilesProcessed: filesProcessed,
+		FilesTotal:     filesTotal,
+		Results:        numResults,
+	})
 }
 
 func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {

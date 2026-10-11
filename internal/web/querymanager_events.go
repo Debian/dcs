@@ -98,7 +98,6 @@ func (s *queryState) getEvent(lastseen int) (event, int, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for !s.released && lastseen+1 >= len(s.events) {
-		log.Printf("[%s] lastseen=%d, waiting\n", s.queryid, lastseen)
 		s.newEvent.Wait()
 	}
 	if s.released {
