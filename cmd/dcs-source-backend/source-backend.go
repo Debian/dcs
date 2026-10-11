@@ -85,22 +85,19 @@ func main() {
 		}
 	}
 
-	ix, err := index.Open(idx)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	unpacked, err := os.OpenRoot(*unpackedPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	srv := &sourcebackend.Server{
-		Index:              ix,
 		UnpackedPath:       unpacked,
 		IndexPath:          *indexPath,
 		UsePositionalIndex: *usePositionalIndex,
 		RankingMap:         rankingMap,
+	}
+	if err := srv.LoadIndex(idx); err != nil {
+		log.Fatal(err)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())

@@ -44,22 +44,19 @@ func (o *Opts) openSourceIndexes() ([]common.Backend, error) {
 			}
 		}
 
-		ix, err := index.Open(openPath)
-		if err != nil {
-			return nil, err
-		}
-
 		unpacked, err := os.OpenRoot(filepath.Join(dir, "src"))
 		if err != nil {
 			return nil, err
 		}
 
 		srv := &sourcebackend.Server{
-			Index:              ix,
 			UnpackedPath:       unpacked,
 			IndexPath:          indexPath,
 			UsePositionalIndex: o.UsePositionalIndex,
 			RankingMap:         rankingMap,
+		}
+		if err := srv.LoadIndex(openPath); err != nil {
+			return nil, err
 		}
 		go watchIndex(srv)
 		backends = append(backends, srv)

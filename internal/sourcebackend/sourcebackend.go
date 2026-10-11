@@ -135,11 +135,30 @@ type SourceReply struct {
 
 type Server struct {
 	mu                 sync.Mutex
-	Index              *index.Index
+	index              *index.Index
 	UnpackedPath       *os.Root
 	IndexPath          string
 	UsePositionalIndex bool
 	RankingMap         ranking.StoredRankingMap
+}
+
+func (s *Server) LoadIndex(indexDir string) error {
+	newIndex, err := index.Open(indexDir)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	oldIndex := s.index
+	s.index = newIndex
+	s.mu.Unlock()
+
+	if oldIndex != nil {
+		// Delete the old index either now or when all queries are done.
+		oldIndex.Delete()
+	}
+
+	return nil
 }
 
 // Serves a single file for displaying it in /show
@@ -164,17 +183,9 @@ func (s *Server) ReplaceIndex(newShard string) error {
 			// We verified the given argument refers to an index shard within
 			// this directory, so let’s load this shard.
 			log.Printf("Trying to load %q\n", newShard)
-			newIndex, err := index.Open(newShard)
-			if err != nil {
+			if err := s.LoadIndex(newShard); err != nil {
 				return err
 			}
-			s.mu.Lock()
-			oldIndex := s.Index
-			s.Index = newIndex
-			s.mu.Unlock()
-
-			// Delete the old index either now or when all queries are done.
-			oldIndex.Delete()
 
 			if err := renameio.Symlink(newShard, s.IndexPath); err != nil {
 				return err
@@ -261,7 +272,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	logprefix := fmt.Sprintf("[%q]", in.Query)
 
 	s.mu.Lock()
-	ix := s.Index
+	ix := s.index
 	release := ix.Use()
 	s.mu.Unlock()
 	defer release()

@@ -5,10 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
 
-	"github.com/Debian/dcs/internal/index"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/rpctest"
 	"github.com/Debian/dcs/internal/sourcebackend"
@@ -46,21 +44,18 @@ func search(args []string) error {
 		os.Exit(1)
 	}
 
-	ix, err := index.Open(idx)
-	if err != nil {
-		return fmt.Errorf("Could not open index: %v", err)
-	}
-
 	unpacked, err := os.OpenRoot(unpackedPath)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	srv := &sourcebackend.Server{
-		Index:              ix,
 		UnpackedPath:       unpacked,
 		IndexPath:          idx,
 		UsePositionalIndex: pos,
+	}
+	if err := srv.LoadIndex(idx); err != nil {
+		return err
 	}
 
 	conn, cleanup := rpctest.Loopback(func(s *grpc.Server) {

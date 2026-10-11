@@ -285,26 +285,23 @@ func Start(hashKey, blockKey, dataDir string) (*Instance, error) {
 		}
 	}
 
-	ix, err := index.Open(openPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	unpacked, err := os.OpenRoot(filepath.Join(*shardPath, "src"))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	srv := &sourcebackend.Server{
-		Index:              ix,
 		UnpackedPath:       unpacked,
 		IndexPath:          indexPath,
 		UsePositionalIndex: true,
 		RankingMap:         rankingMap,
 	}
+	if err := srv.LoadIndex(openPath); err != nil {
+		return nil, err
+	}
 	ln, err := net.Listen("tcp", *listenSourceBackend)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	sourceBackend := ln.Addr().String()
 	go func() {
