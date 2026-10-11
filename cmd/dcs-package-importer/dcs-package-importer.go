@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"time"
 
 	"github.com/Debian/dcs/internal/packageimporter"
 )
@@ -38,6 +39,10 @@ func main() {
 	flag.BoolVar(&opts.TLSRequireClientAuth, "tls_require_client_auth",
 		true,
 		"Require TLS Client Authentication")
+
+	flag.DurationVar(&opts.FullMergeInterval, "full_merge_interval",
+		24*time.Hour,
+		"How frequently full base indexes should produced (not just overlay indexes)")
 
 	flag.Parse()
 

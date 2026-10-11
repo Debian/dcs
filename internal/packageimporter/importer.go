@@ -17,6 +17,7 @@ import (
 	"runtime/pprof"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -111,6 +112,7 @@ type server struct {
 	tlsCertPath       string
 	tlsKeyPath        string
 	debugSkip         bool
+	fullMergeInterval time.Duration
 
 	unpacksem chan struct{} // semaphore for unpackAndIndex
 	mergesem  chan struct{} // semaphore for merge
@@ -289,7 +291,8 @@ func (s *server) cleanupUnsuccessfulMerges() error {
 	}
 	var firstErr error
 	for _, fi := range fis {
-		if !strings.HasPrefix(fi.Name(), "full.") {
+		if !strings.HasPrefix(fi.Name(), "full.") &&
+			!strings.HasPrefix(fi.Name(), "overlay.") {
 			continue
 		}
 		abs := filepath.Join(s.shardPath, fi.Name())
@@ -315,7 +318,8 @@ func (s *server) cleanupUnreferencedSources() error {
 		return err
 	}
 	for _, fi := range full {
-		if !strings.HasPrefix(fi.Name(), "full.") {
+		if !strings.HasPrefix(fi.Name(), "full.") &&
+			!strings.HasPrefix(fi.Name(), "overlay.") {
 			continue
 		}
 		log.Printf("keeping packages referenced in %s", fi.Name())
@@ -401,6 +405,29 @@ func keepMostRecentVersion(names []string) ([]string, error) {
 	return result, nil
 }
 
+func (s *server) findBaseForOverlay() (string, error) {
+	target, err := os.Readlink(filepath.Join(s.shardPath, "full"))
+	if os.IsNotExist(err) {
+		return "", nil // no index yet, create a base index
+	}
+	if err != nil {
+		return "", err
+	}
+	// target might be a base index or an overlay index.
+	base := filepath.Base(target)
+	if link, err := os.Readlink(filepath.Join(s.shardPath, base, "base")); err == nil {
+		base = filepath.Base(link) // target is an overlay index.
+	}
+	age, err := strconv.ParseInt(strings.TrimPrefix(base, "full."), 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("BUG: unexpected index name %q: %v", base, err)
+	}
+	if time.Since(time.Unix(age, 0)) >= s.fullMergeInterval {
+		return "", nil // a full merge is due, create a base index.
+	}
+	return base, nil // create an overlay index
+}
+
 // Merges all packages in *unpackedPath into a big index shard.
 func (s *server) mergeToShard() error {
 	names, err := s.packageNames()
@@ -411,14 +438,42 @@ func (s *server) mergeToShard() error {
 	if err != nil {
 		return err
 	}
+	filesInIndex.Set(float64(len(names)))
+
+	kind := "full"
+	var hidden []string
+	base, err := s.findBaseForOverlay()
+	if err != nil {
+		return err
+	}
+	if base != "" {
+		kind = "overlay"
+		// There is an eligible base index, meaning this is an overlay merge.
+		log.Printf("creating overlay index relative to base=%q", base)
+		inBase, err := index.ReadPackageNames(filepath.Join(s.shardPath, base))
+		if err != nil {
+			return err
+		}
+		var overlay []string
+		for _, name := range names {
+			if !inBase[name] {
+				overlay = append(overlay, name)
+			}
+			delete(inBase, name)
+		}
+		// Now, inBase contains packages no longer in names,
+		// i.e. packages which have a newer version in the overlay,
+		// or which were removed from the Debian archive entirely.
+		names = overlay
+		hidden = slices.Sorted(maps.Keys(inBase))
+	}
+
 	indexFiles := make([]string, len(names))
 	for idx, name := range names {
 		indexFiles[idx] = filepath.Join(s.shardPath, "idx", name)
 	}
 
-	filesInIndex.Set(float64(len(indexFiles)))
-
-	if len(indexFiles) < 2 {
+	if base == "" && len(indexFiles) < 2 {
 		return fmt.Errorf("got %d index files, want at least 2", len(indexFiles))
 	}
 
@@ -430,7 +485,7 @@ func (s *server) mergeToShard() error {
 		log.Printf("cleanupUnreferencedSources: %v", err)
 	}
 
-	tmpIndexPath := filepath.Join(s.shardPath, fmt.Sprintf("full.%d", time.Now().Unix()))
+	tmpIndexPath := filepath.Join(s.shardPath, fmt.Sprintf("%s.%d", kind, time.Now().Unix()))
 	if err := os.MkdirAll(tmpIndexPath, 0755); err != nil {
 		return err
 	}
@@ -460,6 +515,17 @@ func (s *server) mergeToShard() error {
 	//	log.Printf("merged in %v\n", t1.Sub(t0))
 	//}
 	log.Printf("merged into shard %s\n", tmpIndexPath)
+
+	if base != "" {
+		if err := os.Symlink("../"+base, filepath.Join(tmpIndexPath, "base")); err != nil {
+			return err
+		}
+		hiddenList := filepath.Join(tmpIndexPath, "base.hidden.list")
+		if err := renameio.WriteFile(hiddenList, []byte(strings.Join(hidden, "\n")), 0644); err != nil {
+			return err
+		}
+		log.Printf("wrote %d packages into base.hidden.list", len(hidden))
+	}
 
 	successfulMerges.Inc()
 
@@ -689,6 +755,7 @@ type Opts struct {
 	CPUProfile           string
 	SourceBackendAddr    string
 	DebugSkip            bool
+	FullMergeInterval    time.Duration
 }
 
 func (o *Opts) Main(ln net.Listener) error {
@@ -716,6 +783,7 @@ func (o *Opts) Main(ln net.Listener) error {
 		debugSkip:         o.DebugSkip,
 		tlsCertPath:       o.TLSCertPath,
 		tlsKeyPath:        o.TLSKeyPath,
+		fullMergeInterval: o.FullMergeInterval,
 	}
 
 	return grpcutil.ListenAndServeTLS(ln,
