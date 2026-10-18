@@ -41,5 +41,7 @@
           src = self;
         };
       });
+
+      nixosModules.default = import ./nix/module.nix self;
     };
 }
