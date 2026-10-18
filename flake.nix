@@ -16,17 +16,30 @@
       stapelbergnix,
     }:
     let
-      pkgs = import nixpkgs {
-        system = "x86_64-linux";
-        overlays = [ stapelbergnix.overlays.goVcsStamping ];
-      };
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems =
+        f:
+        nixpkgs.lib.genAttrs systems (
+          system:
+          f (
+            import nixpkgs {
+              inherit system;
+              overlays = [ stapelbergnix.overlays.goVcsStamping ];
+            }
+          )
+        );
     in
     {
       # Run nix fmt to format all .nix files.
-      formatter.x86_64-linux = pkgs.nixfmt-tree;
+      formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
 
-      packages.x86_64-linux.default = pkgs.callPackage ./nix/dcs-package.nix {
-        src = self;
-      };
+      packages = forAllSystems (pkgs: {
+        default = pkgs.callPackage ./nix/dcs-package.nix {
+          src = self;
+        };
+      });
     };
 }
