@@ -1,6 +1,7 @@
 {
   pkgs,
   src,
+  goAMD64 ? "v3", # set to v4 for AVX512-capable machines
 }:
 
 pkgs.buildGoLatestModule {
@@ -13,10 +14,12 @@ pkgs.buildGoLatestModule {
     dpkg # for dpkg-source (end-to-end tests)
   ];
 
-  env.GOAMD64 = "v4";
-  # Required for the simd/archsimd-based TurboPFor paths (Go ≥ 1.27).
-  env.GOEXPERIMENT = "simd";
-  env.CGO_ENABLED = "0";
+  env = {
+    CGO_ENABLED = "0";
+    GOAMD64 = goAMD64;
+    # Required for the simd/archsimd-based TurboPFor paths (Go ≥ 1.27).
+    GOEXPERIMENT = "simd";
+  };
 
   vendorHash = "sha256-vexNc6e8cRogC/2fLl+NCG+jATjUqfETZ87YAs+aiis=";
 
