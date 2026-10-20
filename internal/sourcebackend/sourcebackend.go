@@ -493,6 +493,12 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		grep := regexp.NewGrep(compiled.Clone())
 
 		for file := range work {
+			if ctx.Err() != nil {
+				// Skip further grep work if the context is already cancelled
+				progress <- 1
+				wg.Done()
+				continue
+			}
 			sourcePkgName := file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]]
 			if rankingopts.Pathmatch {
 				file.Ranking += querystr.Match(&file.Path)
