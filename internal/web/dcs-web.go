@@ -17,6 +17,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"regexp/syntax"
 	"runtime/pprof"
 	"strconv"
 	"strings"
@@ -88,15 +89,27 @@ func validateQuery(query string) error {
 		// reject it with a descriptive error message.
 		return fmt.Errorf("Queries starting or ending with 3 spaces yield no results (the DCS indexer ignores 3 spaces). Write \" {3}\" in regexp mode instead.")
 	}
-	if rewritten.Query().Get("literal") == "1" {
-		return nil // not a regular expression
-	}
 	log.Printf("rewritten query = %q\n", rewritten.String())
-	re, err := dcsregexp.Compile(q)
+	literal := rewritten.Query().Get("literal") == "1"
+
+	flags := syntax.Perl
+	if literal {
+		flags |= syntax.Literal
+	}
+	re, err := syntax.Parse(q, flags)
 	if err != nil {
 		return err
 	}
-	indexQuery := index.RegexpQuery(re.Syntax)
+
+	expr := "(?m)" + q // (?m) makes ^ and $ work per line
+	if literal {
+		expr = re.String() // quote
+	}
+	compiled, err := dcsregexp.Compile(expr)
+	if err != nil {
+		return err
+	}
+	indexQuery := index.RegexpQuery(compiled.Syntax)
 	log.Printf("trigram = %v, sub = %v", indexQuery.Trigram, indexQuery.Sub)
 	if len(indexQuery.Trigram) == 0 && len(indexQuery.Sub) == 0 {
 		return fmt.Errorf("Empty index query. See https://codesearch.debian.net/faq#emptyindex")
