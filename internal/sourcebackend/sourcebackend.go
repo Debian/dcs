@@ -333,6 +333,16 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		return err
 	}
 
+	querystr := ranking.NewQueryStr(in.Query)
+	expr := "(?m)" + in.Query // (?m) makes ^ and $ work per line
+	if in.GetLiteral() {
+		expr = re.String() // quote
+	}
+	compiled, err := regexp.Compile(expr)
+	if err != nil {
+		return err
+	}
+
 	// Parse the (rewritten) URL to extract all ranking options/keywords.
 	rewritten, err := url.Parse(in.RewrittenUrl)
 	if err != nil {
@@ -471,12 +481,6 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		wg.Done()
 	}()
 
-	querystr := ranking.NewQueryStr(in.Query)
-	expr := "(?m)" + in.Query // (?m) makes ^ and $ work per line
-	if in.GetLiteral() {
-		expr = re.String() // quote
-	}
-
 	work := make(chan ranking.ResultPath)
 	go func() {
 		for _, file := range files {
@@ -486,13 +490,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	}()
 
 	workerFn := func() {
-		re, err := regexp.Compile(expr)
-		if err != nil {
-			log.Printf("%s\n", err)
-			return
-		}
-
-		grep := regexp.NewGrep(re)
+		grep := regexp.NewGrep(compiled.Clone())
 
 		for file := range work {
 			sourcePkgName := file.Path[file.SourcePkgIdx[0]:file.SourcePkgIdx[1]]
@@ -507,8 +505,6 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 				file.Ranking += 0.0008 * querystr.Match(&sourcePkgName)
 			}
 
-			// TODO: figure out how to safely clone a dcs/regexp
-			//
 			// Turns out open+read+close is significantly faster than
 			// mmap'ing a whole bunch of small files (most of our files are
 			// << 64 KB).

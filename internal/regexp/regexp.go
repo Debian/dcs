@@ -40,12 +40,24 @@ func Compile(expr string) (*Regexp, error) {
 	if err := toByteProg(prog); err != nil {
 		return nil, err
 	}
+	return newFromProg(expr, re, prog), nil
+}
+
+func newFromProg(expr string, re *syntax.Regexp, prog *syntax.Prog) *Regexp {
 	r := &Regexp{
 		Syntax: re,
 		expr:   expr,
 	}
 	r.m.init(prog)
-	return r, nil
+	return r
+}
+
+// Clone returns a copy of r, which can be used in a different goroutine.
+//
+// prog, the immutable compiled program, is shared,
+// but the matcher state is new.
+func (r *Regexp) Clone() *Regexp {
+	return newFromProg(r.expr, r.Syntax, r.m.prog)
 }
 
 func (r *Regexp) Match(b []byte, beginText, endText bool) (end int) {
