@@ -125,7 +125,7 @@ func init() {
 }
 
 // init initializes the matcher.
-func (m *matcher) init(prog *syntax.Prog) error {
+func (m *matcher) init(prog *syntax.Prog) {
 	m.prog = prog
 	m.dstate = make(map[string]*dstate)
 
@@ -141,7 +141,7 @@ func (m *matcher) init(prog *syntax.Prog) error {
 	m.z1.flag = flagBOL
 	m.startLine = m.cache(&m.z1)
 
-	return nil
+	return
 }
 
 // stepEmpty steps runq to nextq expanding according to flag.

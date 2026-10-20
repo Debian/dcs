@@ -44,9 +44,7 @@ func Compile(expr string) (*Regexp, error) {
 		Syntax: re,
 		expr:   expr,
 	}
-	if err := r.m.init(prog); err != nil {
-		return nil, err
-	}
+	r.m.init(prog)
 	return r, nil
 }
 
