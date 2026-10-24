@@ -2,6 +2,7 @@ package frequency
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"os/exec"
@@ -9,12 +10,18 @@ import (
 	"time"
 )
 
+var changeGovernor = flag.Bool("change_cpu_governor", false, "If enabled, DCS will run 'sudo cpupower frequency-set --governor performance' while queries are running. This has a measurable uplift on Intel CPUs.")
+
 type frequencyManager struct {
 	mu    sync.Mutex
 	users int
 }
 
 func (fm *frequencyManager) setGovernor(g string) {
+	if !*changeGovernor {
+		return
+	}
+
 	// prevent indefinitely hanging processes
 	ctx, canc := context.WithTimeout(context.Background(), 30*time.Second)
 	defer canc()
@@ -39,7 +46,6 @@ func (fm *frequencyManager) decUsers() {
 	if fm.users > 0 {
 		fm.users--
 	}
-	log.Printf("release(), users=%d", fm.users)
 	fm.mu.Unlock()
 
 	go func() {
@@ -58,7 +64,6 @@ func (fm *frequencyManager) decUsers() {
 func (fm *frequencyManager) incUsers() {
 	fm.mu.Lock()
 	fm.users++
-	log.Printf("use(), users=%d", fm.users)
 	fm.mu.Unlock()
 
 	fm.setGovernor("performance")
