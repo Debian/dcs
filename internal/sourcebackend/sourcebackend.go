@@ -251,7 +251,6 @@ type fileMatches struct {
 func (s *Server) queryPositional(ix *index.Index, hidden map[string]bool, literal string) ([]fileMatches, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	log.Printf("queryPositional(%q)", literal)
 	matches, err := ix.QueryPositional(literal)
 	if err != nil {
 		return nil, fmt.Errorf("ix.QueryPositional(%q): %v", literal, err)
@@ -560,6 +559,5 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 
 	wg.Wait()
 
-	log.Printf("%s Sent all results.\n", logprefix)
 	return nil
 }
