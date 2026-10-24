@@ -19,6 +19,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/version"
@@ -206,6 +207,9 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 // page= page number
 // perpkg= per-package grouping
 // literal= literal vs. regex search
+//
+// wait=1 to wait (up to 10s) before showing a page,
+// instead of showing a placeholder that reloads.
 func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
@@ -257,6 +261,13 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
 		return
+	}
+	if r.Form.Get("wait") == "1" {
+		select {
+		case <-ctx.Done():
+		case <-s.done:
+		case <-time.After(10 * time.Second):
+		}
 	}
 	if !s.completed() {
 		// Prevent caching, as the placeholder is temporary.
