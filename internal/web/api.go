@@ -249,7 +249,8 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return nil
 	}
 
-	src := key.Subject + "@" + r.RemoteAddr
+	cl := clientFromRequest(r, "/api", key.Subject)
+	src := cl.String()
 	srcLabel := prometheus.Labels{"source": key.Subject}
 
 	query := r.FormValue("query")
@@ -289,7 +290,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return fmt.Errorf("Invalid query: %v", err)
 	}
 
-	s, _, err := a.opts.maybeStartQuery(ctx, queryid, src, q)
+	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
 	if err != nil {
 		metricErroredQueries.With(srcLabel).Inc()
 		return fmt.Errorf("Could not start query: %v", err)

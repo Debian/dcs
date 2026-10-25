@@ -217,7 +217,8 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	src := r.RemoteAddr
+	cl := clientFromRequest(r, "/search", "")
+	src := cl.String()
 	query := r.Form.Get("q")
 	if query == "" {
 		http.Error(w, "Empty query", http.StatusNotFound)
@@ -256,7 +257,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, _, err := o.maybeStartQuery(ctx, queryid, src, q)
+	s, _, err := o.maybeStartQuery(ctx, queryid, cl, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)

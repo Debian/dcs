@@ -169,6 +169,8 @@ type queryState struct {
 	// config (never changed)
 	queryid  string
 	query    string
+	client   client
+	request  *sourcebackendpb.SearchRequest
 	started  time.Time
 	newEvent *sync.Cond
 
@@ -367,7 +369,7 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns the *queryState and whether the query existed.
-func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) (*queryState, bool, error) {
+func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, query string) (*queryState, bool, error) {
 	if s, ok := lookupQuery(queryid); ok && !s.expired() {
 		return s, true, nil
 	}
@@ -390,6 +392,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		started:        time.Now(),
 		done:           make(chan struct{}),
 		query:          query,
+		client:         cl,
 		filesTotal:     make([]int, len(common.Backends)),
 		filesProcessed: make([]int, len(common.Backends)),
 		perBackend:     make([]*perBackendState, len(common.Backends)),
@@ -430,12 +433,13 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 		RewrittenUrl: rewritten.String(),
 		Literal:      rewritten.Query().Get("literal") == "1",
 	}
+	querystate.request = searchRequest
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
 	if existing, ok := startQuery(querystate); ok {
 		// Another goroutine must have raced us since we called lookupQuery().
 		return existing, true, nil
 	}
-	go o.runQuery(ctx, querystate, src, searchRequest)
+	go o.runQuery(ctx, querystate, cl.String(), searchRequest)
 	return querystate, false, nil
 }
 
@@ -708,6 +712,13 @@ func (o *Opts) finishQuery(s *queryState) {
 
 	slog.Info("query done",
 		"query_id", s.queryid,
+		"query", s.request.GetQuery(),
+		"literal", s.request.GetLiteral(),
+		"rewritten_url", s.request.GetRewrittenUrl(),
+		"client_ip", s.client.ip,
+		"user_agent", s.client.userAgent,
+		"entry", s.client.entry,
+		"apikey", s.client.apiKey,
 		"duration", time.Since(s.started).Round(time.Millisecond),
 		"outcome", outcome,
 		"results", numResults,

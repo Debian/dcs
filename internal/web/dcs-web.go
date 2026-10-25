@@ -125,14 +125,8 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
 
-	// The additional ":" at the end is necessary so that we don’t need to
-	// distinguish between the two cases (X-Forwarded-For, without a port, and
-	// RemoteAddr, with a part) in the code below.
-	src := r.Header.Get("X-Forwarded-For") + ":"
-	if src == ":" || (!strings.HasPrefix(r.RemoteAddr, "[::1]:") &&
-		!strings.HasPrefix(r.RemoteAddr, "127.0.0.1:")) {
-		src = r.RemoteAddr
-	}
+	cl := clientFromRequest(r, "/events", "")
+	src := cl.String()
 	literal := r.FormValue("literal")
 	if literal == "" {
 		literal = "0"
@@ -165,7 +159,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	s, cached, err := o.maybeStartQuery(ctx, identifier, src, q)
+	s, cached, err := o.maybeStartQuery(ctx, identifier, cl, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %+v\n", src, err)
 		http.Error(w, "Could not start query", http.StatusInternalServerError)
@@ -178,12 +172,8 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		if cached {
 			responseCode = 304
 		}
-		remoteIP := src
-		if idx := strings.LastIndex(remoteIP, ":"); idx > -1 {
-			remoteIP = remoteIP[:idx]
-		}
 		fmt.Fprintf(accessLog, "%s - - [%s] \"GET /events/%s HTTP/1.1\" %d -\n",
-			remoteIP, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
+			cl.ip, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
 	}
 
 	// TODO: use Last-Event-ID header
@@ -308,7 +298,8 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 		return status.Errorf(codes.Unauthenticated, "invalid x-dcs-apikey header; please see https://codesearch.debian.net/apikeys/")
 	}
 
-	src := key.Subject + "@gRPC" // TODO: get remote address
+	cl := clientFromGRPC(ctx, key.Subject)
+	src := cl.String()
 	literal := "0"
 	if req.GetLiteral() {
 		literal = "1"
@@ -328,7 +319,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 	io.WriteString(h, q)
 	identifier := fmt.Sprintf("%x", h.Sum64())
 
-	state, cached, err := s.opts.maybeStartQuery(ctx, identifier, src, q)
+	state, cached, err := s.opts.maybeStartQuery(ctx, identifier, cl, q)
 	if err != nil {
 		return fmt.Errorf("query(%s): %v", query, err)
 	}
@@ -339,12 +330,8 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 		if cached {
 			responseCode = 304
 		}
-		remoteIP := src
-		if idx := strings.LastIndex(remoteIP, ":"); idx > -1 {
-			remoteIP = remoteIP[:idx]
-		}
 		fmt.Fprintf(accessLog, "%s - - [%s] \"GET /events/%s HTTP/1.1\" %d -\n",
-			remoteIP, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
+			cl.ip, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
 	}
 
 	lastseen := -1
@@ -384,7 +371,7 @@ func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServ
 		return status.Errorf(codes.Unauthenticated, "invalid x-dcs-apikey header; please see https://codesearch.debian.net/apikeys/")
 	}
 
-	src := key.Subject + "@gRPC" // TODO: get remote address
+	src := clientFromGRPC(stream.Context(), key.Subject).String()
 
 	log.Printf("Results(queryid=%s, src=%s)", queryid, src)
 
