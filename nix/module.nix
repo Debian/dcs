@@ -21,7 +21,7 @@ let
   webSrc = ''
     set -eu
     exec ${cfg.package}/bin/dcs-web \
-      -source_indexes=/srv/dcs/shard0 \
+      -source_indexes=${cfg.web.sourceIndexes} \
       -ranking_data_path=ranking.json \
       -tls_cert_path=prod-cert.pem \
       -tls_key_path=prod-key.pem \
@@ -29,7 +29,9 @@ let
       -listen_address=localhost:30443 \
       -listen_address_http=localhost:30000 \
       -securecookie_hash_key=$(cat hash.key) \
-      -securecookie_block_key=$(cat block.key)
+      -securecookie_block_key=$(cat block.key)${
+        lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.web.extraFlags
+      }
   '';
   web = pkgs.writeShellScript "dcs-web" webSrc;
 in
@@ -41,6 +43,25 @@ in
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
       description = "The dcs package to use";
+    };
+
+    web.sourceIndexes = lib.mkOption {
+      type = lib.types.str;
+      default = "/srv/dcs/shard0";
+      example = "/srv/dcs/shard0,/srv/dcs/shard1";
+      description = "Comma-separated index shard directories (containing src/ and full/) that dcs-web serves";
+    };
+
+    web.extraFlags = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "-use_positional_index"
+        "-securecookie_hash_key=$(cat $CREDENTIALS_DIRECTORY/securecookie_hash_key)"
+      ];
+      description = ''
+        Additional dcs-web flags (inserted verbatim, i.e. $(cat …) works).
+      '';
     };
   };
 
