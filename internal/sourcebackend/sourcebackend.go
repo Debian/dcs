@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -302,14 +303,19 @@ func (s *Server) query(ix *index.Index, hidden map[string]bool, query *index.Que
 type SearchSink interface {
 	// Match is called for each found match.
 	// Returning an error stops the search.
-	Match(m *sourcebackendpb.Match) error
+	Match(*sourcebackendpb.Match) error
 
 	// Returning an error stops the search.
 	Progress(filesProcessed, filesTotal int) error
+
+	// Stats is called once, when the search completes
+	// (or is cancelled).
+	Stats(*sourcebackendpb.SearchStats) error
 }
 
 func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, sink SearchSink) error {
-	logprefix := fmt.Sprintf("[%q]", in.Query)
+	indexStart := time.Now()
+	logprefix := fmt.Sprintf("[%s]", in.QueryId)
 
 	s.mu.Lock()
 	ix := s.index
@@ -414,6 +420,25 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	sort.Sort(files)
 
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
+	stats := &sourcebackendpb.SearchStats{
+		Candidates: uint64(len(files)),
+		IndexNs:    int64(time.Since(indexStart)),
+	}
+	var (
+		slowestNs   atomic.Int64
+		slowestMu   sync.Mutex
+		slowestPath string
+	)
+	defer func() {
+		stats.Cancelled = ctx.Err() != nil
+		slowestMu.Lock()
+		defer slowestMu.Unlock()
+		stats.SlowestPath = slowestPath
+		stats.SlowestNs = slowestNs.Load()
+		if err := sink.Stats(stats); err != nil {
+			log.Printf("%s sending stats: %v", logprefix, err)
+		}
+	}()
 
 	// Send the first progress update so that clients know how many files are
 	// going to be searched.
@@ -426,6 +451,22 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		// counts as a completion message (0 of 0 searched).
 		return nil
 	}
+
+	var (
+		searched  atomic.Uint64
+		readBytes atomic.Uint64
+		matched   atomic.Uint64
+	)
+	grepStart := time.Now()
+	defer func() {
+		// Candidates filled in above
+		stats.Searched = searched.Load()
+		stats.ReadBytes = readBytes.Load()
+		stats.Matches = matched.Load()
+		// IndexNs filled in above
+		stats.GrepNs = int64(time.Since(grepStart))
+		// Cancelled filled in above
+	}()
 
 	// The tricky part here is “flow control”: if we just start grepping like
 	// crazy, we will eventually run out of memory because all our writes are
@@ -514,7 +555,19 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			// mmap'ing a whole bunch of small files (most of our files are
 			// << 64 KB).
 			// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
-			matches := grep.File(path.Join(s.UnpackedPath.Name(), file.Path))
+			fileStart := time.Now()
+			matches, read := grep.File(path.Join(s.UnpackedPath.Name(), file.Path))
+			if dur := int64(time.Since(fileStart)); dur > slowestNs.Load() {
+				slowestMu.Lock()
+				// Check again in case another goroutine got the lock before us.
+				if dur > slowestNs.Load() {
+					slowestPath = file.Path
+					slowestNs.Store(dur)
+				}
+				slowestMu.Unlock()
+			}
+			readBytes.Add(uint64(read))
+			searched.Add(1)
 			for _, match := range matches {
 				match.Ranking = ranking.PostRank(rankingopts, &match, &querystr)
 				match.PathRank = file.Ranking
@@ -547,6 +600,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 					}
 					break
 				}
+				matched.Add(1)
 			}
 
 			progress <- 1

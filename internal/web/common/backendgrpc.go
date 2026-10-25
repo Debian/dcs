@@ -43,6 +43,11 @@ func (g *grpcBackend) Search(ctx context.Context, in *sourcebackendpb.SearchRequ
 			if err := sink.Progress(int(msg.ProgressUpdate.FilesProcessed), int(msg.ProgressUpdate.FilesTotal)); err != nil {
 				return err
 			}
+
+		case sourcebackendpb.SearchReply_STATS:
+			if err := sink.Stats(msg.Stats); err != nil {
+				return err
+			}
 		}
 	}
 }

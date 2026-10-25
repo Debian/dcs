@@ -60,6 +60,15 @@ func (ss *streamSink) Progress(filesProcessed, filesTotal int) error {
 	})
 }
 
+func (ss *streamSink) Stats(st *sourcebackendpb.SearchStats) error {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	return ss.stream.Send(&sourcebackendpb.SearchReply{
+		Type:  sourcebackendpb.SearchReply_STATS,
+		Stats: st,
+	})
+}
+
 func (s *GRPCServer) Search(in *sourcebackendpb.SearchRequest, stream sourcebackendpb.SourceBackend_SearchServer) error {
 	return s.Server.Search(stream.Context(), in, &streamSink{
 		stream: stream,

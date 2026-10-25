@@ -16,6 +16,10 @@ message FileReply {
 message SearchRequest {
   string query = 1;
 
+  // The query_id that dcs-web assigned. Will be logged,
+  // which is convenient when joining dcs-web + source-backend logs.
+  string query_id = 4;
+
   // Rewritten URL (after RewriteQuery()) with all the parameters that
   // are relevant for ranking.
   string rewritten_url = 2;
@@ -48,15 +52,47 @@ message ProgressUpdate {
   uint64 files_total = 2;
 }
 
+// SearchStats describes the work a source backend did for one query.
+// It is sent once, on the last SearchReply.
+message SearchStats {
+  // Number of candidate files.
+  uint64 candidates = 1;
+
+  // Number of candidate files that were actually searched
+  // (less than candidates when the query was cancelled).
+  uint64 searched = 2;
+
+  // Bytes read from the searched files.
+  uint64 read_bytes = 3;
+
+  // Number of matches sent.
+  uint64 matches = 4;
+
+  // Time spent on the index query (including waiting for the index lock).
+  int64 index_ns = 5;
+
+  // Time spent searching the candidate files.
+  int64 grep_ns = 6;
+
+  // The single file that took longest to search.
+  string slowest_path = 7;
+  int64 slowest_ns = 8;
+
+  // Whether the context was cancelled before the query completed.
+  bool cancelled = 9;
+}
+
 message SearchReply {
   enum Type {
     MATCH = 0;
     PROGRESS_UPDATE = 1;
+    STATS = 2;
   }
   Type type = 1;
 
   Match match = 2;
   ProgressUpdate progress_update = 3;
+  SearchStats stats = 4;
 }
 
 message ReplaceIndexRequest {

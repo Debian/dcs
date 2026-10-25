@@ -406,14 +406,14 @@ func (g *Grep) AddFlags() {
 	flag.BoolVar(&g.H, "h", false, "omit file names")
 }
 
-func (g *Grep) File(name string) []Match {
+func (g *Grep) File(name string) ([]Match, int64) {
 	f, err := os.Open(name)
 	if err != nil {
 		fmt.Fprintf(g.Stderr, "%s\n", err)
-		return []Match{}
+		return []Match{}, 0
 	}
 	defer f.Close()
-	return g.Reader(f, name)
+	return g.Reader(f, name), g.nr.read
 }
 
 // nlNormReader is a an io.Reader which normalizes newlines,
@@ -421,6 +421,7 @@ func (g *Grep) File(name string) []Match {
 type nlNormReader struct {
 	underlying io.Reader
 	last       byte
+	read       int64 // bytes read from underlying
 }
 
 func newNlNormReader(r io.Reader) nlNormReader {
@@ -438,6 +439,7 @@ func (nnr *nlNormReader) Read(p []byte) (int, error) {
 	n, err := nnr.underlying.Read(p)
 	if n > 0 {
 		nnr.last = p[n-1]
+		nnr.read += int64(n)
 	}
 	if err == io.EOF && nnr.last != '\n' {
 		if n == len(p) {

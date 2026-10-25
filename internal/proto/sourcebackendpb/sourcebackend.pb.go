@@ -28,6 +28,7 @@ type SearchReply_Type int32
 const (
 	SearchReply_MATCH           SearchReply_Type = 0
 	SearchReply_PROGRESS_UPDATE SearchReply_Type = 1
+	SearchReply_STATS           SearchReply_Type = 2
 )
 
 // Enum value maps for SearchReply_Type.
@@ -35,10 +36,12 @@ var (
 	SearchReply_Type_name = map[int32]string{
 		0: "MATCH",
 		1: "PROGRESS_UPDATE",
+		2: "STATS",
 	}
 	SearchReply_Type_value = map[string]int32{
 		"MATCH":           0,
 		"PROGRESS_UPDATE": 1,
+		"STATS":           2,
 	}
 )
 
@@ -66,7 +69,7 @@ func (x SearchReply_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SearchReply_Type.Descriptor instead.
 func (SearchReply_Type) EnumDescriptor() ([]byte, []int) {
-	return file_sourcebackend_proto_rawDescGZIP(), []int{5, 0}
+	return file_sourcebackend_proto_rawDescGZIP(), []int{6, 0}
 }
 
 type FileRequest struct {
@@ -160,6 +163,9 @@ func (x *FileReply) GetContents() []byte {
 type SearchRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Query string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// The query_id that dcs-web assigned. Will be logged,
+	// which is convenient when joining dcs-web + source-backend logs.
+	QueryId string `protobuf:"bytes,4,opt,name=query_id,json=queryId,proto3" json:"query_id,omitempty"`
 	// Rewritten URL (after RewriteQuery()) with all the parameters that
 	// are relevant for ranking.
 	RewrittenUrl  string `protobuf:"bytes,2,opt,name=rewritten_url,json=rewrittenUrl,proto3" json:"rewritten_url,omitempty"`
@@ -201,6 +207,13 @@ func (*SearchRequest) Descriptor() ([]byte, []int) {
 func (x *SearchRequest) GetQuery() string {
 	if x != nil {
 		return x.Query
+	}
+	return ""
+}
+
+func (x *SearchRequest) GetQueryId() string {
+	if x != nil {
+		return x.QueryId
 	}
 	return ""
 }
@@ -392,18 +405,138 @@ func (x *ProgressUpdate) GetFilesTotal() uint64 {
 	return 0
 }
 
+// SearchStats describes the work a source backend did for one query.
+// It is sent once, on the last SearchReply.
+type SearchStats struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Number of candidate files.
+	Candidates uint64 `protobuf:"varint,1,opt,name=candidates,proto3" json:"candidates,omitempty"`
+	// Number of candidate files that were actually searched
+	// (less than candidates when the query was cancelled).
+	Searched uint64 `protobuf:"varint,2,opt,name=searched,proto3" json:"searched,omitempty"`
+	// Bytes read from the searched files.
+	ReadBytes uint64 `protobuf:"varint,3,opt,name=read_bytes,json=readBytes,proto3" json:"read_bytes,omitempty"`
+	// Number of matches sent.
+	Matches uint64 `protobuf:"varint,4,opt,name=matches,proto3" json:"matches,omitempty"`
+	// Time spent on the index query (including waiting for the index lock).
+	IndexNs int64 `protobuf:"varint,5,opt,name=index_ns,json=indexNs,proto3" json:"index_ns,omitempty"`
+	// Time spent searching the candidate files.
+	GrepNs int64 `protobuf:"varint,6,opt,name=grep_ns,json=grepNs,proto3" json:"grep_ns,omitempty"`
+	// The single file that took longest to search.
+	SlowestPath string `protobuf:"bytes,7,opt,name=slowest_path,json=slowestPath,proto3" json:"slowest_path,omitempty"`
+	SlowestNs   int64  `protobuf:"varint,8,opt,name=slowest_ns,json=slowestNs,proto3" json:"slowest_ns,omitempty"`
+	// Whether the context was cancelled before the query completed.
+	Cancelled     bool `protobuf:"varint,9,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchStats) Reset() {
+	*x = SearchStats{}
+	mi := &file_sourcebackend_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchStats) ProtoMessage() {}
+
+func (x *SearchStats) ProtoReflect() protoreflect.Message {
+	mi := &file_sourcebackend_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchStats.ProtoReflect.Descriptor instead.
+func (*SearchStats) Descriptor() ([]byte, []int) {
+	return file_sourcebackend_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SearchStats) GetCandidates() uint64 {
+	if x != nil {
+		return x.Candidates
+	}
+	return 0
+}
+
+func (x *SearchStats) GetSearched() uint64 {
+	if x != nil {
+		return x.Searched
+	}
+	return 0
+}
+
+func (x *SearchStats) GetReadBytes() uint64 {
+	if x != nil {
+		return x.ReadBytes
+	}
+	return 0
+}
+
+func (x *SearchStats) GetMatches() uint64 {
+	if x != nil {
+		return x.Matches
+	}
+	return 0
+}
+
+func (x *SearchStats) GetIndexNs() int64 {
+	if x != nil {
+		return x.IndexNs
+	}
+	return 0
+}
+
+func (x *SearchStats) GetGrepNs() int64 {
+	if x != nil {
+		return x.GrepNs
+	}
+	return 0
+}
+
+func (x *SearchStats) GetSlowestPath() string {
+	if x != nil {
+		return x.SlowestPath
+	}
+	return ""
+}
+
+func (x *SearchStats) GetSlowestNs() int64 {
+	if x != nil {
+		return x.SlowestNs
+	}
+	return 0
+}
+
+func (x *SearchStats) GetCancelled() bool {
+	if x != nil {
+		return x.Cancelled
+	}
+	return false
+}
+
 type SearchReply struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Type           SearchReply_Type       `protobuf:"varint,1,opt,name=type,proto3,enum=sourcebackendpb.SearchReply_Type" json:"type,omitempty"`
 	Match          *Match                 `protobuf:"bytes,2,opt,name=match,proto3" json:"match,omitempty"`
 	ProgressUpdate *ProgressUpdate        `protobuf:"bytes,3,opt,name=progress_update,json=progressUpdate,proto3" json:"progress_update,omitempty"`
+	Stats          *SearchStats           `protobuf:"bytes,4,opt,name=stats,proto3" json:"stats,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SearchReply) Reset() {
 	*x = SearchReply{}
-	mi := &file_sourcebackend_proto_msgTypes[5]
+	mi := &file_sourcebackend_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -415,7 +548,7 @@ func (x *SearchReply) String() string {
 func (*SearchReply) ProtoMessage() {}
 
 func (x *SearchReply) ProtoReflect() protoreflect.Message {
-	mi := &file_sourcebackend_proto_msgTypes[5]
+	mi := &file_sourcebackend_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -428,7 +561,7 @@ func (x *SearchReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchReply.ProtoReflect.Descriptor instead.
 func (*SearchReply) Descriptor() ([]byte, []int) {
-	return file_sourcebackend_proto_rawDescGZIP(), []int{5}
+	return file_sourcebackend_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SearchReply) GetType() SearchReply_Type {
@@ -452,6 +585,13 @@ func (x *SearchReply) GetProgressUpdate() *ProgressUpdate {
 	return nil
 }
 
+func (x *SearchReply) GetStats() *SearchStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
 type ReplaceIndexRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	ReplacementPath string                 `protobuf:"bytes,1,opt,name=replacement_path,json=replacementPath,proto3" json:"replacement_path,omitempty"`
@@ -461,7 +601,7 @@ type ReplaceIndexRequest struct {
 
 func (x *ReplaceIndexRequest) Reset() {
 	*x = ReplaceIndexRequest{}
-	mi := &file_sourcebackend_proto_msgTypes[6]
+	mi := &file_sourcebackend_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -473,7 +613,7 @@ func (x *ReplaceIndexRequest) String() string {
 func (*ReplaceIndexRequest) ProtoMessage() {}
 
 func (x *ReplaceIndexRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_sourcebackend_proto_msgTypes[6]
+	mi := &file_sourcebackend_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -486,7 +626,7 @@ func (x *ReplaceIndexRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceIndexRequest.ProtoReflect.Descriptor instead.
 func (*ReplaceIndexRequest) Descriptor() ([]byte, []int) {
-	return file_sourcebackend_proto_rawDescGZIP(), []int{6}
+	return file_sourcebackend_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ReplaceIndexRequest) GetReplacementPath() string {
@@ -504,7 +644,7 @@ type ReplaceIndexReply struct {
 
 func (x *ReplaceIndexReply) Reset() {
 	*x = ReplaceIndexReply{}
-	mi := &file_sourcebackend_proto_msgTypes[7]
+	mi := &file_sourcebackend_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -516,7 +656,7 @@ func (x *ReplaceIndexReply) String() string {
 func (*ReplaceIndexReply) ProtoMessage() {}
 
 func (x *ReplaceIndexReply) ProtoReflect() protoreflect.Message {
-	mi := &file_sourcebackend_proto_msgTypes[7]
+	mi := &file_sourcebackend_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -529,7 +669,7 @@ func (x *ReplaceIndexReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplaceIndexReply.ProtoReflect.Descriptor instead.
 func (*ReplaceIndexReply) Descriptor() ([]byte, []int) {
-	return file_sourcebackend_proto_rawDescGZIP(), []int{7}
+	return file_sourcebackend_proto_rawDescGZIP(), []int{8}
 }
 
 var File_sourcebackend_proto protoreflect.FileDescriptor
@@ -540,9 +680,10 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\vFileRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"'\n" +
 	"\tFileReply\x12\x1a\n" +
-	"\bcontents\x18\x01 \x01(\fR\bcontents\"d\n" +
+	"\bcontents\x18\x01 \x01(\fR\bcontents\"\x7f\n" +
 	"\rSearchRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12#\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x19\n" +
+	"\bquery_id\x18\x04 \x01(\tR\aqueryId\x12#\n" +
 	"\rrewritten_url\x18\x02 \x01(\tR\frewrittenUrl\x12\x18\n" +
 	"\aliteral\x18\x03 \x01(\bR\aliteral\"\xf1\x01\n" +
 	"\x05Match\x12\x12\n" +
@@ -560,14 +701,30 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\x0eProgressUpdate\x12'\n" +
 	"\x0ffiles_processed\x18\x01 \x01(\x04R\x0efilesProcessed\x12\x1f\n" +
 	"\vfiles_total\x18\x02 \x01(\x04R\n" +
-	"filesTotal\"\xe4\x01\n" +
+	"filesTotal\"\x96\x02\n" +
+	"\vSearchStats\x12\x1e\n" +
+	"\n" +
+	"candidates\x18\x01 \x01(\x04R\n" +
+	"candidates\x12\x1a\n" +
+	"\bsearched\x18\x02 \x01(\x04R\bsearched\x12\x1d\n" +
+	"\n" +
+	"read_bytes\x18\x03 \x01(\x04R\treadBytes\x12\x18\n" +
+	"\amatches\x18\x04 \x01(\x04R\amatches\x12\x19\n" +
+	"\bindex_ns\x18\x05 \x01(\x03R\aindexNs\x12\x17\n" +
+	"\agrep_ns\x18\x06 \x01(\x03R\x06grepNs\x12!\n" +
+	"\fslowest_path\x18\a \x01(\tR\vslowestPath\x12\x1d\n" +
+	"\n" +
+	"slowest_ns\x18\b \x01(\x03R\tslowestNs\x12\x1c\n" +
+	"\tcancelled\x18\t \x01(\bR\tcancelled\"\xa3\x02\n" +
 	"\vSearchReply\x125\n" +
 	"\x04type\x18\x01 \x01(\x0e2!.sourcebackendpb.SearchReply.TypeR\x04type\x12,\n" +
 	"\x05match\x18\x02 \x01(\v2\x16.sourcebackendpb.MatchR\x05match\x12H\n" +
-	"\x0fprogress_update\x18\x03 \x01(\v2\x1f.sourcebackendpb.ProgressUpdateR\x0eprogressUpdate\"&\n" +
+	"\x0fprogress_update\x18\x03 \x01(\v2\x1f.sourcebackendpb.ProgressUpdateR\x0eprogressUpdate\x122\n" +
+	"\x05stats\x18\x04 \x01(\v2\x1c.sourcebackendpb.SearchStatsR\x05stats\"1\n" +
 	"\x04Type\x12\t\n" +
 	"\x05MATCH\x10\x00\x12\x13\n" +
-	"\x0fPROGRESS_UPDATE\x10\x01\"@\n" +
+	"\x0fPROGRESS_UPDATE\x10\x01\x12\t\n" +
+	"\x05STATS\x10\x02\"@\n" +
 	"\x13ReplaceIndexRequest\x12)\n" +
 	"\x10replacement_path\x18\x01 \x01(\tR\x0freplacementPath\"\x13\n" +
 	"\x11ReplaceIndexReply2\xfb\x01\n" +
@@ -589,7 +746,7 @@ func file_sourcebackend_proto_rawDescGZIP() []byte {
 }
 
 var file_sourcebackend_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_sourcebackend_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_sourcebackend_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_sourcebackend_proto_goTypes = []any{
 	(SearchReply_Type)(0),       // 0: sourcebackendpb.SearchReply.Type
 	(*FileRequest)(nil),         // 1: sourcebackendpb.FileRequest
@@ -597,25 +754,27 @@ var file_sourcebackend_proto_goTypes = []any{
 	(*SearchRequest)(nil),       // 3: sourcebackendpb.SearchRequest
 	(*Match)(nil),               // 4: sourcebackendpb.Match
 	(*ProgressUpdate)(nil),      // 5: sourcebackendpb.ProgressUpdate
-	(*SearchReply)(nil),         // 6: sourcebackendpb.SearchReply
-	(*ReplaceIndexRequest)(nil), // 7: sourcebackendpb.ReplaceIndexRequest
-	(*ReplaceIndexReply)(nil),   // 8: sourcebackendpb.ReplaceIndexReply
+	(*SearchStats)(nil),         // 6: sourcebackendpb.SearchStats
+	(*SearchReply)(nil),         // 7: sourcebackendpb.SearchReply
+	(*ReplaceIndexRequest)(nil), // 8: sourcebackendpb.ReplaceIndexRequest
+	(*ReplaceIndexReply)(nil),   // 9: sourcebackendpb.ReplaceIndexReply
 }
 var file_sourcebackend_proto_depIdxs = []int32{
 	0, // 0: sourcebackendpb.SearchReply.type:type_name -> sourcebackendpb.SearchReply.Type
 	4, // 1: sourcebackendpb.SearchReply.match:type_name -> sourcebackendpb.Match
 	5, // 2: sourcebackendpb.SearchReply.progress_update:type_name -> sourcebackendpb.ProgressUpdate
-	1, // 3: sourcebackendpb.SourceBackend.File:input_type -> sourcebackendpb.FileRequest
-	3, // 4: sourcebackendpb.SourceBackend.Search:input_type -> sourcebackendpb.SearchRequest
-	7, // 5: sourcebackendpb.SourceBackend.ReplaceIndex:input_type -> sourcebackendpb.ReplaceIndexRequest
-	2, // 6: sourcebackendpb.SourceBackend.File:output_type -> sourcebackendpb.FileReply
-	6, // 7: sourcebackendpb.SourceBackend.Search:output_type -> sourcebackendpb.SearchReply
-	8, // 8: sourcebackendpb.SourceBackend.ReplaceIndex:output_type -> sourcebackendpb.ReplaceIndexReply
-	6, // [6:9] is the sub-list for method output_type
-	3, // [3:6] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	6, // 3: sourcebackendpb.SearchReply.stats:type_name -> sourcebackendpb.SearchStats
+	1, // 4: sourcebackendpb.SourceBackend.File:input_type -> sourcebackendpb.FileRequest
+	3, // 5: sourcebackendpb.SourceBackend.Search:input_type -> sourcebackendpb.SearchRequest
+	8, // 6: sourcebackendpb.SourceBackend.ReplaceIndex:input_type -> sourcebackendpb.ReplaceIndexRequest
+	2, // 7: sourcebackendpb.SourceBackend.File:output_type -> sourcebackendpb.FileReply
+	7, // 8: sourcebackendpb.SourceBackend.Search:output_type -> sourcebackendpb.SearchReply
+	9, // 9: sourcebackendpb.SourceBackend.ReplaceIndex:output_type -> sourcebackendpb.ReplaceIndexReply
+	7, // [7:10] is the sub-list for method output_type
+	4, // [4:7] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_sourcebackend_proto_init() }
@@ -629,7 +788,7 @@ func file_sourcebackend_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_sourcebackend_proto_rawDesc), len(file_sourcebackend_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

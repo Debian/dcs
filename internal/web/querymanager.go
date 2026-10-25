@@ -10,6 +10,7 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/url"
@@ -161,6 +162,7 @@ type perBackendState struct {
 	tempFileOffset int64
 	packagePool    *stringpool.StringPool
 	allPackages    map[string]bool
+	stats          *sourcebackendpb.SearchStats
 }
 
 type queryState struct {
@@ -273,6 +275,14 @@ func (s *sink) Progress(filesProcessed, filesTotal int) error {
 	if s.queryState.completed() && filesProcessed < filesTotal {
 		return fmt.Errorf("query was cancelled")
 	}
+	return nil
+}
+
+// Stats implements sourcebackend.SearchSink
+func (s *sink) Stats(st *sourcebackendpb.SearchStats) error {
+	s.queryState.mu.Lock()
+	defer s.queryState.mu.Unlock()
+	s.queryState.perBackend[s.backendidx].stats = st
 	return nil
 }
 
@@ -416,6 +426,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid, src, query string) 
 	rewritten := search.RewriteQuery(*fakeUrl)
 	searchRequest := &sourcebackendpb.SearchRequest{
 		Query:        rewritten.Query().Get("q"),
+		QueryId:      queryid,
 		RewrittenUrl: rewritten.String(),
 		Literal:      rewritten.Query().Get("literal") == "1",
 	}
@@ -638,6 +649,26 @@ func (o *Opts) finishQuery(s *queryState) {
 	numResults := s.numResults
 	errors := s.errors
 	cancelled := s.cancelled
+	var (
+		candidates uint64
+		searched   uint64
+		readBytes  uint64
+		slowest    *sourcebackendpb.SearchStats
+		missing    int
+	)
+	for _, b := range s.perBackend {
+		st := b.stats
+		if st == nil {
+			missing++ // backend failed
+			continue
+		}
+		candidates += st.Candidates
+		searched += st.Searched
+		readBytes += st.ReadBytes
+		if slowest == nil || st.SlowestNs > slowest.SlowestNs {
+			slowest = st
+		}
+	}
 	s.mu.Unlock()
 
 	log.Printf("[%s] query done on all backends, writing to disk.\n", s.queryid)
@@ -650,14 +681,17 @@ func (o *Opts) finishQuery(s *queryState) {
 		})
 	}
 
+	outcome := "ok"
 	switch {
 	case cancelled:
+		outcome = "cancelled"
 		s.addEventMarshal(&Error{
 			Type:      "error",
 			ErrorType: "cancelled",
 		})
 
 	case len(errors) > 0:
+		outcome = "error"
 		s.addEventMarshal(&Error{
 			Type:      "error",
 			ErrorType: "backendunavailable",
@@ -672,7 +706,18 @@ func (o *Opts) finishQuery(s *queryState) {
 		Results:        numResults,
 	})
 
-	log.Printf("[%s] done (in %v), closing all client channels.\n", s.queryid, time.Since(s.started))
+	slog.Info("query done",
+		"query_id", s.queryid,
+		"duration", time.Since(s.started).Round(time.Millisecond),
+		"outcome", outcome,
+		"results", numResults,
+		"searched", searched,
+		"candidates", candidates,
+		"read_bytes", readBytes,
+		"slowest_path", slowest.GetSlowestPath(),
+		"slowest", time.Duration(slowest.GetSlowestNs()),
+		"missing_shards", missing)
+
 	s.addEvent([]byte{}, nil)
 
 	queryDurations.Observe(float64(time.Since(s.started) / time.Millisecond))
