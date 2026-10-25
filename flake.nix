@@ -57,5 +57,9 @@
       });
 
       nixosModules.default = import ./nix/module.nix self;
+
+      checks = forAllSystems (pkgs: {
+        web = pkgs.testers.runNixOSTest (import ./nix/vmtest.nix self);
+      });
     };
 }
