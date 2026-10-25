@@ -42,6 +42,20 @@
         };
       });
 
+      devShells = forAllSystems (pkgs: {
+        default = pkgs.mkShell {
+          packages = with pkgs; [
+            go_latest
+            protobuf # protoc
+            protoc-gen-go
+            protoc-gen-go-grpc
+            gitMinimal
+            dpkg # for dpkg-source (end-to-end tests)
+          ];
+          env.GOEXPERIMENT = "simd";
+        };
+      });
+
       nixosModules.default = import ./nix/module.nix self;
     };
 }
