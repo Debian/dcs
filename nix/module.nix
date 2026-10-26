@@ -33,7 +33,8 @@ let
         lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.web.extraFlags
       }
   '';
-  web = pkgs.writeShellScript "dcs-web" webSrc;
+  # https://wiki.nixos.org/wiki/Nix-writers
+  web = pkgs.writeShellScriptBin "dcs-web" webSrc;
 in
 {
   options.services.dcs = {
@@ -84,14 +85,41 @@ in
     ];
 
     systemd.services.dcs-web = {
+      description = "dcs-web (frontend)";
+      documentation = [ "https://github.com/Debian/dcs" ];
       wantedBy = [ "multi-user.target" ];
+      # Do not rate limit restarts; DCS is safe to restart
+      # and will auto-recover after being killed.
+      #
+      # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
+      startLimitIntervalSec = 0;
       serviceConfig = {
+        Restart = "always";
+        RestartSec = 1;
+
+        # Run under a dedicated user/group.
         User = "dcs";
         Group = "dcs";
-        Slice = "dcs.slice";
         WorkingDirectory = "/srv/dcs";
+
+        # All DCS services go into dcs.slice, so that
+        # resource dimensions can be controlled in one place.
+        Slice = "dcs.slice";
+
+        # Disable stdout (very verbose); only enable when debugging.
+        # TODO: reduce logspam to make this setting obsolete.
+        StandardOutput = "null";
+        StandardError = "journal";
+
+        Environment = [
+          # Write a core dump when panicing (systemd-coredump(8) collects).
+          #
+          # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
+          "GOTRACEBACK=crash"
+        ];
+
         ExecStartPre = init;
-        ExecStart = web;
+        ExecStart = "${web}/bin/dcs-web";
       };
     };
   };
