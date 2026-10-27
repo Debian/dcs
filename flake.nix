@@ -40,6 +40,7 @@
         default = pkgs.callPackage ./nix/dcs-package.nix {
           src = self;
         };
+        debian-archive-keyring = pkgs.callPackage ./nix/debian-archive-keyring.nix { };
       });
 
       devShells = forAllSystems (pkgs: {

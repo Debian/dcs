@@ -57,6 +57,20 @@ let
   '';
   importer = pkgs.writeShellScriptBin "dcs-package-importer" importerSrc;
 
+  keyring = self.packages.${pkgs.stdenv.hostPlatform.system}.debian-archive-keyring;
+
+  feederSrc = ''
+    set -eu
+    exec ${cfg.package}/bin/dcs-feeder \
+      -shards=${cfg.feeder.shards} \
+      -tls_cert_path=prod-cert.pem \
+      -tls_key_path=prod-key.pem \
+      -debian_archive_keyring=${keyring}${
+        lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.feeder.extraFlags
+      }
+  '';
+  feeder = pkgs.writeShellScriptBin "dcs-feeder" feederSrc;
+
   defaultServiceConfig = {
     # Run under a dedicated user/group.
     User = "dcs";
@@ -82,6 +96,26 @@ in
       type = lib.types.ints.between 1 10;
       default = 1; # codesearch.debian.net uses 6 shards
       description = "Number of index shards (one dcs-package-importer@N per shard)";
+    };
+
+    feeder.shards = lib.mkOption {
+      type = lib.types.str;
+      default = lib.concatMapStringsSep "," (i: "localhost:${toString (21010 + i)}") (
+        builtins.genList (i: i) cfg.numShards
+      );
+      example = "localhost:21010,localhost:21011";
+      description = "Comma-separated dcs-package-importer addresses that dcs-feeder feeds";
+    };
+
+    feeder.extraFlags = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "-mirror_url=http://ftp.ch.debian.org/debian"
+      ];
+      description = ''
+        Additional dcs-feeder flags (inserted verbatim, i.e. $(cat …) works).
+      '';
     };
 
     web.sourceIndexes = lib.mkOption {
@@ -222,6 +256,37 @@ in
       wantedBy = [ "multi-user.target" ];
       # Enable all dcs-package-importer@0 to @N (for numShards).
       wants = builtins.genList (i: "dcs-package-importer@${toString i}.service") cfg.numShards;
+    };
+
+    systemd.services.dcs-feeder = {
+      description = "dcs-feeder (feeds Debian packages to the importers)";
+      documentation = [ "https://github.com/Debian/dcs" ];
+      wantedBy = [ "multi-user.target" ];
+      requires = [ "dcs-init.service" ];
+      after = [ "dcs-init.service" ];
+      # Do not rate limit restarts; DCS is safe to restart
+      # and will auto-recover after being killed.
+      #
+      # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
+      startLimitIntervalSec = 0;
+      serviceConfig = defaultServiceConfig // {
+        Restart = "always";
+        RestartSec = 1;
+
+        # Disable stdout (very verbose); only enable when debugging.
+        # TODO: reduce logspam to make this setting obsolete.
+        StandardOutput = "null";
+        StandardError = "journal";
+
+        Environment = [
+          # Write a core dump when panicing (systemd-coredump(8) collects).
+          #
+          # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
+          "GOTRACEBACK=crash"
+        ];
+
+        ExecStart = "${feeder}/bin/dcs-feeder";
+      };
     };
 
     systemd.services.dcs-web = {
