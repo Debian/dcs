@@ -45,6 +45,18 @@ let
   '';
   computeRanking = pkgs.writeShellScriptBin "dcs-compute-ranking" computeRankingSrc;
 
+  importerSrc = ''
+    set -eu
+    shard="$1"
+    exec ${cfg.package}/bin/dcs-package-importer \
+      -listen_address=localhost:$((21010+shard)) \
+      -shard_path=/srv/dcs/shard$shard \
+      -tls_cert_path=prod-cert.pem \
+      -tls_key_path=prod-key.pem \
+      -source_backend=${lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.importer.extraFlags}
+  '';
+  importer = pkgs.writeShellScriptBin "dcs-package-importer" importerSrc;
+
   defaultServiceConfig = {
     # Run under a dedicated user/group.
     User = "dcs";
@@ -66,9 +78,17 @@ in
       description = "The dcs package to use";
     };
 
+    numShards = lib.mkOption {
+      type = lib.types.ints.between 1 10;
+      default = 1; # codesearch.debian.net uses 6 shards
+      description = "Number of index shards (one dcs-package-importer@N per shard)";
+    };
+
     web.sourceIndexes = lib.mkOption {
       type = lib.types.str;
-      default = "/srv/dcs/shard0";
+      default = lib.concatMapStringsSep "," (i: "/srv/dcs/shard${toString i}") (
+        builtins.genList (i: i) cfg.numShards
+      );
       example = "/srv/dcs/shard0,/srv/dcs/shard1";
       description = "Comma-separated index shard directories (containing src/ and full/) that dcs-web serves";
     };
@@ -93,6 +113,17 @@ in
       ];
       description = ''
         Additional dcs-compute-ranking flags (inserted verbatim, i.e. $(cat …) works).
+      '';
+    };
+
+    importer.extraFlags = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "-debug_skip"
+      ];
+      description = ''
+        Additional dcs-package-importer flags (inserted verbatim, i.e. $(cat …) works).
       '';
     };
   };
@@ -140,6 +171,57 @@ in
         Type = "oneshot";
         ExecStart = "${init}/bin/dcs-init";
       };
+    };
+
+    systemd.services."dcs-package-importer@" = {
+      description = "dcs-package-importer (shard %i)";
+      documentation = [ "https://github.com/Debian/dcs" ];
+      # No wantedBy: units like dcs-package-importer@N instantiate.
+      requires = [ "dcs-init.service" ];
+      after = [ "dcs-init.service" ];
+      path = with pkgs; [
+        dpkg # for dpkg-source
+        patch
+        gzip # for gunzip
+        bzip2 # for bzip2
+        xz # for xz
+        zstd # for zstd
+      ];
+      # Do not rate limit restarts; DCS is safe to restart
+      # and will auto-recover after being killed.
+      #
+      # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
+      startLimitIntervalSec = 0;
+      serviceConfig = defaultServiceConfig // {
+        Restart = "always";
+        RestartSec = 1;
+
+        # Defer to any other work, updating the index
+        # is background work compared to serving queries.
+        Nice = "19";
+        IOSchedulingClass = "idle";
+
+        # Disable stdout (very verbose); only enable when debugging.
+        # TODO: reduce logspam to make this setting obsolete.
+        StandardOutput = "null";
+        StandardError = "journal";
+
+        Environment = [
+          # Write a core dump when panicing (systemd-coredump(8) collects).
+          #
+          # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
+          "GOTRACEBACK=crash"
+        ];
+
+        ExecStart = "${importer}/bin/dcs-package-importer %i";
+      };
+    };
+
+    systemd.targets."dcs-package-importers" = {
+      description = "all dcs-package-importer instances";
+      wantedBy = [ "multi-user.target" ];
+      # Enable all dcs-package-importer@0 to @N (for numShards).
+      wants = builtins.genList (i: "dcs-package-importer@${toString i}.service") cfg.numShards;
     };
 
     systemd.services.dcs-web = {
