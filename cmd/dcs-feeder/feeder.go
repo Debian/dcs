@@ -76,6 +76,14 @@ var (
 
 	refeed = flag.String("refeed", "", "If non-empty, all packages will be imported again and the string determines the path to the state file that keeps track of which packages were fed")
 
+	mergeLastActivity = flag.Duration("merge_last_activity",
+		2*time.Minute,
+		"Period of inactivity after which to trigger a /merge request")
+
+	mergeContinuousActivity = flag.Duration("merge_continuous_activity",
+		10*time.Minute,
+		"Upper threshold after which to trigger a /merge request, even if not idle (i.e. during continuous activity)")
+
 	packageImporters []*packageImporter
 
 	mergeStates   = make(map[int]mergeState)
@@ -111,18 +119,18 @@ func init() {
 // activity.
 func merge() {
 	for {
-		time.Sleep(10 * time.Second)
+		time.Sleep(1 * time.Second)
 		mergeStatesMu.Lock()
 		for shardIdx, state := range mergeStates {
-			if time.Since(state.lastActivity) >= 2*time.Minute ||
-				time.Since(state.firstRequest) >= 10*time.Minute {
+			if time.Since(state.lastActivity) >= *mergeLastActivity ||
+				time.Since(state.firstRequest) >= *mergeContinuousActivity {
 				importer := packageImporters[shardIdx]
 				log.Printf("Calling /merge on shard %d (%s) now\n", shardIdx, importer.shard)
 				if *dryRun {
 					continue
 				}
 				if _, err := importer.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
-					log.Printf("/merge for shard %s failed (retry in 10s): %v\n", importer.shard, err)
+					log.Printf("/merge for shard %s failed (retry in 1s): %v\n", importer.shard, err)
 					continue
 				}
 				delete(mergeStates, shardIdx)
