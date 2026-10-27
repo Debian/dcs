@@ -81,6 +81,28 @@ let
     # resource dimensions can be controlled in one place.
     Slice = "dcs.slice";
   };
+
+  defaultDaemonServiceConfig = defaultServiceConfig // {
+    # Do not rate limit restarts: All DCS daemons are safe to restart
+    # and will auto-recover after being killed. This also needs
+    # startLimitIntervalSec = 0; on the service attrset itself.
+    #
+    # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
+    Restart = "always";
+    RestartSec = 1;
+
+    # Disable stdout (very verbose); only enable when debugging.
+    # TODO: reduce logspam to make this setting obsolete.
+    StandardOutput = "null";
+    StandardError = "journal";
+
+    Environment = [
+      # Write a core dump when panicing (systemd-coredump(8) collects).
+      #
+      # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
+      "GOTRACEBACK=crash"
+    ];
+  };
 in
 {
   options.services.dcs = {
@@ -221,31 +243,12 @@ in
         xz # for xz
         zstd # for zstd
       ];
-      # Do not rate limit restarts; DCS is safe to restart
-      # and will auto-recover after being killed.
-      #
-      # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
       startLimitIntervalSec = 0;
-      serviceConfig = defaultServiceConfig // {
-        Restart = "always";
-        RestartSec = 1;
-
+      serviceConfig = defaultDaemonServiceConfig // {
         # Defer to any other work, updating the index
         # is background work compared to serving queries.
         Nice = "19";
         IOSchedulingClass = "idle";
-
-        # Disable stdout (very verbose); only enable when debugging.
-        # TODO: reduce logspam to make this setting obsolete.
-        StandardOutput = "null";
-        StandardError = "journal";
-
-        Environment = [
-          # Write a core dump when panicing (systemd-coredump(8) collects).
-          #
-          # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
-          "GOTRACEBACK=crash"
-        ];
 
         ExecStart = "${importer}/bin/dcs-package-importer %i";
       };
@@ -264,27 +267,8 @@ in
       wantedBy = [ "multi-user.target" ];
       requires = [ "dcs-init.service" ];
       after = [ "dcs-init.service" ];
-      # Do not rate limit restarts; DCS is safe to restart
-      # and will auto-recover after being killed.
-      #
-      # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
       startLimitIntervalSec = 0;
-      serviceConfig = defaultServiceConfig // {
-        Restart = "always";
-        RestartSec = 1;
-
-        # Disable stdout (very verbose); only enable when debugging.
-        # TODO: reduce logspam to make this setting obsolete.
-        StandardOutput = "null";
-        StandardError = "journal";
-
-        Environment = [
-          # Write a core dump when panicing (systemd-coredump(8) collects).
-          #
-          # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
-          "GOTRACEBACK=crash"
-        ];
-
+      serviceConfig = defaultDaemonServiceConfig // {
         ExecStart = "${feeder}/bin/dcs-feeder";
       };
     };
@@ -295,27 +279,8 @@ in
       wantedBy = [ "multi-user.target" ];
       requires = [ "dcs-init.service" ];
       after = [ "dcs-init.service" ];
-      # Do not rate limit restarts; DCS is safe to restart
-      # and will auto-recover after being killed.
-      #
-      # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
       startLimitIntervalSec = 0;
-      serviceConfig = defaultServiceConfig // {
-        Restart = "always";
-        RestartSec = 1;
-
-        # Disable stdout (very verbose); only enable when debugging.
-        # TODO: reduce logspam to make this setting obsolete.
-        StandardOutput = "null";
-        StandardError = "journal";
-
-        Environment = [
-          # Write a core dump when panicing (systemd-coredump(8) collects).
-          #
-          # https://michael.stapelberg.ch/posts/2024-10-22-debug-go-core-dumps-delve-export-bytes/
-          "GOTRACEBACK=crash"
-        ];
-
+      serviceConfig = defaultDaemonServiceConfig // {
         ExecStart = "${web}/bin/dcs-web";
       };
     };
