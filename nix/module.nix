@@ -16,7 +16,7 @@ let
     [ -e block.key ] || head -c32 /dev/urandom | basenc --base16 -w0 > block.key
     [ -e ranking.json ] || echo '{}' > ranking.json
   '';
-  init = pkgs.writeShellScript "dcs-init" initSrc;
+  init = pkgs.writeShellScriptBin "dcs-init" initSrc;
 
   webSrc = ''
     set -eu
@@ -133,10 +133,21 @@ in
       };
     };
 
+    systemd.services.dcs-init = {
+      description = "create certificates, secret keys, etc.";
+      documentation = [ "https://github.com/Debian/dcs" ];
+      serviceConfig = defaultServiceConfig // {
+        Type = "oneshot";
+        ExecStart = "${init}/bin/dcs-init";
+      };
+    };
+
     systemd.services.dcs-web = {
       description = "dcs-web (frontend)";
       documentation = [ "https://github.com/Debian/dcs" ];
       wantedBy = [ "multi-user.target" ];
+      requires = [ "dcs-init.service" ];
+      after = [ "dcs-init.service" ];
       # Do not rate limit restarts; DCS is safe to restart
       # and will auto-recover after being killed.
       #
@@ -158,7 +169,6 @@ in
           "GOTRACEBACK=crash"
         ];
 
-        ExecStartPre = init;
         ExecStart = "${web}/bin/dcs-web";
       };
     };
