@@ -35,6 +35,26 @@ let
   '';
   # https://wiki.nixos.org/wiki/Nix-writers
   web = pkgs.writeShellScriptBin "dcs-web" webSrc;
+
+  computeRankingSrc = ''
+    set -eu
+    exec ${cfg.package}/bin/dcs-compute-ranking \
+      -output_path=ranking.json${
+        lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.computeRanking.extraFlags
+      }
+  '';
+  computeRanking = pkgs.writeShellScriptBin "dcs-compute-ranking" computeRankingSrc;
+
+  defaultServiceConfig = {
+    # Run under a dedicated user/group.
+    User = "dcs";
+    Group = "dcs";
+    WorkingDirectory = "/srv/dcs";
+
+    # All DCS services go into dcs.slice, so that
+    # resource dimensions can be controlled in one place.
+    Slice = "dcs.slice";
+  };
 in
 {
   options.services.dcs = {
@@ -64,6 +84,17 @@ in
         Additional dcs-web flags (inserted verbatim, i.e. $(cat …) works).
       '';
     };
+
+    computeRanking.extraFlags = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "-mirror_url=http://ftp.ch.debian.org/debian"
+      ];
+      description = ''
+        Additional dcs-compute-ranking flags (inserted verbatim, i.e. $(cat …) works).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -84,6 +115,24 @@ in
       "d /srv/dcs 0755 dcs dcs -"
     ];
 
+    systemd.timers.dcs-compute-ranking = {
+      description = "derive ranking.json from Debian popcon (hourly timer)";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnActiveSec = "1min";
+        OnCalendar = "hourly";
+      };
+    };
+
+    systemd.services.dcs-compute-ranking = {
+      description = "derive ranking.json from Debian popcon";
+      documentation = [ "https://github.com/Debian/dcs" ];
+      serviceConfig = defaultServiceConfig // {
+        Type = "oneshot";
+        ExecStart = "${computeRanking}/bin/dcs-compute-ranking";
+      };
+    };
+
     systemd.services.dcs-web = {
       description = "dcs-web (frontend)";
       documentation = [ "https://github.com/Debian/dcs" ];
@@ -93,18 +142,9 @@ in
       #
       # https://michael.stapelberg.ch/posts/2024-01-17-systemd-indefinite-service-restarts/
       startLimitIntervalSec = 0;
-      serviceConfig = {
+      serviceConfig = defaultServiceConfig // {
         Restart = "always";
         RestartSec = 1;
-
-        # Run under a dedicated user/group.
-        User = "dcs";
-        Group = "dcs";
-        WorkingDirectory = "/srv/dcs";
-
-        # All DCS services go into dcs.slice, so that
-        # resource dimensions can be controlled in one place.
-        Slice = "dcs.slice";
 
         # Disable stdout (very verbose); only enable when debugging.
         # TODO: reduce logspam to make this setting obsolete.
