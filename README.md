@@ -16,6 +16,27 @@ Documentation:
 * [Setting up a small instance of DCS for hacking](https://github.com/Debian/dcs/blob/main/howto/hacking.md)
 * [Debian Code Search Index format](https://github.com/Debian/dcs/blob/main/howto/index.md)
 
+Hardware requirements:
+
+* At least 1 TB of SSD disk space.
+* The more CPU, the better. Then, more IOPS (disks that saturate many reads).
+
+Example: Google Cloud
+* A Google Cloud N2 instance (`n2-standard-16`) has 64 GB of RAM and a Cascade Lake CPU (with AVX512), at least in my test.
+  * Local NVMe SSDs are recommended. You need at least four 375 GB disks.
+  * Performance ceiling (`fio`, 16K random reads): 180k IOPS, 2.95 GB/s
+  * DCS needs 4.6 ns CPU time per byte searched, about 0.22 GB/s per vCPU.
+  * 32 vCPUs are the recommendation if you want fastest queries. 16 vCPUs is fine, too.
+  * 32 GB of RAM, or 64 GB of RAM (better) are recommended.
+    * 128 GB of RAM holds the typical working set and can deliver 2x faster (warm) queries.
+
+Example: Hetzner dedicated server
+* A Hetzner AX52 (no longer available to order) has 64 GB of RAM, a Ryzen 7 7700 (8 cores / 16 threads) and two 1 TB Samsung PM9A1 NVMe disks.
+  * Performance ceiling (`fio`, 16K random reads): 400k IOPS, 6.5 GB/s (RAID0)
+  * DCS needs 2.7 ns CPU time per byte searched, about 0.37 GB/s per Zen 4 thread.
+  * This machine is CPU-bound: To saturate the disk, we’d need a 16 or 32 core CPU.
+  * With 64 GB of RAM, about 44% of searched bytes came from page cache.
+
 Guide to this repository:
 
 * `cmd/dcs` is the swiss-army knife tool for Debian Code Search, displaying index files in a variety of ways.
