@@ -189,7 +189,9 @@ in
     # so that we can easily apply one global memory limit.
     systemd.slices.dcs = {
       description = "Debian Code Search";
-      sliceConfig.MemoryMax = lib.mkDefault "52G";
+      # Set this limit as appropriate: the default of 95%
+      # leaves a bit of memory reserved for other processes.
+      sliceConfig.MemoryMax = lib.mkDefault "95%";
     };
 
     users.groups.dcs = { };
