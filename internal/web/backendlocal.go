@@ -44,7 +44,14 @@ func (o *Opts) openSourceIndexes() ([]common.Backend, error) {
 			}
 		}
 
-		unpacked, err := os.OpenRoot(filepath.Join(dir, "src"))
+		src := filepath.Join(dir, "src")
+		// Ensure the src directory exists:
+		// On new deployments, it might be missing.
+		if err := os.MkdirAll(src, 0755); err != nil {
+			return nil, err
+		}
+
+		unpacked, err := os.OpenRoot(src)
 		if err != nil {
 			return nil, err
 		}
