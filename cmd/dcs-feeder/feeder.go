@@ -318,7 +318,9 @@ func checkSources() error {
 	shardMu := make([]sync.Mutex, len(packageImporters))
 
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
+	n := 0
 	for _, pkg := range mostRecent {
+		n++
 		if strings.HasSuffix(pkg.Values["Package"], "-data") {
 			continue
 		}
@@ -362,11 +364,12 @@ func checkSources() error {
 				}
 			}
 			sem <- struct{}{}
+			n := n // copy for the goroutine (n is not a loopvar)
 			go func() {
 				defer func() { <-sem }()
 				shardMu[shardIdx].Lock()
 				defer shardMu[shardIdx].Unlock()
-				log.Printf("Feeding package %s to shard %d (%s)\n", p, shardIdx, importer.shard)
+				log.Printf("[%d of %d] Feeding package %s to shard %d (%s)", n, len(mostRecent), p, shardIdx, importer.shard)
 				if *dryRun {
 					return
 				}
