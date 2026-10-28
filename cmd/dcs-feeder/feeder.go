@@ -71,8 +71,6 @@ var (
 
 	tlsKeyPath = flag.String("tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 
-	initial = flag.Bool("initial", false, "Whether this is the initial feeder call, in which case Merge will not be called on the dcs-package-importer jobs, speeding up the run.")
-
 	dryRun = flag.Bool("dry_run", false, "Only print changes")
 
 	refeed = flag.String("refeed", "", "If non-empty, all packages will be imported again and the string determines the path to the state file that keeps track of which packages were fed")
@@ -230,6 +228,19 @@ func feedfiles(pkg string, pkgfiles []string) {
 			log.Printf("feed(%q, %q): %v", pkg, filepath.Base(url), err)
 		}
 	}
+}
+
+func importersEmpty() (bool, error) {
+	for _, importer := range packageImporters {
+		resp, err := importer.Packages(context.Background(), &packageimporterpb.PackagesRequest{})
+		if err != nil {
+			return false, fmt.Errorf("packageImporter.Packages: %v", err)
+		}
+		if len(resp.SourcePackage) > 0 {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func checkSources() error {
@@ -486,7 +497,11 @@ func main() {
 		}
 	}
 
-	if *initial {
+	empty, err := importersEmpty()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if empty {
 		// Do one merge, then exit.
 		// In a goroutine, so that the HTTP server comes up.
 		go func() {
