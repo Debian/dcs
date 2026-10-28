@@ -200,6 +200,7 @@ in
 
     systemd.tmpfiles.rules = [
       "d /srv/dcs 0755 dcs dcs -"
+      "D /srv/dcs/tmp 0755 dcs dcs -"
     ];
 
     systemd.timers.dcs-compute-ranking = {
@@ -248,6 +249,9 @@ in
         xz # for xz
         zstd # for zstd
       ];
+      # Use a $TMPDIR on the same disk as the target
+      # to avoid cross-device copies in favor of renames.
+      environment.TMPDIR = "/srv/dcs/tmp";
       startLimitIntervalSec = 0;
       serviceConfig = defaultDaemonServiceConfig // {
         # Defer to any other work, updating the index

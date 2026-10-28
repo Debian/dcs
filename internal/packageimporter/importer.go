@@ -590,11 +590,16 @@ func (s *server) indexPackage(pkg string) error {
 			return os.Remove(path)
 		},
 		func(path string, info os.FileInfo) error {
-			// Copy this file out of /tmp to our unpacked directory.
+			// Move this file out of $TMPDIR (might be /tmp on a different device,
+			// or maybe /srv/dcs/tmp on the same device) to our unpacked directory.
 			outputPath := filepath.Join(s.shardPath, "src", path[stripLen:])
 			if err := os.MkdirAll(filepath.Dir(outputPath), os.FileMode(0755)); err != nil {
 				return fmt.Errorf("Could not create directory: %v\n", err)
 			}
+			if err := os.Rename(path, outputPath); err == nil {
+				return nil
+			}
+			// $TMPDIR is on a different file system: fall back to copying.
 			output, err := os.Create(outputPath)
 			if err != nil {
 				return fmt.Errorf("Could not create output file %q: %v\n", outputPath, err)
