@@ -7,6 +7,12 @@ export DH_GOLANG_INSTALL_ALL=1
 # 2. Generate Protobuf code (go generate ./internal/proto/...).
 export DH_GOLANG_GO_GENERATE=1
 
+# Install only the executable binaries, not the .go sources:
+# DCS does not offer any libraries for other programs.
+# If it ever shipped such libraries, they would go into a -dev package.
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/dcs -- --no-source
+
 override_dh_auto_configure:
 	cp /usr/share/javascript/highlight.js/highlight.min.js internal/static/highlightjs.min.js
 	cp /usr/share/javascript/highlight.js/styles/default.css internal/static/highlightjs-default.min.css
