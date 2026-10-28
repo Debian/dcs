@@ -9,6 +9,7 @@ import (
 	"compress/gzip"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -114,6 +115,19 @@ func init() {
 	prometheus.MustRegister(lastSanityCheckStarted)
 }
 
+func mergeLocked(shardIdx int) error {
+	importer := packageImporters[shardIdx]
+	log.Printf("Calling /merge on shard %d (%s) now", shardIdx, importer.shard)
+	if *dryRun {
+		return nil
+	}
+	if _, err := importer.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
+		return fmt.Errorf("package-importer[%s].Merge: %v", importer.shard, err)
+	}
+	delete(mergeStates, shardIdx)
+	return nil
+}
+
 // Calls /merge on the specified shard in a period of inactivity (2 minutes
 // after being called), or every 10 minutes in case there is continuous
 // activity.
@@ -124,20 +138,25 @@ func merge() {
 		for shardIdx, state := range mergeStates {
 			if time.Since(state.lastActivity) >= *mergeLastActivity ||
 				time.Since(state.firstRequest) >= *mergeContinuousActivity {
-				importer := packageImporters[shardIdx]
-				log.Printf("Calling /merge on shard %d (%s) now\n", shardIdx, importer.shard)
-				if *dryRun {
+				if err := mergeLocked(shardIdx); err != nil {
+					log.Printf("/merge failed (retry in 1s): %v", err)
 					continue
 				}
-				if _, err := importer.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
-					log.Printf("/merge for shard %s failed (retry in 1s): %v\n", importer.shard, err)
-					continue
-				}
-				delete(mergeStates, shardIdx)
 			}
 		}
 		mergeStatesMu.Unlock()
 	}
+}
+
+func mergeNow() {
+	mergeStatesMu.Lock()
+	for shardIdx := range packageImporters {
+		if err := mergeLocked(shardIdx); err != nil {
+			log.Printf("/merge failed (retry in 1s): %v", err)
+			continue
+		}
+	}
+	mergeStatesMu.Unlock()
 }
 
 func requestMerge(idx int) {
@@ -473,18 +492,26 @@ func main() {
 		}
 	}
 
-	// Calls /merge once appropriate.
-	if !*initial {
-		go merge()
-	}
-
-	// Calls checkSources() every hour
-	go func() {
-		for {
+	if *initial {
+		// Do one merge, then exit.
+		// In a goroutine, so that the HTTP server comes up.
+		go func() {
 			checkSources()
-			time.Sleep(1 * time.Hour)
-		}
-	}()
+			mergeNow()
+			os.Exit(0)
+		}()
+	} else {
+		// Calls /merge once appropriate.
+		go merge()
+
+		// Calls checkSources() every hour
+		go func() {
+			for {
+				checkSources()
+				time.Sleep(1 * time.Hour)
+			}
+		}()
+	}
 
 	// Triggers a merge on all package importers on SIGHUP,
 	// e.g. to immediately roll out changes to index merging.
