@@ -232,7 +232,7 @@ func feedfiles(pkg string, pkgfiles []string) {
 	}
 }
 
-func checkSources() {
+func checkSources() error {
 	log.Printf("checking sources\n")
 	lastSanityCheckStarted.Set(float64(time.Now().Unix()))
 
@@ -248,8 +248,7 @@ func checkSources() {
 	for _, importer := range packageImporters {
 		resp, err := importer.Packages(context.Background(), &packageimporterpb.PackagesRequest{})
 		if err != nil {
-			log.Printf("packageImporter.Packages: %v", err)
-			return
+			return fmt.Errorf("packageImporter.Packages: %v", err)
 		}
 		packages[importer.shard] = make(map[string]pkgStatus)
 		for _, foundpkg := range resp.SourcePackage {
@@ -263,26 +262,22 @@ func checkSources() {
 		sourcesSuffix := "/dists/" + *dist + "/" + section + "/source/Sources.gz"
 		resp, err := http.Get(*mirrorUrl + sourcesSuffix)
 		if err != nil {
-			log.Printf("Could not get Sources.gz: %v\n", err)
-			return
+			return fmt.Errorf("Could not get Sources.gz: %v", err)
 		}
 		defer resp.Body.Close()
 		reader, err := gzip.NewReader(resp.Body)
 		if err != nil {
-			log.Printf("Could not initialize gzip reader: %v\n", err)
-			return
+			return fmt.Errorf("Could not initialize gzip reader: %v", err)
 		}
 		defer reader.Close()
 
 		pr, err := control.NewParagraphReader(reader, keyring)
 		if err != nil {
-			log.Printf("Could not parse Sources.gz: %v\n", err)
-			return
+			return fmt.Errorf("Could not parse Sources.gz: %v", err)
 		}
 		tmp, err := pr.All()
 		if err != nil {
-			log.Printf("Could not parse Sources.gz: %v\n", err)
-			return
+			return fmt.Errorf("Could not parse Sources.gz: %v", err)
 		}
 		sourcePackages = append(sourcePackages, tmp...)
 	}
@@ -294,13 +289,11 @@ func checkSources() {
 		if current, ok := mostRecent[n]; ok {
 			old, err := version.Parse(current.Values["Version"])
 			if err != nil {
-				log.Printf("version %q: %v", current.Values["Version"], err)
-				return
+				return fmt.Errorf("version %q: %v", current.Values["Version"], err)
 			}
 			new, err := version.Parse(pkg.Values["Version"])
 			if err != nil {
-				log.Printf("version %q: %v", pkg.Values["Version"], err)
-				return
+				return fmt.Errorf("version %q: %v", pkg.Values["Version"], err)
 			}
 			if version.Compare(new, old) > 0 {
 				mostRecent[n] = pkg
@@ -404,6 +397,7 @@ func checkSources() {
 			successfulGarbageCollect.Inc()
 		}
 	}
+	return nil
 }
 
 var refeedMu sync.Mutex
@@ -496,7 +490,9 @@ func main() {
 		// Do one merge, then exit.
 		// In a goroutine, so that the HTTP server comes up.
 		go func() {
-			checkSources()
+			if err := checkSources(); err != nil {
+				log.Fatal(err)
+			}
 			mergeNow()
 			os.Exit(0)
 		}()
@@ -507,7 +503,9 @@ func main() {
 		// Calls checkSources() every hour
 		go func() {
 			for {
-				checkSources()
+				if err := checkSources(); err != nil {
+					log.Printf("checkSources: %v (retry: in 1h)", err)
+				}
 				time.Sleep(1 * time.Hour)
 			}
 		}()
