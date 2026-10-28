@@ -248,6 +248,9 @@ in
         lzip # for lzip
         xz # for xz
         zstd # for zstd
+        # dcs-package-importer calls tar(1) directly for
+        # source packages which have nested tarballs.
+        gnutar
       ];
       # Use a $TMPDIR on the same disk as the target
       # to avoid cross-device copies in favor of renames.
