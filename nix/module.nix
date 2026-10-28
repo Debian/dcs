@@ -214,6 +214,7 @@ in
     systemd.services.dcs-compute-ranking = {
       description = "derive ranking.json from Debian popcon";
       documentation = [ "https://github.com/Debian/dcs" ];
+      startLimitIntervalSec = 0;
       serviceConfig = defaultServiceConfig // {
         Type = "oneshot";
         ExecStart = "${computeRanking}/bin/dcs-compute-ranking";
@@ -223,6 +224,7 @@ in
     systemd.services.dcs-init = {
       description = "create certificates, secret keys, etc.";
       documentation = [ "https://github.com/Debian/dcs" ];
+      startLimitIntervalSec = 0;
       serviceConfig = defaultServiceConfig // {
         Type = "oneshot";
         ExecStart = "${init}/bin/dcs-init";
