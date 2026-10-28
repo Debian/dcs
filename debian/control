@@ -24,7 +24,6 @@ Build-Depends:
  protobuf-compiler,
  protoc-gen-go,
  protoc-gen-go-grpc,
- esbuild,
  libjs-highlight.js
 Standards-Version: 4.7.0
 Vcs-Browser: https://github.com/Debian/dcs/
