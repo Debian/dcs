@@ -21,6 +21,7 @@ let
   webSrc = ''
     set -eu
     exec ${cfg.package}/bin/dcs-web \
+      -use_positional_index \
       -source_indexes=${cfg.web.sourceIndexes} \
       -ranking_data_path=ranking.json \
       -tls_cert_path=prod-cert.pem \
