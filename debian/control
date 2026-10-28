@@ -33,7 +33,12 @@ XS-Go-Import-Path: github.com/Debian/dcs
 Package: dcs
 Architecture: any
 Depends:
+# DCS uses dpkg-source to unpack packages for indexing:
  dpkg-dev,
+# dpkg-dev already depends on bzip2 and xz-utils.
+# Add lzip and zstd for upstream sources.
+ lzip,
+ zstd,
  ${misc:Depends},
  ${shlibs:Depends}
 Built-Using: ${misc:Built-Using}

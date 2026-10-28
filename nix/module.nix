@@ -238,8 +238,11 @@ in
       path = with pkgs; [
         dpkg # for dpkg-source
         patch
-        gzip # for gunzip
+        # All compression algorithms that tar(1) can use,
+        # for upstream source tarballs (most lenient).
         bzip2 # for bzip2
+        gzip # for gunzip
+        lzip # for lzip
         xz # for xz
         zstd # for zstd
       ];
