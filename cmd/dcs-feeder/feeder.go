@@ -27,6 +27,7 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/errgroup"
 	"pault.ag/go/debian/control"
 	"pault.ag/go/debian/version"
 
@@ -82,6 +83,10 @@ var (
 		10*time.Minute,
 		"Upper threshold after which to trigger a /merge request, even if not idle (i.e. during continuous activity)")
 
+	initialMergeParallelism = flag.Int("initial_merge_parallelism",
+		-1,
+		"maximum number of concurrent /merge requests after the initial feed")
+
 	packageImporters []*packageImporter
 
 	mergeStates   = make(map[int]mergeState)
@@ -112,7 +117,7 @@ func init() {
 	prometheus.MustRegister(lastSanityCheckStarted)
 }
 
-func mergeLocked(shardIdx int) error {
+func merge(shardIdx int) error {
 	importer := packageImporters[shardIdx]
 	log.Printf("Calling /merge on shard %d (%s) now", shardIdx, importer.shard)
 	if *dryRun {
@@ -121,39 +126,43 @@ func mergeLocked(shardIdx int) error {
 	if _, err := importer.Merge(context.Background(), &packageimporterpb.MergeRequest{}); err != nil {
 		return fmt.Errorf("package-importer[%s].Merge: %v", importer.shard, err)
 	}
-	delete(mergeStates, shardIdx)
 	return nil
 }
 
 // Calls /merge on the specified shard in a period of inactivity (2 minutes
 // after being called), or every 10 minutes in case there is continuous
 // activity.
-func merge() {
+func mergeIfInactive() {
 	for {
 		time.Sleep(1 * time.Second)
 		mergeStatesMu.Lock()
 		for shardIdx, state := range mergeStates {
 			if time.Since(state.lastActivity) >= *mergeLastActivity ||
 				time.Since(state.firstRequest) >= *mergeContinuousActivity {
-				if err := mergeLocked(shardIdx); err != nil {
+				if err := merge(shardIdx); err != nil {
 					log.Printf("/merge failed (retry in 1s): %v", err)
 					continue
 				}
+				delete(mergeStates, shardIdx)
 			}
 		}
 		mergeStatesMu.Unlock()
 	}
 }
 
-func mergeNow() {
-	mergeStatesMu.Lock()
+// mergeAllNow is called after an initial feed.
+func mergeAllNow() {
+	var eg errgroup.Group
+	eg.SetLimit(*initialMergeParallelism)
 	for shardIdx := range packageImporters {
-		if err := mergeLocked(shardIdx); err != nil {
-			log.Printf("/merge failed (retry in 1s): %v", err)
-			continue
-		}
+		eg.Go(func() error {
+			if err := merge(shardIdx); err != nil {
+				log.Printf("/merge failed (retry in 1s): %v", err)
+			}
+			return nil
+		})
 	}
-	mergeStatesMu.Unlock()
+	eg.Wait()
 }
 
 func requestMerge(idx int) {
@@ -507,12 +516,12 @@ func main() {
 			if err := checkSources(); err != nil {
 				log.Fatal(err)
 			}
-			mergeNow()
+			mergeAllNow()
 			os.Exit(0)
 		}()
 	} else {
 		// Calls /merge once appropriate.
-		go merge()
+		go mergeIfInactive()
 
 		// Calls checkSources() every hour
 		go func() {
