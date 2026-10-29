@@ -646,12 +646,18 @@ var tarSuffixes = map[string]bool{
 	".tar.lz":  true,
 	".tar.bz2": true,
 	".tar.xz":  true,
+	".tar.zst": true,
+	".tgz":     true,
+	".tar":     true,
 }
 
 func isTar(filename string) bool {
-	idx := strings.Index(filename, ".tar.")
+	idx := strings.LastIndex(filename, ".tar")
 	if idx == -1 {
-		return false
+		idx = strings.LastIndex(filename, ".tgz")
+		if idx == -1 {
+			return false
+		}
 	}
 	return tarSuffixes[filename[idx:]]
 }
