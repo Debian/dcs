@@ -19,11 +19,13 @@ func main() {
 		"",
 		"listen address ([host]:port)")
 
+	flag.StringVar(&opts.ListenAddressDebug, "listen_address_debug",
+		"",
+		"listen address ([host]:port) for debug handlers (e.g. memory profiling)")
+
 	flag.StringVar(&opts.ListenAddress, "listen_address",
 		"",
 		"listen address ([host]:port) for gRPC/TLS")
-
-	flag.StringVar(&opts.MemProfile, "memprofile", "", "Write memory profile to this file")
 
 	flag.StringVar(&opts.AccessLogPath, "access_log_path",
 		"",

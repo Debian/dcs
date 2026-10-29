@@ -18,7 +18,6 @@ import (
 	"path"
 	"regexp"
 	"regexp/syntax"
-	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -495,8 +494,8 @@ func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
 type Opts struct {
 	Mux                  *http.ServeMux
 	ListenAddressPlain   string
+	ListenAddressDebug   string
 	ListenAddress        string
-	MemProfile           string
 	AccessLogPath        string
 	TLSCertPath          string
 	TLSKeyPath           string
@@ -606,24 +605,8 @@ func (o *Opts) Main(ln net.Listener) error {
 		}
 	})
 	mux.HandleFunc("/show", show.Show(o.UseSourcesDebianNet))
-	mux.HandleFunc("/memprof", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("writing memprof")
-		if o.MemProfile != "" {
-			f, err := os.Create(o.MemProfile)
-			if err != nil {
-				log.Printf("%v", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			pprof.WriteHeapProfile(f)
-			f.Close()
-			return
-		}
-	})
-
 	mux.HandleFunc("/results/", ResultsHandler)
 	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
-	mux.HandleFunc("/queryz", o.QueryzHandler)
 	mux.HandleFunc("/track", Track)
 	mux.HandleFunc("/search", o.Search)
 	mux.HandleFunc("/events/", o.EventsHandler)
@@ -689,6 +672,15 @@ func (o *Opts) Main(ln net.Listener) error {
 	if o.ListenAddressPlain != "" {
 		go func() {
 			log.Fatal(http.ListenAndServe(o.ListenAddressPlain, mux))
+		}()
+	}
+
+	if o.ListenAddressDebug != "" {
+		debugMux := http.NewServeMux()
+		debugMux.Handle("/debug/", http.DefaultServeMux)
+		debugMux.HandleFunc("/queryz", o.QueryzHandler)
+		go func() {
+			log.Fatal(http.ListenAndServe(o.ListenAddressDebug, debugMux))
 		}()
 	}
 
