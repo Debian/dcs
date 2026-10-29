@@ -21,16 +21,10 @@ import (
 
 var errNotFound = errors.New("not found")
 
-type cachedLookup struct {
-	docid uint32 // 0xFFFFFFFF is invalid, because 0 is a valid docid
-	fn    string
-}
-
 type DocidReader struct {
 	f           *mmap.File
 	indexOffset uint32
 	Count       int
-	last        cachedLookup
 }
 
 func newDocidReader(dir string) (*DocidReader, error) {
@@ -43,9 +37,6 @@ func newDocidReader(dir string) (*DocidReader, error) {
 		f:           f,
 		indexOffset: indexOffset,
 		Count:       int(uint32(len(f.Data))-indexOffset-4) / 4,
-		last: cachedLookup{
-			docid: 0xFFFFFFFF,
-		},
 	}, nil
 }
 
@@ -58,10 +49,6 @@ func (dr *DocidReader) All() io.Reader {
 }
 
 func (dr *DocidReader) Lookup(docid uint32) (string, error) {
-	// memoizing the last entry suffices because posting lists are sorted by docid
-	if dr.last.docid == docid {
-		return dr.last.fn, nil
-	}
 	offset := int64(dr.indexOffset + (docid * 4))
 	if offset >= int64(len(dr.f.Data)-4) {
 		return "", fmt.Errorf("docid %d outside of docid map [0, %d)", docid, (int64(len(dr.f.Data)-4)-int64(dr.indexOffset))/4)
@@ -77,9 +64,8 @@ func (dr *DocidReader) Lookup(docid uint32) (string, error) {
 
 	// Read docid file name:
 	l := int(offsets.Next - offsets.String - 1)
-	dr.last.docid = docid
-	dr.last.fn = string(dr.f.Data[int(offsets.String) : int(offsets.String)+l])
-	return dr.last.fn, nil
+	fn := string(dr.f.Data[int(offsets.String) : int(offsets.String)+l])
+	return fn, nil
 }
 
 type reusableBuffer struct {
