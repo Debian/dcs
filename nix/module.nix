@@ -22,6 +22,7 @@ let
     set -eu
     exec ${cfg.package}/bin/dcs-web \
       -use_positional_index \
+      -query_results_path=/srv/dcs/tmp/queryresults \
       -source_indexes=${cfg.web.sourceIndexes} \
       -ranking_data_path=ranking.json \
       -tls_cert_path=prod-cert.pem \
@@ -203,7 +204,8 @@ in
 
     systemd.tmpfiles.rules = [
       "d /srv/dcs 0755 dcs dcs -"
-      "D /srv/dcs/tmp 0755 dcs dcs -"
+      "d /srv/dcs/tmp 0755 dcs dcs -"
+      "D /srv/dcs/tmp/importer 0755 dcs dcs -"
     ];
 
     systemd.timers.dcs-compute-ranking = {
@@ -257,7 +259,7 @@ in
       ];
       # Use a $TMPDIR on the same disk as the target
       # to avoid cross-device copies in favor of renames.
-      environment.TMPDIR = "/srv/dcs/tmp";
+      environment.TMPDIR = "/srv/dcs/tmp/importer";
       startLimitIntervalSec = 0;
       serviceConfig = defaultDaemonServiceConfig // {
         # Defer to any other work, updating the index
