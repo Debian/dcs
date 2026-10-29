@@ -625,12 +625,8 @@ func (o *Opts) Main(ln net.Listener) error {
 	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
 	mux.HandleFunc("/queryz", o.QueryzHandler)
 	mux.HandleFunc("/track", Track)
-
-	traced := http.NewServeMux()
-	traced.HandleFunc("/search", o.Search)
-	traced.HandleFunc("/events/", o.EventsHandler)
-	mux.Handle("/events/", traced)
-	mux.Handle("/search", traced)
+	mux.HandleFunc("/search", o.Search)
+	mux.HandleFunc("/events/", o.EventsHandler)
 
 	// Used by the service worker.
 	mux.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
