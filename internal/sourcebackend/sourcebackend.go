@@ -250,8 +250,6 @@ type fileMatches struct {
 }
 
 func (s *Server) queryPositional(ix *index.Index, hidden map[string]bool, literal string) ([]fileMatches, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	matches, err := ix.QueryPositional(literal)
 	if err != nil {
 		return nil, fmt.Errorf("ix.QueryPositional(%q): %v", literal, err)
@@ -284,8 +282,6 @@ func (s *Server) queryPositional(ix *index.Index, hidden map[string]bool, litera
 }
 
 func (s *Server) query(ix *index.Index, hidden map[string]bool, query *index.Query) ([]string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	post := ix.PostingQuery(query)
 	possible := make([]string, 0, len(post))
 	for _, docid := range post {
