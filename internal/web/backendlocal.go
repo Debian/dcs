@@ -33,7 +33,7 @@ func (o *Opts) openSourceIndexes() ([]common.Backend, error) {
 			if err != nil {
 				return nil, err
 			}
-			defer os.Remove(tmp)
+			defer os.RemoveAll(tmp)
 			openPath = tmp
 			ix, err := index.Create(openPath)
 			if err != nil {
