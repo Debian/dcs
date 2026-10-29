@@ -370,10 +370,6 @@ type Index struct {
 	Pos      *PForReader   // positions for all trigrams
 	Posrel   *PosrelReader // position relationships for all trigrams
 
-	// buffers for the docids of both trigrams in QueryPositional
-	firstDocids *reusableBuffer
-	lastDocids  *reusableBuffer
-
 	// refs counts how many queries are currently using the index.
 	// refs starts at 1 and calling Delete() decreases it,
 	// which will either immediately delete the index (no queries)
@@ -394,8 +390,6 @@ func Open(dir string) (*Index, error) {
 		dir: dir,
 	}
 	i.refs.Store(1)
-	i.firstDocids = &reusableBuffer{}
-	i.lastDocids = &reusableBuffer{}
 	if i.DocidMap, err = newDocidReader(dir); err != nil {
 		return nil, err
 	}
@@ -577,13 +571,13 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 
 	eg.Go(func() error {
 		var err error
-		fdocids, fposrel, err = i.positional(first.t, i.firstDocids, fpos)
+		fdocids, fposrel, err = i.positional(first.t, &reusableBuffer{}, fpos)
 		return err
 	})
 
 	eg.Go(func() error {
 		var err error
-		ldocids, lposrel, err = i.positional(last.t, i.lastDocids, lpos)
+		ldocids, lposrel, err = i.positional(last.t, &reusableBuffer{}, lpos)
 		return err
 	})
 
