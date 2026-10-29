@@ -281,7 +281,13 @@ in
       documentation = [ "https://github.com/Debian/dcs" ];
       wantedBy = [ "multi-user.target" ];
       requires = [ "dcs-init.service" ];
-      after = [ "dcs-init.service" ];
+      wants = [ "network-online.target" ];
+      after = [
+        "dcs-init.service"
+        # Without network connectivity, there is nothing to feed.
+        # Cut down on log spam and errors by waiting until online.
+        "network-online.target"
+      ];
       startLimitIntervalSec = 0;
       serviceConfig = defaultDaemonServiceConfig // {
         ExecStart = "${feeder}/bin/dcs-feeder";
