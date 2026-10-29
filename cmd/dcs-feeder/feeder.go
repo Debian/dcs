@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -314,7 +313,9 @@ func checkSources() error {
 		}
 	}
 
-	sem := make(chan struct{}, runtime.NumCPU())
+	// The loop below spawns one goroutine per package,
+	// which then waits for its shard to become available.
+	var wg sync.WaitGroup
 	shardMu := make([]sync.Mutex, len(packageImporters))
 
 	// for every package, calculate who’d be responsible and see if it’s present on that shard.
@@ -363,10 +364,8 @@ func checkSources() error {
 					pkgfiles = append([]string{url}, pkgfiles...)
 				}
 			}
-			sem <- struct{}{}
 			n := n // copy for the goroutine (n is not a loopvar)
-			go func() {
-				defer func() { <-sem }()
+			wg.Go(func() {
 				shardMu[shardIdx].Lock()
 				defer shardMu[shardIdx].Unlock()
 				log.Printf("[%d of %d] Feeding package %s to shard %d (%s)", n, len(mostRecent), p, shardIdx, importer.shard)
@@ -380,13 +379,10 @@ func checkSources() error {
 				}
 
 				successfulSanityFeed.Inc()
-			}()
+			})
 		}
 	}
-	// Wait for completion
-	for n := cap(sem); n > 0; n-- {
-		sem <- struct{}{}
-	}
+	wg.Wait()
 
 	// Garbage-collect all packages that have not been confirmed.
 	for _, importer := range packageImporters {
