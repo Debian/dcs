@@ -155,8 +155,6 @@ const (
 
 func (w *Writer) AddFile(fn, name string) error {
 	w.set.Reset()
-	docid := uint32(len(w.docs))
-	w.docs = append(w.docs, name)
 	f, err := os.Open(fn)
 	if err != nil {
 		return err
@@ -219,6 +217,8 @@ func (w *Writer) AddFile(fn, name string) error {
 	if w.set.Len() > maxTextTrigrams {
 		return errors.New("too many trigrams, probably not text, ignoring")
 	}
+	docid := uint32(len(w.docs))
+	w.docs = append(w.docs, name)
 	for _, e := range entries {
 		t := Trigram(e >> 32)
 		w.index[t] = append(w.index[t], entry{docid: docid, position: uint32(e)})
