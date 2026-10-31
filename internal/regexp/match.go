@@ -6,6 +6,7 @@ package regexp
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"flag"
 	"fmt"
@@ -376,9 +377,10 @@ func isWordByte(c int) bool {
 
 // TODO:
 type Grep struct {
-	Regexp *Regexp   // regexp to search for
-	Stdout io.Writer // output target
-	Stderr io.Writer // error target
+	Regexp          *Regexp   // regexp to search for
+	RequiredLiteral []byte    // literal the regexp requires, if non-empty
+	Stdout          io.Writer // output target
+	Stderr          io.Writer // error target
 
 	L bool // L flag - print file names only
 	C bool // C flag - print count of matches
@@ -515,9 +517,15 @@ func (g *Grep) Reader(r io.Reader, name string) []Match {
 			}
 		}
 
+		// containsReq is a cheap filter to avoid calling Match
+		// on a line that we know can never match.
+		containsReq := true
+		if req := g.RequiredLiteral; len(req) > 0 {
+			containsReq = bytes.Contains(line, req)
+		}
 		beginText := lineno == 1
 		const endText = false
-		if g.Regexp.Match(line, beginText, endText) >= 0 {
+		if containsReq && g.Regexp.Match(line, beginText, endText) >= 0 {
 			g.Match = true
 			result = append(result, Match{
 				Path:    name,

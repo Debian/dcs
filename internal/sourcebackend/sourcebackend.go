@@ -356,6 +356,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	simplified := re.Simplify()
 	caseSensitive := simplified.Flags&syntax.FoldCase != 0
 	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseSensitive
+	requiredLiteral := index.LongestLiteral(simplified)
 	var files ranking.ResultPaths
 	var possible []fileMatches
 	if queryPos {
@@ -527,6 +528,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 
 	workerFn := func() {
 		grep := regexp.NewGrep(compiled.Clone())
+		grep.RequiredLiteral = []byte(requiredLiteral)
 
 		for file := range work {
 			if ctx.Err() != nil {
