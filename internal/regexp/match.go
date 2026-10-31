@@ -14,6 +14,7 @@ import (
 	"regexp/syntax"
 	"sort"
 
+	"github.com/Debian/dcs/internal/index"
 	"github.com/google/codesearch/sparse"
 )
 
@@ -395,7 +396,11 @@ func NewGrep(re *Regexp) *Grep {
 		Regexp: re,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
-		br:     bufio.NewReader(nil),
+		// bufio.Reader defaults to a buffer size of 4096,
+		// which always fits index.MaxLineLen (or MaxLineLen+1
+		// in case nlNormReader adds a \n), meaning:
+		// indexed files can safely be read using br.ReadSlice('\n').
+		br: bufio.NewReader(nil),
 	}
 }
 
@@ -483,7 +488,7 @@ type Match struct {
 func (g *Grep) Reader(r io.Reader, name string) []Match {
 	g.nr = newNlNormReader(r) // store in Grep to avoid per-file allocations
 	g.br.Reset(&g.nr)
-	var linebuf1, linebuf2 [2000]byte // TODO: const for max line length
+	var linebuf1, linebuf2 [index.MaxLineLen]byte
 	prev1 := linebuf1[:0]
 	prev2 := linebuf2[:0]
 	var result []Match

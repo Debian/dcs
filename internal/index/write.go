@@ -143,13 +143,18 @@ func validUTF8(c1, c2 uint32) bool {
 }
 
 // Tuning constants for detecting text files.
-// A file is assumed not to be text files (and thus not indexed)
-// if it contains an invalid UTF-8 sequences, if it is longer than maxFileLength
-// bytes, if it contains a line longer than maxLineLen bytes,
-// or if it contains more than maxTextTrigrams distinct trigrams.
+// A file is assumed not to be text files (and thus not indexed) if:
+//
+// * it contains an invalid UTF-8 sequences
+// * or it is longer than maxFileLength bytes,
+// * or if it contains a line longer than maxLineLen bytes,
+// * or if it contains more than maxTextTrigrams distinct trigrams.
 const (
-	maxFileLen      = 1 << 30
-	maxLineLen      = 2000
+	maxFileLen = 1 << 30
+	// MaxLineLen specifies the maximum line length of an indexed file,
+	// in bytes, including the newline. Code which reads indexed files
+	// (like regexp.Grep) can rely on len(line) <= MaxLineLen for every line.
+	MaxLineLen      = 2000
 	maxTextTrigrams = 20000
 )
 
@@ -200,7 +205,7 @@ func (w *Writer) AddFile(fn, name string) error {
 		c = buf[i]
 		i++
 		tv |= uint32(c)
-		if linelen++; linelen > maxLineLen {
+		if linelen++; linelen > MaxLineLen {
 			return errors.New("very long lines, ignoring")
 		}
 		if c == '\n' {
