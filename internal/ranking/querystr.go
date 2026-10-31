@@ -28,17 +28,33 @@ func NewQueryStr(query string) QueryStr {
 	return result
 }
 
+func (qs *QueryStr) indexBoundary(path string) int {
+	index := qs.boundaryRegexp.FindStringIndex(path)
+	if index != nil {
+		return index[0]
+	}
+	return -1
+}
+
+func (qs *QueryStr) indexAnywhere(path string) int {
+	index := qs.anywhereRegexp.FindStringIndex(path)
+	if index != nil {
+		return index[0]
+	}
+	return -1
+}
+
 func (qs *QueryStr) Match(path *string) float32 {
 	// XXX: These values might need to be tweaked.
 
-	index := qs.boundaryRegexp.FindStringIndex(*path)
-	if index != nil {
-		return 0.75 + (0.25 * (1.0 - float32(index[0])/float32(len(*path))))
+	index := qs.indexBoundary(*path)
+	if index > -1 {
+		return 0.75 + (0.25 * (1.0 - float32(index)/float32(len(*path))))
 	}
 
-	index = qs.anywhereRegexp.FindStringIndex(*path)
-	if index != nil {
-		return 0.5 + (0.25 * (1.0 - float32(index[0])/float32(len(*path))))
+	index = qs.indexAnywhere(*path)
+	if index > -1 {
+		return 0.5 + (0.25 * (1.0 - float32(index)/float32(len(*path))))
 	}
 
 	return 0.5

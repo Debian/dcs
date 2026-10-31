@@ -41,9 +41,9 @@ func PostRank(opts RankingOpts, match *regexp.Match, querystr *QueryStr) float32
 		// Ranking: Does the search query (with enforced word boundaries) match the
 		// line? If yes, earlier matches are better (such as function names versus
 		// parameter types).
-		index := querystr.boundaryRegexp.FindStringIndex(line)
-		if index != nil {
-			matchRanking := 0.75 + (0.25 * (1.0 - float32(index[0])/float32(len(line))))
+		index := querystr.indexBoundary(line)
+		if index > -1 {
+			matchRanking := 0.75 + (0.25 * (1.0 - float32(index)/float32(len(line))))
 			totalRanking *= matchRanking
 		} else {
 			// Punish the lines in which there was no word boundary match.

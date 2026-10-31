@@ -37,3 +37,36 @@ func BenchmarkMatch(b *testing.B) {
 		}
 	}
 }
+
+func TestMatch(t *testing.T) {
+	for _, tt := range []struct {
+		querystr     string
+		path         string
+		wantBoundary int
+		wantAnywhere int
+	}{
+		{
+			querystr:     "hash",
+			path:         "gothashtray_entirely_black",
+			wantBoundary: -1,
+			wantAnywhere: 3,
+		},
+
+		{
+			querystr:     "hash",
+			path:         "#define HASH(x) sha256(x)",
+			wantBoundary: 8,
+			wantAnywhere: 8,
+		},
+	} {
+		querystr := NewQueryStr(tt.querystr)
+		got := querystr.indexBoundary(tt.path)
+		if got != tt.wantBoundary {
+			t.Errorf("QueryStr(%s).indexBoundary(%s) = %v, want %v", tt.querystr, tt.path, got, tt.wantBoundary)
+		}
+		got = querystr.indexAnywhere(tt.path)
+		if got != tt.wantAnywhere {
+			t.Errorf("QueryStr(%s).indexAnywhere(%s) = %v, want %v", tt.querystr, tt.path, got, tt.wantAnywhere)
+		}
+	}
+}
