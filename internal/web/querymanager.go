@@ -371,6 +371,7 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 // exist. Returns the *queryState and whether the query existed.
 func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, query string) (*queryState, bool, error) {
 	if s, ok := lookupQuery(queryid); ok && !s.expired() {
+		logReused(s, cl)
 		return s, true, nil
 	}
 
@@ -437,10 +438,25 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
 	if existing, ok := startQuery(querystate); ok {
 		// Another goroutine must have raced us since we called lookupQuery().
+		logReused(existing, cl)
 		return existing, true, nil
 	}
 	go o.runQuery(ctx, querystate, cl.String(), searchRequest)
 	return querystate, false, nil
+}
+
+// logReused logs a request served by an existing (running or cached) query.
+// Together with the "query done" lines (one per execution), there is exactly
+// one structured line per query request.
+func logReused(s *queryState, cl client) {
+	slog.Info("query reused",
+		"query_id", s.queryid,
+		"request", s.query,
+		"running", !s.completed(),
+		"client_ip", cl.ip,
+		"user_agent", cl.userAgent,
+		"entry", cl.entry,
+		"apikey", cl.apiKey)
 }
 
 func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRequest *sourcebackendpb.SearchRequest) {
@@ -712,6 +728,7 @@ func (o *Opts) finishQuery(s *queryState) {
 
 	slog.Info("query done",
 		"query_id", s.queryid,
+		"request", s.query,
 		"query", s.request.GetQuery(),
 		"literal", s.request.GetLiteral(),
 		"rewritten_url", s.request.GetRewrittenUrl(),
