@@ -53,10 +53,17 @@ func TestMatch(t *testing.T) {
 		},
 
 		{
-			querystr:     "hash",
+			querystr:     "(?i)hash",
 			path:         "#define HASH(x) sha256(x)",
 			wantBoundary: 8,
 			wantAnywhere: 8,
+		},
+
+		{
+			querystr:     "hash",
+			path:         "hash_table.c",
+			wantBoundary: -1, // perhaps surprisingly, _ is a word.
+			wantAnywhere: 0,
 		},
 	} {
 		querystr := NewQueryStr(tt.querystr)

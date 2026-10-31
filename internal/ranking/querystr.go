@@ -2,44 +2,61 @@
 package ranking
 
 import (
-	"regexp"
+	"regexp/syntax"
 	"strings"
 )
 
-// Represents a query string with pre-compiled regular expressions for faster
-// matching.
+// Represents a query string which can quickly be matched
+// against a file path or match context line.
 type QueryStr struct {
-	query          string
-	boundaryRegexp *regexp.Regexp
-	anywhereRegexp *regexp.Regexp
+	query string
 }
 
 func NewQueryStr(query string) QueryStr {
-	var result QueryStr
-	result.query = query
-	// Remove (?i) at the beginning of the query, which (at least currently)
-	// means case-insensitive.
-	strippedQuery := strings.Replace(query, "(?i)", "", 1)
-	// XXX: This only works for very simple (one-word) queries.
-	quotedQuery := regexp.QuoteMeta(strippedQuery)
-	//fmt.Printf("quoted query: %s\n", quotedQuery)
-	result.boundaryRegexp = regexp.MustCompile(`(?i)\b` + quotedQuery + `\b`)
-	result.anywhereRegexp = regexp.MustCompile(`(?i)` + quotedQuery)
-	return result
+	return QueryStr{
+		// XXX: This only works for very simple (one-word) queries.
+		// More complex queries like hash.*rational cannot match
+		// and therefore do not get any ranking-based boost.
+		query: strings.Replace(query, "(?i)", "", 1),
+	}
 }
 
+// indexBoundary checks if qs.query matches path (case-insensitively),
+// surrounded by word boundaries, or in regexp: (?i)\bquery\b
 func (qs *QueryStr) indexBoundary(path string) int {
-	index := qs.boundaryRegexp.FindStringIndex(path)
-	if index != nil {
-		return index[0]
+	for i := 0; i+len(qs.query) <= len(path); i++ {
+		end := i + len(qs.query)
+		if strings.EqualFold(path[i:end], qs.query) &&
+			isWordBoundary(path, i) && isWordBoundary(path, end) {
+			return i
+		}
 	}
 	return -1
 }
 
+func isWordBoundary(s string, i int) bool {
+	wordBefore := isWordCharAt(s, i-1)
+	wordAfter := isWordCharAt(s, i)
+	// A word boundary (\b) means a non-word is followed by a word,
+	// or a word is followed by a non-word:
+	startOfWord := !wordBefore && wordAfter
+	endOfWord := wordBefore && !wordAfter
+	return startOfWord || endOfWord
+}
+
+func isWordCharAt(s string, i int) bool {
+	if i < 0 || i >= len(s) {
+		return false // out of bounds
+	}
+	return syntax.IsWordChar(rune(s[i]))
+}
+
 func (qs *QueryStr) indexAnywhere(path string) int {
-	index := qs.anywhereRegexp.FindStringIndex(path)
-	if index != nil {
-		return index[0]
+	// Not using strings.ToLower to always avoid allocations.
+	for i := 0; i+len(qs.query) <= len(path); i++ {
+		if strings.EqualFold(path[i:i+len(qs.query)], qs.query) {
+			return i
+		}
 	}
 	return -1
 }
