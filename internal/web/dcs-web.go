@@ -80,14 +80,6 @@ func validateQuery(query string) error {
 	}
 	rewritten := search.RewriteQuery(*fakeUrl)
 	q := rewritten.Query().Get("q")
-	if strings.HasPrefix(q, "   ") || strings.HasSuffix(q, "   ") {
-		// Positional queries need the first and last trigram (only).
-		// Regexp queries might be simplified into a positional query.
-		// The indexer skips the “3 spaces trigram” (   ),
-		// so this query would fail (silently). Instead,
-		// reject it with a descriptive error message.
-		return fmt.Errorf("Queries starting or ending with 3 spaces yield no results (the DCS indexer ignores 3 spaces). Write \" {3}\" in regexp mode instead.")
-	}
 	log.Printf("rewritten query = %q\n", rewritten.String())
 	literal := rewritten.Query().Get("literal") == "1"
 
@@ -98,6 +90,15 @@ func validateQuery(query string) error {
 	re, err := syntax.Parse(q, flags)
 	if err != nil {
 		return err
+	}
+
+	if strings.Contains(q, "   ") ||
+		strings.Contains(re.String(), "   ") {
+		// Regexp queries might be simplified into a positional query.
+		// The indexer skips the “3 spaces trigram” (   ),
+		// so this query would fail (silently). Instead,
+		// reject it with a descriptive error message.
+		return fmt.Errorf("Queries containing 3 spaces yield no results (the DCS indexer ignores 3 spaces)")
 	}
 
 	expr := "(?m)" + q // (?m) makes ^ and $ work per line
