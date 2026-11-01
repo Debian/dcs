@@ -568,6 +568,10 @@ func (s *server) indexPackage(pkg string) error {
 	// time. If we don’t do that, merges will try to use incomplete index
 	// files, which are interpreted as corrupted.
 	tmpIndexPath := filepath.Join(s.shardPath, "idx", pkg+".tmp")
+	// Remove any prior (interrupted) attempts to start with a clean slate.
+	if err := os.RemoveAll(tmpIndexPath); err != nil {
+		return err
+	}
 	index, err := index.Create(tmpIndexPath)
 	if err != nil {
 		return err
