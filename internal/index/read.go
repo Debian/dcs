@@ -632,7 +632,7 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 
 		docid := fprevD
 		pos := uint32(int(fprevP) + delta)
-		for j < llpos && lprevD < docid {
+		for j+1 < llpos && lprevD < docid {
 			// Skip pos entries until posrel contains a 1 (i.e. docid change):
 			jInc(1 + bits.TrailingZeros16((uint16(lposrel[(j+1)/8])|0xFF00)>>(uint((j+1))%8)))
 		}
