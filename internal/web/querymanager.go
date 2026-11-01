@@ -1007,6 +1007,7 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	s, ok := lookupQuery(queryid)
 	if !ok {
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
 	}

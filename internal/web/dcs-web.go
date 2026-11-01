@@ -236,6 +236,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		queryid := matches[1]
 		s, ok := lookupQuery(queryid)
 		if !ok {
+			w.Header().Set("Cache-Control", "no-store")
 			http.Error(w, "No such query.", http.StatusNotFound)
 			return
 		}
@@ -269,6 +270,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	perpackage := (matches[2] == "perpackage_2_")
 	s, ok := lookupQuery(queryid)
 	if !ok {
+		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "No such query.", http.StatusNotFound)
 		return
 	}

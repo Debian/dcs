@@ -31,6 +31,7 @@ func handleError(w http.ResponseWriter, err error) {
 		code = he.code
 		unwrapped = he.err
 	}
+	w.Header().Set("Cache-Control", "no-store")
 	http.Error(w, unwrapped.Error(), code)
 }
 

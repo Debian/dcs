@@ -216,6 +216,7 @@ func writePerPackageSearchResults(w io.Writer, s *queryState) error {
 func httpErrorWrapper(h func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := h(w, r); err != nil {
+			w.Header().Set("Cache-Control", "no-store")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			log.Println(err)
 		}
