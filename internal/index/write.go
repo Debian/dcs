@@ -249,15 +249,24 @@ func (w *Writer) intermediateFlush() error {
 	if err != nil {
 		return err
 	}
-	tmpDir := fmt.Sprintf("%s/intermediate.%d.tmp", w.dir, len(intermediate))
-	log.Printf("flushing to intermediate index %s", tmpDir)
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+	tmpBase := fmt.Sprintf("%s/intermediate.%d", w.dir, len(intermediate))
+	incompleteDir := tmpBase + ".incomplete"
+	log.Printf("flushing to intermediate index %s", incompleteDir)
+	if err := os.MkdirAll(incompleteDir, 0755); err != nil {
 		return err
 	}
 
 	// Write the current index to the temp directory
-	if err := w.flushTo(tmpDir); err != nil {
-		os.RemoveAll(tmpDir)
+	if err := w.flushTo(incompleteDir); err != nil {
+		os.RemoveAll(incompleteDir)
+		return err
+	}
+
+	tmpDir := tmpBase + ".tmp"
+	log.Printf("renaming intermediate index to %s", tmpDir)
+	// The intermediate index is complete and can now be picked up;
+	// rename to tmpDir so that future Globs can find it.
+	if err := os.Rename(incompleteDir, tmpDir); err != nil {
 		return err
 	}
 
