@@ -116,6 +116,8 @@ func (dw *diskWriter) Flush() (sortedPointers, error) {
 		}
 	}
 
+	dw.buf = nil
+
 	dp := diskPointers{
 		runSize: dw.flushThreshold,
 		order:   filepath.Join(dw.dir, "pointers.order"),
