@@ -465,8 +465,6 @@ func writePos(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint32,
 					}
 				}
 			}
-
-			idx.rd.maybeMadvise(meta.OffsetData)
 		}
 
 		if err := dw.Flush(); err != nil {
