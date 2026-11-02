@@ -22,7 +22,7 @@ let
     set -eu
     exec ${cfg.package}/bin/dcs-web \
       -use_positional_index \
-      -query_results_path=/srv/dcs/tmp/queryresults \
+      -query_results_path=${cfg.dataDir}/tmp/queryresults \
       -source_indexes=${cfg.web.sourceIndexes} \
       -ranking_data_path=ranking.json \
       -tls_cert_path=prod-cert.pem \
@@ -52,7 +52,7 @@ let
     shard="$1"
     exec ${cfg.package}/bin/dcs-package-importer \
       -listen_address=localhost:$((21010+shard)) \
-      -shard_path=/srv/dcs/shard$shard \
+      -shard_path=${cfg.dataDir}/shard$shard \
       -tls_cert_path=prod-cert.pem \
       -tls_key_path=prod-key.pem \
       -source_backend=${lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.importer.extraFlags}
@@ -77,7 +77,7 @@ let
     # Run under a dedicated user/group.
     User = "dcs";
     Group = "dcs";
-    WorkingDirectory = "/srv/dcs";
+    WorkingDirectory = cfg.dataDir;
 
     # All DCS services go into dcs.slice, so that
     # resource dimensions can be controlled in one place.
@@ -116,6 +116,12 @@ in
       description = "The dcs package to use";
     };
 
+    dataDir = lib.mkOption {
+      type = lib.types.path;
+      default = "/srv/dcs";
+      description = "Directory for all DCS files (needs about 1 TB)";
+    };
+
     numShards = lib.mkOption {
       type = lib.types.ints.between 1 10;
       default = 1; # codesearch.debian.net uses 6 shards
@@ -144,10 +150,10 @@ in
 
     web.sourceIndexes = lib.mkOption {
       type = lib.types.str;
-      default = lib.concatMapStringsSep "," (i: "/srv/dcs/shard${toString i}") (
+      default = lib.concatMapStringsSep "," (i: "${cfg.dataDir}/shard${toString i}") (
         builtins.genList (i: i) cfg.numShards
       );
-      example = "/srv/dcs/shard0,/srv/dcs/shard1";
+      example = "${cfg.dataDir}/shard0,${cfg.dataDir}/shard1";
       description = "Comma-separated index shard directories (containing src/ and full/) that dcs-web serves";
     };
 
@@ -203,9 +209,9 @@ in
     };
 
     systemd.tmpfiles.rules = [
-      "d /srv/dcs 0755 dcs dcs -"
-      "d /srv/dcs/tmp 0755 dcs dcs -"
-      "D /srv/dcs/tmp/importer 0755 dcs dcs -"
+      "d ${cfg.dataDir} 0755 dcs dcs -"
+      "d ${cfg.dataDir}/tmp 0755 dcs dcs -"
+      "D ${cfg.dataDir}/tmp/importer 0755 dcs dcs -"
     ];
 
     systemd.timers.dcs-compute-ranking = {
@@ -259,7 +265,7 @@ in
       ];
       # Use a $TMPDIR on the same disk as the target
       # to avoid cross-device copies in favor of renames.
-      environment.TMPDIR = "/srv/dcs/tmp/importer";
+      environment.TMPDIR = "${cfg.dataDir}/tmp/importer";
       startLimitIntervalSec = 0;
       serviceConfig = defaultDaemonServiceConfig // {
         # Defer to any other work, updating the index
