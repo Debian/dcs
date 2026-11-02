@@ -20,6 +20,15 @@ type client struct {
 	apiKey    string // apikeys.Key.Subject, empty for anonymous requests
 }
 
+func (c client) owner() string {
+	if c.apiKey != "" {
+		return c.apiKey // maxQueriesPerOwner for each API key
+	}
+	// For now, treat each anonymous IP as one owner.
+	// We might make this stricter for certain IP ranges or ASNs.
+	return c.ip
+}
+
 // String returns a compact representation for the existing log.Printf lines.
 func (c client) String() string {
 	if c.apiKey != "" {

@@ -340,9 +340,16 @@ func lookupQuery(queryid string) (*queryState, bool) {
 	return s, ok
 }
 
-// maxQueries is the upper limit of how many queries DCS keeps.
-// Each finished query keeps one results file on disk and <= 64 MB of RAM.
-const maxQueries = 300
+const (
+	// maxQueries is the upper limit of how many queries DCS keeps.
+	// Each finished query keeps one results file on disk and <= 64 MB of RAM.
+	maxQueries = 300
+
+	// maxQueriesPerOwner is the upper limit of how many queries DCS keeps
+	// per owner, i.e. API key owner, or IP address for anonymous access,
+	// when maxQueries is reached.
+	maxQueriesPerOwner = 10
+)
 
 func startQuery(querystate *queryState) (*queryState, bool) {
 	stateMu.Lock()
@@ -363,6 +370,20 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 			sort.Slice(candidates, func(i, j int) bool {
 				return candidates[i].lastAccess.Load() < candidates[j].lastAccess.Load()
 			})
+			// Split candidates into own (same owner) and others,
+			// so that the owner’s queries are first considered for GC.
+			var own, others []*queryState
+			owner := querystate.client.owner()
+			for _, s := range candidates {
+				if s.client.owner() == owner {
+					own = append(own, s)
+				} else {
+					others = append(others, s)
+				}
+			}
+			if len(own) >= maxQueriesPerOwner {
+				candidates = append(own, others...)
+			}
 			for _, s := range candidates {
 				if len(state) < maxQueries {
 					break
