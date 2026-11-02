@@ -60,7 +60,7 @@ var (
 		"Debian mirror url")
 
 	listenAddress = flag.String("listen_address",
-		":21020",
+		"localhost:21020",
 		"listen address ([host]:port)")
 
 	dist = flag.String("dist",
