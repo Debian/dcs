@@ -340,6 +340,10 @@ func lookupQuery(queryid string) (*queryState, bool) {
 	return s, ok
 }
 
+// maxQueries is the upper limit of how many queries DCS keeps.
+// Each finished query keeps one results file on disk and <= 64 MB of RAM.
+const maxQueries = 300
+
 func startQuery(querystate *queryState) (*queryState, bool) {
 	stateMu.Lock()
 	defer stateMu.Unlock()
@@ -353,14 +357,14 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 	} else {
 		// See if we need to garbage collect old queries. This is unnecessary when
 		// the query is expired, as we can just re-use the previous slot.
-		if len(state) >= 10 {
+		if len(state) >= maxQueries {
 			log.Printf("Trying to garbage collect queries (currently %d)", len(state))
 			candidates := slices.Collect(maps.Values(state))
 			sort.Slice(candidates, func(i, j int) bool {
 				return candidates[i].lastAccess.Load() < candidates[j].lastAccess.Load()
 			})
 			for _, s := range candidates {
-				if len(state) < 10 {
+				if len(state) < maxQueries {
 					break
 				}
 				if !s.completed() {
