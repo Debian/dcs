@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"maps"
 	"math"
 	"net/http"
 	"net/url"
@@ -22,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -165,6 +167,8 @@ type perBackendState struct {
 	stats          *sourcebackendpb.SearchStats
 }
 
+var processStart = time.Now()
+
 type queryState struct {
 	// config (never changed)
 	queryid  string
@@ -180,6 +184,10 @@ type queryState struct {
 
 	// state
 	done chan struct{} // closed when done
+	// lastAccess is time.Since(processStart),
+	// for which Go uses a monotonic clock:
+	// https://golang.org/design/12914-monotonic
+	lastAccess atomic.Int64
 	// state (protected by mu)
 	mu        sync.Mutex
 	events    []event
@@ -326,6 +334,9 @@ func lookupQuery(queryid string) (*queryState, bool) {
 	stateMu.RLock()
 	defer stateMu.RUnlock()
 	s, ok := state[queryid]
+	if ok {
+		s.touch()
+	}
 	return s, ok
 }
 
@@ -343,8 +354,12 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 		// See if we need to garbage collect old queries. This is unnecessary when
 		// the query is expired, as we can just re-use the previous slot.
 		if len(state) >= 10 {
-			log.Printf("Trying to garbage collect queries (currently %d)\n", len(state))
-			for queryid, s := range state {
+			log.Printf("Trying to garbage collect queries (currently %d)", len(state))
+			candidates := slices.Collect(maps.Values(state))
+			sort.Slice(candidates, func(i, j int) bool {
+				return candidates[i].lastAccess.Load() < candidates[j].lastAccess.Load()
+			})
+			for _, s := range candidates {
 				if len(state) < 10 {
 					break
 				}
@@ -352,7 +367,7 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 					continue
 				}
 				releaseQueryLocked(s)
-				delete(state, queryid)
+				delete(state, s.queryid)
 			}
 			log.Printf("Garbage collection done. %d queries remaining", len(state))
 		}
@@ -360,6 +375,7 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 	state[querystate.queryid] = querystate
 	activeQueries.Add(1)
 	frequency.IncUsers()
+	querystate.touch()
 	return querystate, false
 }
 
@@ -577,6 +593,10 @@ func (s *queryState) sendPaginationUpdate() {
 	}
 }
 
+func (s *queryState) touch() {
+	s.lastAccess.Store(int64(time.Since(processStart)))
+}
+
 func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, resultLen int) error {
 	h := fnv.New64()
 	io.WriteString(h, result.Path)
@@ -746,6 +766,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		"slowest", time.Duration(slowest.GetSlowestNs()),
 		"missing_shards", missing)
 
+	s.touch()
 	s.addEvent([]byte{}, nil)
 
 	queryDurations.Observe(float64(time.Since(s.started) / time.Millisecond))
