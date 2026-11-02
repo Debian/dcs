@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -215,9 +216,8 @@ func writePerPackageSearchResults(w io.Writer, s *queryState) error {
 
 func httpErrorWrapper(h func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := h(w, r); err != nil {
-			w.Header().Set("Cache-Control", "no-store")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if err := h(w, r); err != nil && err != context.Canceled {
+			handleError(w, err)
 			log.Println(err)
 		}
 	})
@@ -288,7 +288,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	if err := validateQuery("?" + q); err != nil {
 		metricErroredQueries.With(srcLabel).Inc()
-		return fmt.Errorf("Invalid query: %v", err)
+		return httpError(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
 	}
 
 	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
