@@ -89,6 +89,10 @@ var queryid;
 var resultpages;
 var currentpage;
 var currentpage_pkg;
+// Incremented for every page request so that a response which arrives after a
+// newer request was started (e.g. the preload of per-package page 0) is dropped.
+var pageRequest = 0;
+var perPkgPageRequest = 0;
 var packages = [];
 
 // Called when clicking a search result link.
@@ -171,9 +175,7 @@ function loadPage(nr) {
     }, 200);
 
     var pathname = pageUrl(nr, false);
-    if (location.toString() !== pathname) {
-        history.pushState({ searchterm: searchterm, nr: nr, perpkg: false }, 'page ' + nr, pathname);
-    }
+    var request = ++pageRequest;
     fetch('/results/' + queryid + '/page_' + nr + '.json')
         .then(function(resp) {
             if (!resp.ok) {
@@ -183,6 +185,14 @@ function loadPage(nr) {
         })
         .then(function(data) {
             clearTimeout(progress_bar_start);
+            if (request !== pageRequest) {
+                return;
+            }
+            // Only change the URL once the page is available, otherwise the
+            // URL and the displayed results disagree if the request fails.
+            if (location.toString() !== pathname) {
+                history.pushState({ searchterm: searchterm, nr: nr, perpkg: false }, 'page ' + nr, pathname);
+            }
             // TODO: experiment and see whether animating the results works
             // well. Fade them in one after the other, see:
             // http://www.google.com/design/spec/animation/meaningful-transitions.html#meaningful-transitions-hierarchical-timing
@@ -199,6 +209,7 @@ function loadPage(nr) {
             progress(100, true, null);
         })
         .catch(function(err) {
+            clearTimeout(progress_bar_start);
             error(true, true, null, 'Could not load search query results: ' + err.message);
         });
 }
@@ -220,11 +231,9 @@ function loadPerPkgPage(nr, preload) {
         progress_bar_start = setTimeout(function() {
             progress(0, true, 'Loading per-package search result page ' + (nr+1) + '…');
         }, 20);
-        var pathname = pageUrl(nr, true);
-        if (location.toString() !== pathname) {
-            history.pushState({ searchterm: searchterm, nr: nr, perpkg: true }, 'page ' + nr, pathname);
-        }
     }
+    var pathname = pageUrl(nr, true);
+    var request = ++perPkgPageRequest;
     fetch('/results/' + queryid + '/perpackage_2_page_' + nr + '.json')
         .then(function(resp) {
             if (!resp.ok) {
@@ -235,6 +244,12 @@ function loadPerPkgPage(nr, preload) {
         .then(function(data) {
             if (progress_bar_start !== undefined) {
                 clearTimeout(progress_bar_start);
+            }
+            if (request !== perPkgPageRequest) {
+                return;
+            }
+            if (!preload && location.toString() !== pathname) {
+                history.pushState({ searchterm: searchterm, nr: nr, perpkg: true }, 'page ' + nr, pathname);
             }
             currentpage_pkg = nr;
             updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
@@ -261,6 +276,9 @@ function loadPerPkgPage(nr, preload) {
             }
         })
         .catch(function(err) {
+            if (progress_bar_start !== undefined) {
+                clearTimeout(progress_bar_start);
+            }
             error(true, true, null, 'Could not load search query results ("' + err.message + '").');
         });
 }
