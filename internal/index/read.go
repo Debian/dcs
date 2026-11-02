@@ -104,18 +104,23 @@ func newPForReader(dir, section string) (*PForReader, error) {
 	if sr.meta, err = mmap.Open(filepath.Join(dir, "posting."+section+".meta")); err != nil {
 		return nil, err
 	}
-	if len(sr.meta.Data) > 0 {
-		unix.Madvise(sr.meta.Data, unix.MADV_RANDOM)
-	}
 
 	if sr.data, err = mmap.Open(filepath.Join(dir, "posting."+section+".turbopfor")); err != nil {
 		sr.meta.Close()
 		return nil, err
 	}
+	return &sr, nil
+}
+
+// Merging doesn’t call this, search does.
+// Calls madvise(2) for search’s disk access pattern.
+func (sr *PForReader) adviseForSearch() {
+	if len(sr.meta.Data) > 0 {
+		unix.Madvise(sr.meta.Data, unix.MADV_RANDOM)
+	}
 	if len(sr.data.Data) > 0 {
 		unix.Madvise(sr.data.Data, unix.MADV_SEQUENTIAL)
 	}
-	return &sr, nil
 }
 
 func (sr *PForReader) Close() error {
@@ -373,6 +378,8 @@ func Open(dir string) (*Index, error) {
 	if i.Pos, err = newPForReader(dir, "pos"); err != nil {
 		return nil, err
 	}
+	i.Docid.adviseForSearch()
+	i.Pos.adviseForSearch()
 
 	return &i, nil
 }
