@@ -46,5 +46,11 @@ func Map(f *os.File) (*File, error) {
 }
 
 func (f *File) Close() error {
-	return unix.Munmap(f.orig)
+	if f.orig == nil {
+		return nil
+	}
+	err := unix.Munmap(f.orig)
+	f.orig = nil // turn the next Close into a no-op
+	f.Data = nil // just in case
+	return err
 }
