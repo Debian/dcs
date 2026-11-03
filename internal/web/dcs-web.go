@@ -18,6 +18,7 @@ import (
 	"path"
 	"regexp"
 	"regexp/syntax"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -520,6 +521,24 @@ type Opts struct {
 }
 
 func (o *Opts) Main(ln net.Listener) error {
+	if _, ok := os.LookupEnv("GOMAXPROCS"); !ok {
+		// Unless the user overrides GOMAXPROCS
+		// by setting the environment variable,
+		// raise GOMAXPROCS to 4x its default.
+		// (Go’s default is runtime.NumCPU() or CPUQuota= in cgroups.)
+		//
+		// To search, dcs-web needs to openat(2) + read(2) + regexp + close(2)
+		// every candidate file (i.e. CPU work and syscalls alternating).
+		// GOMAXPROCS limits how many OS threads can run Go code,
+		// and threads waiting on the SSD cannot run regexps.
+		// More OS threads than CPUs are needed to keep the CPUs busy.
+		//
+		// To saturate a Google Cloud n2-standard-16 VM
+		// (16 vCPU, 2.95 GB/s local SSD read throughput),
+		// raising GOMAXPROCS to 64 (= 4*16, i.e. 4*NumCPU)
+		// speeds up the production log replay by 1.4x!
+		runtime.GOMAXPROCS(4 * runtime.GOMAXPROCS(0))
+	}
 	if o.PrintVersion {
 		fmt.Printf("dcs-web version %s\n", version.Read())
 		return nil
