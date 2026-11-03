@@ -25,7 +25,9 @@ Example: Google Cloud
 * A Google Cloud N2 instance (`n2-standard-16`) has 64 GB of RAM and a Cascade Lake CPU (with AVX512), at least in my test.
   * Local NVMe SSDs are recommended. You need at least four 375 GB disks.
   * Performance ceiling (`fio`, 16K random reads): 180k IOPS, 2.95 GB/s
-  * DCS needs 4.6 ns CPU time per byte searched, about 0.22 GB/s per vCPU.
+  * DCS throughput per CPU:
+    * Cascade Lake: needs 4.6 ns CPU time per byte searched, about 0.22 GB/s per vCPU.
+    * Ice Lake: needs 3.8 ns CPU time per byte searched, about 0.26 GB/s per vCPU.
   * 32 vCPUs are the recommendation if you want fastest queries. 16 vCPUs is fine, too.
   * 32 GB of RAM, or 64 GB of RAM (better) are recommended.
     * 128 GB of RAM holds the typical working set and can deliver 2x faster (warm) queries.
