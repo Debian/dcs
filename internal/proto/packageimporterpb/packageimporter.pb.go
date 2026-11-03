@@ -62,6 +62,7 @@ func (*PackagesRequest) Descriptor() ([]byte, []int) {
 type PackagesReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SourcePackage []string               `protobuf:"bytes,1,rep,name=source_package,json=sourcePackage,proto3" json:"source_package,omitempty"`
+	FullIndex     string                 `protobuf:"bytes,2,opt,name=full_index,json=fullIndex,proto3" json:"full_index,omitempty"` // what the “full” symlink resolves to, if present
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -101,6 +102,13 @@ func (x *PackagesReply) GetSourcePackage() []string {
 		return x.SourcePackage
 	}
 	return nil
+}
+
+func (x *PackagesReply) GetFullIndex() string {
+	if x != nil {
+		return x.FullIndex
+	}
+	return ""
 }
 
 type ImportRequest struct {
@@ -356,9 +364,11 @@ var File_packageimporter_proto protoreflect.FileDescriptor
 const file_packageimporter_proto_rawDesc = "" +
 	"\n" +
 	"\x15packageimporter.proto\x12\x11packageimporterpb\"\x11\n" +
-	"\x0fPackagesRequest\"6\n" +
+	"\x0fPackagesRequest\"U\n" +
 	"\rPackagesReply\x12%\n" +
-	"\x0esource_package\x18\x01 \x03(\tR\rsourcePackage\"l\n" +
+	"\x0esource_package\x18\x01 \x03(\tR\rsourcePackage\x12\x1d\n" +
+	"\n" +
+	"full_index\x18\x02 \x01(\tR\tfullIndex\"l\n" +
 	"\rImportRequest\x12%\n" +
 	"\x0esource_package\x18\x01 \x01(\tR\rsourcePackage\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12\x18\n" +

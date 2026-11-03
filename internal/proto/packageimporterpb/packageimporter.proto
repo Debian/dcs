@@ -10,6 +10,7 @@ message PackagesRequest {
 
 message PackagesReply {
   repeated string source_package = 1;
+  string full_index = 2; // what the “full” symlink resolves to, if present
 }
 
 message ImportRequest {

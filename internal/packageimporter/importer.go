@@ -235,7 +235,11 @@ func (s *server) Packages(ctx context.Context, req *packageimporterpb.PackagesRe
 	if err != nil {
 		return nil, err
 	}
-	return &packageimporterpb.PackagesReply{SourcePackage: names}, nil
+	target, _ := os.Readlink(filepath.Join(s.shardPath, "full"))
+	return &packageimporterpb.PackagesReply{
+		SourcePackage: names,
+		FullIndex:     target,
+	}, nil
 }
 
 func (s *server) GarbageCollect(ctx context.Context, req *packageimporterpb.GarbageCollectRequest) (*packageimporterpb.GarbageCollectReply, error) {
