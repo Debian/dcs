@@ -50,6 +50,8 @@ let
   importerSrc = ''
     set -eu
     shard="$1"
+    # -source_backend is intentionally empty:
+    # dcs-web runs the sourcebackends in-process in this Nix module.
     exec ${cfg.package}/bin/dcs-package-importer \
       -listen_address=localhost:$((21010+shard)) \
       -shard_path=${cfg.dataDir}/shard$shard \
