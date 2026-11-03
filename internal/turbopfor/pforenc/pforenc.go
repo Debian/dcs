@@ -223,6 +223,19 @@ func (se *StreamEncoder) Add(val uint32) (full bool) {
 	return se.n == len(se.vals)
 }
 
+// AddBlock stores len(vals)<=256 uint32s in the StreamEncoder's buffer.
+func (se *StreamEncoder) AddBlock(vals []uint32) []byte {
+	n := copy(se.vals[se.n:], vals)
+	se.n += n
+	full := se.n == len(se.vals)
+	if full {
+		encoded := se.EncodeBlock()
+		se.n = copy(se.vals[:], vals[n:])
+		return encoded
+	}
+	return nil
+}
+
 // EncodeBlock encodes the accumulated values in TurboPFor format
 // and returns the bytes of the (full or remainder) block.
 //

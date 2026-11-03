@@ -307,10 +307,10 @@ func writeDocids(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 			docids[0] += (idx.docidBase - last)
 			for docids != nil {
 				for _, d := range docids {
-					if err := dw.PutUint32(d); err != nil {
-						return err
-					}
 					last += d
+				}
+				if err := dw.PutUint32s(docids); err != nil {
+					return err
 				}
 				docids = dr.Read()
 			}
@@ -459,10 +459,8 @@ func writePos(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint32,
 			dr.Reset(&meta, idx.rd.data.Data)
 
 			for docids := dr.Read(); docids != nil; docids = dr.Read() {
-				for _, d := range docids {
-					if err := dw.PutUint32(d); err != nil {
-						return err
-					}
+				if err := dw.PutUint32s(docids); err != nil {
+					return err
 				}
 			}
 		}

@@ -35,6 +35,17 @@ func (pw *pforWriter) PutUint32(u uint32) error {
 	return nil
 }
 
+// PutUint32s is a more efficient version of PutUint32
+// for len(vals)<=256 (one TurboPFor block).
+func (pw *pforWriter) PutUint32s(vals []uint32) error {
+	if encoded := pw.enc.AddBlock(vals); encoded != nil {
+		if _, err := pw.f.Write(encoded); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (pw *pforWriter) Flush() error {
 	b := pw.enc.EncodeBlock()
 	if len(b) == 0 {
