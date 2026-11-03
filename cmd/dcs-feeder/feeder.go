@@ -244,7 +244,9 @@ func importersEmpty() (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("packageImporter.Packages: %v", err)
 		}
-		if len(resp.SourcePackage) > 0 {
+		if resp.GetFullIndex() != "" {
+			// The “full” symlink points to something,
+			// meaning at least one full merge has happened.
 			return false, nil
 		}
 	}
