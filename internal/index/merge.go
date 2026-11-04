@@ -356,7 +356,9 @@ func writePosrel(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 	defer fposrel.Close()
 	cw := newCountingWriter(fposrel)
 	pw := newPosrelWriter(&cw)
-	var fmeta, pmeta MetaEntry
+	var fmeta MetaEntry
+	next := make([]int, len(idxMetaPos))
+	offsets := make([]int, len(idxMetaPosrel))
 	for _, t := range trigrams {
 		if debug {
 			if t != debugTrigram {
@@ -375,18 +377,17 @@ func writePosrel(destdir string, trigrams []Trigram, idxDocid map[Trigram][]uint
 			return err
 		}
 		for _, idxid := range idxDocid[t] {
-			if found := idxMetaPos[idxid].rd.metaEntry1(&fmeta, t); !found {
+			found := idxMetaPos[idxid].rd.metaEntryAt(&fmeta, next[idxid])
+			if !found || fmeta.Trigram != t {
 				continue
 			}
+			next[idxid]++
 
-			if found := idxMetaPosrel[idxid].rd.metaEntry1(&pmeta, t); !found {
-				continue
-			}
-			b := idxMetaPosrel[idxid].rd.data.Data[pmeta.OffsetData:]
+			b := idxMetaPosrel[idxid].rd.data.Data[offsets[idxid]:]
 			if err := pw.Write(b, int(fmeta.Entries)); err != nil {
 				return err
 			}
-
+			offsets[idxid] += (int(fmeta.Entries) + 7) / 8
 		}
 		if err := pw.Flush(); err != nil {
 			return err
