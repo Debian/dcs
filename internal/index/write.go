@@ -28,9 +28,13 @@ type countingWriter struct {
 }
 
 func newCountingWriter(f *os.File) countingWriter {
+	// The full shard merge pushes gigabytes through this writer.
+	// Increase the buffer size from 4 KiB (default) to 256 KiB
+	// to amortize write(2) system calls.
+	const bufferSize = 256 * 1024
 	return countingWriter{
 		f:    f,
-		bufw: bufio.NewWriter(f),
+		bufw: bufio.NewWriterSize(f, bufferSize),
 	}
 }
 
