@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -324,15 +325,10 @@ func checkSources() error {
 		}
 	}
 
-	// The loop below spawns one goroutine per package,
-	// which then waits for its shard to become available.
-	var wg sync.WaitGroup
-	shardMu := make([]sync.Mutex, len(packageImporters))
-
-	// for every package, calculate who’d be responsible and see if it’s present on that shard.
-	n := 0
+	// for every package, calculate who’d be responsible
+	// and see if it’s present on that shard.
+	var selected []control.Paragraph
 	for _, pkg := range mostRecent {
-		n++
 		if strings.HasSuffix(pkg.Values["Package"], "-data") {
 			continue
 		}
@@ -354,11 +350,37 @@ func checkSources() error {
 		// log.Printf("package %s: shard %d, status %v, need refeed? %v\n", p, shardIdx, status, needRefeed)
 		if status == Present && !needRefeed {
 			packages[importer.shard][p] = Confirmed
-		} else if status == NotPresent || needRefeed {
+			continue
+		}
+		if status == NotPresent || needRefeed {
 			if needRefeed {
 				// Prevent garbage collection below.
 				packages[importer.shard][p] = NotPresent
 			}
+			selected = append(selected, pkg)
+		}
+	}
+
+	// Actually feed all selected packages.
+	var numStarted atomic.Int64
+	var wg sync.WaitGroup
+	// The loop below spawns one goroutine per package,
+	// which then waits for its shard to become available.
+	shardMu := make([]sync.Mutex, len(packageImporters))
+	for _, pkg := range selected {
+		p := pkg.Values["Package"] + "_" + pkg.Values["Version"]
+		shardIdx := shardmapping.TaskIdxForPackage(p, len(packageImporters))
+		importer := packageImporters[shardIdx]
+		needRefeed := needRefeed(pkg.Values["Package"])
+		wg.Go(func() {
+			shardMu[shardIdx].Lock()
+			defer shardMu[shardIdx].Unlock()
+			ns := numStarted.Add(1)
+			log.Printf("[%d of %d] Feeding package %s to shard %d (%s)", ns, len(selected), p, shardIdx, importer.shard)
+			if *dryRun {
+				return
+			}
+
 			var pkgfiles []string
 			for _, line := range strings.Split(pkg.Values["Files"], "\n") {
 				parts := strings.Split(strings.TrimSpace(line), " ")
@@ -375,23 +397,13 @@ func checkSources() error {
 					pkgfiles = append([]string{url}, pkgfiles...)
 				}
 			}
-			n := n // copy for the goroutine (n is not a loopvar)
-			wg.Go(func() {
-				shardMu[shardIdx].Lock()
-				defer shardMu[shardIdx].Unlock()
-				log.Printf("[%d of %d] Feeding package %s to shard %d (%s)", n, len(mostRecent), p, shardIdx, importer.shard)
-				if *dryRun {
-					return
-				}
+			feedfiles(p, pkgfiles)
+			if needRefeed {
+				markFed(p)
+			}
 
-				feedfiles(p, pkgfiles)
-				if needRefeed {
-					markFed(p)
-				}
-
-				successfulSanityFeed.Inc()
-			})
-		}
+			successfulSanityFeed.Inc()
+		})
 	}
 	wg.Wait()
 
