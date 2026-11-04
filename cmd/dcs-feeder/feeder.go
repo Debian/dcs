@@ -542,7 +542,9 @@ func main() {
 			if err := checkSources(); err != nil {
 				log.Fatal(err)
 			}
+			log.Printf("initial feed done, triggering merges on all %d shards", len(shards))
 			mergeAllNow()
+			log.Printf("initial import done: all %d shards merged", len(shards))
 			os.Exit(0)
 		}()
 	} else {
