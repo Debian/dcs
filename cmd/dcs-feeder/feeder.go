@@ -88,6 +88,13 @@ var (
 		-1,
 		"maximum number of concurrent /merge requests after the initial feed")
 
+	feedParallelPerShard = flag.Int("feed_parallel_per_shard",
+		// A parallelism of 4 feeds per shard keeps 16 CPU cores busy
+		// in a setup with 6 shards and all package-importers on 1 machine.
+		// Increase for a fast initial feed if you have more CPUs.
+		4,
+		"packages to feed (unpack+index) concurrently on each index shard")
+
 	packageImporters []*packageImporter
 
 	mergeStates   = make(map[int]mergeState)
@@ -366,15 +373,20 @@ func checkSources() error {
 	var wg sync.WaitGroup
 	// The loop below spawns one goroutine per package,
 	// which then waits for its shard to become available.
-	shardMu := make([]sync.Mutex, len(packageImporters))
+	shardSem := make([]chan struct{}, len(packageImporters))
+	for idx := range shardSem {
+		shardSem[idx] = make(chan struct{}, *feedParallelPerShard)
+	}
 	for _, pkg := range selected {
 		p := pkg.Values["Package"] + "_" + pkg.Values["Version"]
 		shardIdx := shardmapping.TaskIdxForPackage(p, len(packageImporters))
 		importer := packageImporters[shardIdx]
 		needRefeed := needRefeed(pkg.Values["Package"])
 		wg.Go(func() {
-			shardMu[shardIdx].Lock()
-			defer shardMu[shardIdx].Unlock()
+			shardSem[shardIdx] <- struct{}{} // acquire
+			defer func() {
+				<-shardSem[shardIdx] // release
+			}()
 			ns := numStarted.Add(1)
 			log.Printf("[%d of %d] Feeding package %s to shard %d (%s)", ns, len(selected), p, shardIdx, importer.shard)
 			if *dryRun {

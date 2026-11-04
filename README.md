@@ -31,7 +31,7 @@ Example: Google Cloud
   * 32 vCPUs are the recommendation if you want fastest queries. 16 vCPUs is fine, too.
   * 32 GB of RAM, or 64 GB of RAM (better) are recommended.
     * 128 GB of RAM holds the typical working set and can deliver 2x faster (warm) queries.
-  * The initial import of Debian (sid, 41k packages, ≈174GB of unpacked sources) takes about 2 hours.
+  * The initial import of Debian (sid, 41k packages, ≈174GB of unpacked sources) takes about 1 hour.
 
 Example: Hetzner dedicated server
 * A Hetzner AX52 (no longer available to order) has 64 GB of RAM, a Ryzen 7 7700 (8 cores / 16 threads) and two 1 TB Samsung PM9A1 NVMe disks.
