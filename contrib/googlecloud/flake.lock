@@ -6,11 +6,11 @@
         "stapelbergnix": "stapelbergnix"
       },
       "locked": {
-        "lastModified": 1793740540,
-        "narHash": "sha256-Hmr9iTgd9tnUVTjA0pGFfLsW4Ax6BIrbVcU1Sgbglt4=",
+        "lastModified": 1793817564,
+        "narHash": "sha256-xCJtM2YQ0xhRzyfzVK+FrY5sda/niMOO4z7hWbBKyfg=",
         "owner": "Debian",
         "repo": "dcs",
-        "rev": "cbe3975a357777adf92da4fc2da09eeca6bdc4e6",
+        "rev": "b93d2cbef7a5d4080d1b62c88a728f5e21dae53a",
         "type": "github"
       },
       "original": {
