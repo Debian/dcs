@@ -647,8 +647,6 @@ func (o *Opts) Main(ln net.Listener) error {
 		}
 	})
 
-	mux.Handle("/metrics", promhttp.Handler())
-
 	apiOpts := apikeys.Options{
 		HashKey:      hashKey,
 		BlockKey:     blockKey,
@@ -699,6 +697,7 @@ func (o *Opts) Main(ln net.Listener) error {
 
 	if o.ListenAddressDebug != "" {
 		debugMux := http.NewServeMux()
+		debugMux.Handle("/metrics", promhttp.Handler())
 		debugMux.Handle("/debug/", http.DefaultServeMux)
 		debugMux.HandleFunc("/queryz", o.QueryzHandler)
 		go func() {
