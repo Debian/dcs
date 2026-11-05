@@ -26,9 +26,37 @@
 	<p id="breadcrumbs">&nbsp; frequently asked questions</p>
 </div> <!-- end header -->
 <!--/UdmComment-->
-<div id="content">
+<div id="content" style="max-width: 50em">
 
 <h1>Debian Code Search FAQ</h1>
+
+<a id="throttled"><h2>Q: I am being throttled! How can I run many queries efficiently?</h2></a>
+
+<p>
+  Michael Stapelberg has been hosting Debian Code Search as a service since
+  2012, available for free to the entire public. Primarily, this service is
+  meant for Debian Developers, Open Source developers and interested humans.
+</p>
+
+<p>
+  To keep this service available for everyone, we reserve the right to throttle
+  users who cause excessive load (many queries, inefficient queries) on the
+  system.
+</p>
+
+<p>
+  For large batch workloads, in particular for AI agent workloads, text mining,
+  or similar use-cases, we strongly recommend <strong>you run your own, private
+  instance of DCS</strong>:
+  <ul>
+    <li>Cost: 1 USD/hour at providers like Google Cloud (16 vCPU, 64 GB RAM, 1 TB NVMe SSDs).</li>
+    <li>Setup time: Once booted, the initial import of DCS takes about 1 hour.</li>
+    <li>It only takes one prompt to your favorite coding agent to spin up such a
+    VM: start
+    with <a href="https://github.com/Debian/dcs/tree/main/contrib/googlecloud">the <code>contrib/googlecloud</code>
+    directory in the DCS source.</a>
+  </ul>
+</p>
 
 <a id="keywords"><h2>Q: What kind of keywords can I use in the search field?</h2></a>
 
