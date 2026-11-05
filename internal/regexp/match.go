@@ -402,7 +402,10 @@ func NewGrep(re *Regexp) *Grep {
 		// which always fits index.MaxLineLen (or MaxLineLen+1
 		// in case nlNormReader adds a \n), meaning:
 		// indexed files can safely be read using br.ReadSlice('\n').
-		br: bufio.NewReader(nil),
+		//
+		// Increase the buffer size from 4 KiB (default) to 64 KiB
+		// to amortize read(2) system calls.
+		br: bufio.NewReaderSize(nil, 64*1024),
 	}
 }
 
