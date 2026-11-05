@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -294,6 +295,9 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
 	if err != nil {
 		metricErroredQueries.With(srcLabel).Inc()
+		if errors.Is(err, errTooManyQueries) {
+			return httpError(http.StatusTooManyRequests, err)
+		}
 		return fmt.Errorf("Could not start query: %v", err)
 	}
 

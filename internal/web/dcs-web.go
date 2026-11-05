@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"html/template"
@@ -21,6 +22,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
@@ -44,6 +47,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "golang.org/x/net/trace"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -162,8 +166,20 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	s, cached, err := o.maybeStartQuery(ctx, identifier, cl, q)
 	if err != nil {
-		log.Printf("[%s] could not start query: %+v\n", src, err)
-		http.Error(w, "Could not start query", http.StatusInternalServerError)
+		log.Printf("[%s] could not start query: %+v", src, err)
+		b, _ := json.Marshal(struct {
+			Type         string
+			ErrorType    string
+			ErrorMessage string
+		}{
+			Type:         "error",
+			ErrorType:    "invalidquery",
+			ErrorMessage: err.Error(),
+		})
+		if _, err := fmt.Fprintf(w, "id: %d\ndata: %s\n\n", 0, string(b)); err != nil {
+			log.Printf("[%s] aborting, could not write: %v\n", src, err)
+			return
+		}
 		return
 	}
 
@@ -324,6 +340,9 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 
 	state, cached, err := s.opts.maybeStartQuery(ctx, identifier, cl, q)
 	if err != nil {
+		if errors.Is(err, errTooManyQueries) {
+			return status.Error(codes.ResourceExhausted, err.Error())
+		}
 		return fmt.Errorf("query(%s): %v", query, err)
 	}
 
@@ -448,6 +467,23 @@ func toEventProto(data []byte) (*dcspb.Event, error) {
 			},
 		}, nil
 
+	case "queued":
+		var q Queued
+		if err := json.Unmarshal(data, &q); err != nil {
+			return nil, err
+		}
+		return &dcspb.Event{
+			Data: &dcspb.Event_Progress{
+				Progress: &dcspb.Progress{
+					Queued: int64(q.Ahead),
+					// Sending 0, 1 is understood by old clients.
+					// Newer clients look at Queued>0.
+					FilesProcessed: 0,
+					FilesTotal:     1,
+				},
+			},
+		}, nil
+
 	case "pagination":
 		var p struct {
 			QueryId     string
@@ -496,28 +532,43 @@ func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
 }
 
 type Opts struct {
-	Mux                  *http.ServeMux
-	ListenAddressPlain   string
-	ListenAddressDebug   string
-	ListenAddress        string
-	AccessLogPath        string
-	TLSCertPath          string
-	TLSKeyPath           string
-	TLSRequireClientAuth bool
-	HashKeyStr           string
-	BlockKeyStr          string
-	ClickLogPath         string
-	ClientID             string
-	ClientSecret         string
-	RedirectURL          string
-	PrintVersion         bool
-	SourceBackends       string
-	SourceIndexes        string
-	RankingDataPath      string
-	UsePositionalIndex   bool
-	UseSourcesDebianNet  bool
-	QueryResultsPath     string
-	QueryTimeout         time.Duration
+	// config
+	Mux                         *http.ServeMux
+	ListenAddressPlain          string
+	ListenAddressDebug          string
+	ListenAddress               string
+	AccessLogPath               string
+	TLSCertPath                 string
+	TLSKeyPath                  string
+	TLSRequireClientAuth        bool
+	HashKeyStr                  string
+	BlockKeyStr                 string
+	ClickLogPath                string
+	ClientID                    string
+	ClientSecret                string
+	RedirectURL                 string
+	PrintVersion                bool
+	SourceBackends              string
+	SourceIndexes               string
+	RankingDataPath             string
+	UsePositionalIndex          bool
+	UseSourcesDebianNet         bool
+	QueryResultsPath            string
+	QueryTimeout                time.Duration
+	MaxConcurrentQueries        int
+	MaxConcurrentQueriesByOwner int
+
+	// state
+	maxQuerySem     *semaphore.Weighted // see MaxConcurrentQueries
+	maxQueryWaiting atomic.Int32        // queries waiting for maxQuerySem
+
+	ownersMu sync.Mutex
+	owners   map[string]*ownerSlot // see MaxConcurrentQueriesByOwner
+}
+
+type ownerSlot struct {
+	sem  *semaphore.Weighted
+	refs int
 }
 
 func (o *Opts) Main(ln net.Listener) error {
@@ -549,6 +600,10 @@ func (o *Opts) Main(ln net.Listener) error {
 		return fmt.Errorf("critical.min.css not found (did you not run make static?)")
 	}
 	common.CriticalCss = template.CSS(string(criticalCSS))
+	if limit := o.MaxConcurrentQueries; limit > 0 {
+		o.maxQuerySem = semaphore.NewWeighted(int64(limit))
+		o.owners = make(map[string]*ownerSlot)
+	}
 	if o.SourceIndexes != "" {
 		common.LoadTemplates(templates)
 		backends, err := o.openSourceIndexes()

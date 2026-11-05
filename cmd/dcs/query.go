@@ -83,10 +83,14 @@ func query(args []string) error {
 		}
 		switch ev := event.Data.(type) {
 		case *dcspb.Event_Progress:
-			log.Printf("progress: %v of %v files searched (%.2f%%)",
-				ev.Progress.FilesProcessed,
-				ev.Progress.FilesTotal,
-				100*float64(ev.Progress.FilesProcessed)/float64(ev.Progress.FilesTotal))
+			if ahead := ev.Progress.Queued; ahead > 0 {
+				log.Printf("queued (waiting for capacity). queries ahead: %d", ahead)
+			} else {
+				log.Printf("progress: %v of %v files searched (%.2f%%)",
+					ev.Progress.FilesProcessed,
+					ev.Progress.FilesTotal,
+					100*float64(ev.Progress.FilesProcessed)/float64(ev.Progress.FilesTotal))
+			}
 
 		case *dcspb.Event_Pagination:
 			log.Printf("query complete, now downloading results for %q", ev.Pagination.GetQueryId())

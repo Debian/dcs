@@ -8,6 +8,7 @@ package web
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"html"
@@ -260,7 +261,11 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	s, _, err := o.maybeStartQuery(ctx, queryid, cl, q)
 	if err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
-		http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
+		if errors.Is(err, errTooManyQueries) {
+			http.Error(w, err.Error(), http.StatusTooManyRequests)
+		} else {
+			http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
+		}
 		return
 	}
 	if r.Form.Get("wait") == "1" {

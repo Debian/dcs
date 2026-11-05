@@ -21,7 +21,7 @@ pkgs.buildGoLatestModule {
     GOEXPERIMENT = "simd";
   };
 
-  vendorHash = "sha256-vexNc6e8cRogC/2fLl+NCG+jATjUqfETZ87YAs+aiis=";
+  vendorHash = "sha256-wDA2oqx9LJJ3lVXSkLIqC+B+5XNb+rpLigsOCZiFzgU=";
 
   postInstall = ''
     # Caddy serves research/ and openapi* from here.

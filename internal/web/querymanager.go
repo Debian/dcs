@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"hash/fnv"
@@ -34,6 +35,7 @@ import (
 	"github.com/Debian/dcs/internal/web/common"
 	"github.com/Debian/dcs/internal/web/search"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 	"pault.ag/go/debian/version"
 )
@@ -94,6 +96,11 @@ func (p *ProgressUpdate) EventType() string {
 
 func (p *ProgressUpdate) ObsoletedBy(newEvent *obsoletableEvent) bool {
 	return (*newEvent).EventType() == p.Type
+}
+
+type Queued struct {
+	Type  string // “queued”
+	Ahead int    // number of queries in front
 }
 
 type resultPointer struct {
@@ -196,6 +203,7 @@ type queryState struct {
 	errors    []error // one error per failed backend
 	cancel    context.CancelFunc
 	cancelled bool
+	queued    time.Duration
 
 	results [10]resultPointer
 
@@ -408,6 +416,8 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 // query is not a great idea. Best fix may be to make getEvent() use a
 // querystate instead of the string identifier.
 
+var errTooManyQueries = errors.New("too many concurrent queries, see https://codesearch.debian.net/faq#throttled")
+
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns the *queryState and whether the query existed.
 func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, query string) (*queryState, bool, error) {
@@ -415,6 +425,28 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		logReused(s, cl)
 		return s, true, nil
 	}
+
+	releaseOwner := func() {}
+	if o.maxQuerySem != nil {
+		// Reject queries from this owner if this owner
+		// has too many concurrent queries already.
+		owner, unref := o.ownerSlot(cl.owner())
+		if !owner.sem.TryAcquire(1) {
+			unref()
+			// Reject with HTTP 429 (Too Many Requests).
+			return nil, false, errTooManyQueries
+		}
+		releaseOwner = func() {
+			owner.sem.Release(1)
+			unref()
+		}
+	}
+	started := false
+	defer func() {
+		if !started {
+			releaseOwner()
+		}
+	}()
 
 	// TODO: it’d be so much better if we would correctly handle ESPACE errors
 	// in the code below (and above), but for that we need to carefully test it.
@@ -482,7 +514,8 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		logReused(existing, cl)
 		return existing, true, nil
 	}
-	go o.runQuery(ctx, querystate, cl.String(), searchRequest)
+	started = true // runQuery calls releaseOwner
+	go o.runQuery(ctx, querystate, cl.String(), searchRequest, releaseOwner)
 	return querystate, false, nil
 }
 
@@ -500,13 +533,59 @@ func logReused(s *queryState, cl client) {
 		"apikey", cl.apiKey)
 }
 
-func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRequest *sourcebackendpb.SearchRequest) {
-	var cancel context.CancelFunc
-	if timeout := o.QueryTimeout; timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, timeout)
-	} else {
-		ctx, cancel = context.WithCancel(ctx)
+func (o *Opts) ownerSlot(owner string) (_ *ownerSlot, unref func()) {
+	o.ownersMu.Lock()
+	defer o.ownersMu.Unlock()
+	slot, ok := o.owners[owner]
+	if !ok {
+		slot = &ownerSlot{
+			sem: semaphore.NewWeighted(int64(o.MaxConcurrentQueriesByOwner)),
+		}
+		o.owners[owner] = slot
 	}
+	slot.refs++
+	return slot, func() {
+		// Unref: clean up the entry after the last query finishes.
+		o.ownersMu.Lock()
+		defer o.ownersMu.Unlock()
+		slot.refs--
+		if slot.refs == 0 {
+			delete(o.owners, owner)
+		}
+	}
+}
+
+func (o *Opts) admitOrQueue(ctx context.Context, s *queryState) (release func(), _ error) {
+	release = func() { o.maxQuerySem.Release(1) }
+	if o.maxQuerySem.TryAcquire(1) {
+		return release, nil // admitted
+	}
+
+	// Semaphore could not be acquired,
+	// i.e. no query slots are available. Queue.
+	ahead := int(o.maxQueryWaiting.Add(1)) - 1
+	defer o.maxQueryWaiting.Add(-1)
+	log.Printf("[%s] waiting for a search slot (queries ahead: %d)", s.queryid, ahead)
+	s.addEventMarshal(&Queued{
+		Type: "queued",
+		// Add 1 so that dcspb.Progress.Queued is always >0
+		// when a query is queued. This also avoids
+		// the awkward special case of “You are queued,
+		// there are 0 queries in front”, which can happen
+		// when a query finishes just after this goroutine schedules
+		// but before maxQueryWaiting is accessed.
+		Ahead: 1 + ahead,
+	})
+	// Block until the semaphore can be acquired.
+	if err := o.maxQuerySem.Acquire(ctx, 1); err != nil {
+		// Context cancelled, i.e. the waiter gave up.
+		return nil, err
+	}
+	return release, nil
+}
+
+func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRequest *sourcebackendpb.SearchRequest, releaseOwner func()) {
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	s.mu.Lock()
 	cancelled := s.cancelled // did cancellation race us?
@@ -515,6 +594,32 @@ func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRe
 	if cancelled {
 		cancel()
 	}
+
+	// Enforce query concurrency limit by queueing.
+	if o.maxQuerySem != nil {
+		release, err := o.admitOrQueue(ctx, s)
+		if err != nil {
+			s.mu.Lock()
+			s.errors = append(s.errors, err)
+			s.mu.Unlock()
+			releaseOwner()
+			o.finishQuery(s)
+			return
+		}
+		defer release()
+		s.mu.Lock()
+		s.queued = time.Since(s.started)
+		s.mu.Unlock()
+	}
+
+	// The query timeout starts after queueing.
+	if timeout := o.QueryTimeout; timeout > 0 {
+		// Shadow ctx, but not cancel
+		var cancelTimeout context.CancelFunc
+		ctx, cancelTimeout = context.WithTimeout(ctx, timeout)
+		defer cancelTimeout()
+	}
+
 	var wg sync.WaitGroup
 	for idx, backend := range common.Backends {
 		wg.Go(func() {
@@ -526,6 +631,7 @@ func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRe
 		})
 	}
 	wg.Wait()
+	releaseOwner()
 	o.finishQuery(s)
 }
 
@@ -782,6 +888,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		"entry", s.client.entry,
 		"apikey", s.client.apiKey,
 		"duration", time.Since(s.started).Round(time.Millisecond),
+		"queued", s.queued.Round(time.Millisecond),
 		"outcome", outcome,
 		"results", numResults,
 		"searched", searched,
@@ -794,7 +901,7 @@ func (o *Opts) finishQuery(s *queryState) {
 	s.touch()
 	s.addEvent([]byte{}, nil)
 
-	queryDurations.Observe(float64(time.Since(s.started) / time.Millisecond))
+	queryDurations.Observe(float64((time.Since(s.started) - s.queued) / time.Millisecond))
 }
 
 func fsBytes(path string) (available uint64, total uint64) {

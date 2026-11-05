@@ -453,6 +453,10 @@ function onEvent(e) {
         }
         break;
 
+        case "queued":
+        progress(0, false, 'Queued: waiting for capacity. Queries ahead: ' + msg.Ahead);
+        break;
+
         case "pagination":
         // Store the values in global variables for constructing URLs when the
         // user requests a different page.

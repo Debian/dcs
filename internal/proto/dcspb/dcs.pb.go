@@ -250,6 +250,7 @@ type Progress struct {
 	FilesProcessed int64                  `protobuf:"varint,2,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
 	FilesTotal     int64                  `protobuf:"varint,3,opt,name=files_total,json=filesTotal,proto3" json:"files_total,omitempty"`
 	Results        int64                  `protobuf:"varint,4,opt,name=results,proto3" json:"results,omitempty"`
+	Queued         int64                  `protobuf:"varint,5,opt,name=queued,proto3" json:"queued,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -308,6 +309,13 @@ func (x *Progress) GetFilesTotal() int64 {
 func (x *Progress) GetResults() int64 {
 	if x != nil {
 		return x.Results
+	}
+	return 0
+}
+
+func (x *Progress) GetQueued() int64 {
+	if x != nil {
+		return x.Queued
 	}
 	return 0
 }
@@ -548,13 +556,14 @@ const file_dcs_proto_rawDesc = "" +
 	"\x13BACKEND_UNAVAILABLE\x10\x01\x12\n" +
 	"\n" +
 	"\x06FAILED\x10\x02\x12\x11\n" +
-	"\rINVALID_QUERY\x10\x03\"\x89\x01\n" +
+	"\rINVALID_QUERY\x10\x03\"\xa1\x01\n" +
 	"\bProgress\x12\x19\n" +
 	"\bquery_id\x18\x01 \x01(\tR\aqueryId\x12'\n" +
 	"\x0ffiles_processed\x18\x02 \x01(\x03R\x0efilesProcessed\x12\x1f\n" +
 	"\vfiles_total\x18\x03 \x01(\x03R\n" +
 	"filesTotal\x12\x18\n" +
-	"\aresults\x18\x04 \x01(\x03R\aresults\"J\n" +
+	"\aresults\x18\x04 \x01(\x03R\aresults\x12\x16\n" +
+	"\x06queued\x18\x05 \x01(\x03R\x06queued\"J\n" +
 	"\n" +
 	"Pagination\x12\x19\n" +
 	"\bquery_id\x18\x01 \x01(\tR\aqueryId\x12!\n" +

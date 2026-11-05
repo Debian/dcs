@@ -31,6 +31,7 @@ message Progress {
   int64 files_processed = 2;
   int64 files_total = 3;
   int64 results = 4;
+  int64 queued = 5;
 }
 
 message Pagination {
