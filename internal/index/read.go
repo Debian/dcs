@@ -490,15 +490,13 @@ func (i *Index) matchesWithBuffer(t Trigram, buffers *bufferPair) ([]Match, erro
 	return matches, nil
 }
 
-func (i *Index) QueryPositional(query string) ([]Match, error) {
-	if len(query) < 3 {
-		return nil, nil // too short: a trigram needs 3 characters
-	}
-	type planEntry struct {
-		offset  int
-		t       Trigram
-		entries uint32
-	}
+type planEntry struct {
+	offset  int
+	t       Trigram
+	entries uint32
+}
+
+func (i *Index) bestTrigrams(query string) (*planEntry, *planEntry, error) {
 	qb := []byte(query)
 	readMeta := func(j int) (planEntry, error) {
 		t := Trigram(uint32(qb[j])<<16 |
@@ -514,17 +512,29 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 			entries: meta.Entries,
 		}, nil
 	}
+
 	first, err := readMeta(0)
 	if err != nil {
-		if errors.Is(err, errNotFound) {
-			return nil, nil // no matches, not an error
-		}
-		return nil, err
+		return nil, nil, err
 	}
+
 	// For a query that consists of 3 bytes only,
 	// last will be the same trigram as first,
 	// at distance 0 (harmless, yields correct results).
 	last, err := readMeta(len(query) - 3)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return &first, &last, nil
+}
+
+func (i *Index) QueryPositional(query string) ([]Match, error) {
+	if len(query) < 3 {
+		return nil, nil // too short: a trigram needs 3 characters
+	}
+
+	first, last, err := i.bestTrigrams(query)
 	if err != nil {
 		if errors.Is(err, errNotFound) {
 			return nil, nil // no matches, not an error
