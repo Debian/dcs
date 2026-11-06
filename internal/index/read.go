@@ -513,20 +513,77 @@ func (i *Index) bestTrigrams(query string) (*planEntry, *planEntry, error) {
 		}, nil
 	}
 
-	first, err := readMeta(0)
-	if err != nil {
-		return nil, nil, err
+	if len(query) <= 6 {
+		// Fast path: For literal queries shorter than 7 bytes,
+		// there are only two non-overlapping trigrams:
+		// Selecting the first and last trigram is optimal.
+		first, err := readMeta(0)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// For a query that consists of 3 bytes only,
+		// last will be the same trigram as first,
+		// at distance 0 (harmless, yields correct results).
+		last, err := readMeta(len(query) - 3)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return &first, &last, nil
 	}
 
-	// For a query that consists of 3 bytes only,
-	// last will be the same trigram as first,
-	// at distance 0 (harmless, yields correct results).
-	last, err := readMeta(len(query) - 3)
-	if err != nil {
-		return nil, nil, err
+	// Find the pair of trigrams which yield the highest selectivity
+	// (i.e. discards most false-positive candidates),
+	// yet have the fewest docs/positions (entries)
+	// (to minimize decoding cost).
+	//
+	// Selectivity can be maximized by choosing trigrams
+	// which are far apart in the query. The closer they are,
+	// the more often they appear together in candidate files.
+	//
+	// The upper bound on the distance is choosing the first
+	// and last trigram in the search query,
+	// but that is not sufficient to guarantee selectivity:
+	// Many search queries start with terms that have common
+	// beginnings and ends, and differ only in the middle.
+	//
+	// The lower bound on the distance is 1 or 2,
+	// which results in overlapping trigrams:
+	// Two overlapping 3-grams constrain about as much as one 4-gram.
+	// In practice, a distance of 3 is the minimum,
+	// and a distance of 1/3rd the query’s length benchmarks best.
+	plan := make([]planEntry, len(query)-2)
+	for j := range plan {
+		var err error
+		// readMeta does a binary search, i.e. random reads
+		// which can take a few milliseconds for long queries.
+		// We could do all readMeta concurrently.
+		plan[j], err = readMeta(j)
+		if err != nil {
+			// err is errNotFound. The query cannot match
+			// if any of its trigrams are entirely absent.
+			return nil, nil, err
+		}
 	}
 
-	return &first, &last, nil
+	gap := max(3, len(query)/3) // 1/3rd the query length, but at least 3.
+	first, last := &plan[0], &plan[len(plan)-1]
+	cheapestLeft := &plan[0]
+	// To find the best pair (left + right),
+	// this loop varies right (plan[k])
+	// and considers every left (plan[k-gap]).
+	for k := gap; k < len(plan); k++ {
+		// See if this left trigram is cheaper.
+		if left := plan[k-gap]; left.entries < cheapestLeft.entries {
+			cheapestLeft = &plan[k-gap]
+		}
+		// Independently, see if this pair is cheapest overall.
+		if cheapestLeft.entries+plan[k].entries < first.entries+last.entries {
+			first, last = cheapestLeft, &plan[k]
+		}
+	}
+	return first, last, nil
 }
 
 func (i *Index) QueryPositional(query string) ([]Match, error) {
@@ -570,18 +627,12 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 		return nil, err
 	}
 
-	// filter matches based on position constraints
-	//delta := len(query) - 3
+	// A match of the query at byte offset off
+	// has first’s trigram at off+first.offset
+	// and last’s trigram at off+last.offset,
+	// i.e. last comes exactly delta bytes after first.
 	delta := last.offset - first.offset
 	var entries []Match
-
-	flipped := last.offset < first.offset //len(lpos) < len(fpos)
-	if flipped {
-		fdocids, ldocids = ldocids, fdocids
-		fpos, lpos = lpos, fpos
-		fposrel, lposrel = lposrel, fposrel
-		delta *= -1
-	}
 
 	var (
 		fdocidIdx = -1
@@ -642,10 +693,11 @@ func (i *Index) QueryPositional(query string) ([]Match, error) {
 				continue
 			}
 			if lprevP == pos {
-				if flipped {
-					entries = append(entries, Match{Docid: fprevD, Position: lprevP})
-				} else {
-					entries = append(entries, Match{Docid: fprevD, Position: fprevP})
+				if start := int(fprevP) - first.offset; start >= 0 {
+					entries = append(entries, Match{
+						Docid:    fprevD,
+						Position: uint32(start),
+					})
 				}
 			}
 			break
