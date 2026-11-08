@@ -268,6 +268,9 @@ in
       startLimitIntervalSec = 0;
       serviceConfig = defaultServiceConfig // {
         Type = "oneshot";
+        # dcs-init creates keys, set umask to avoid
+        # world-readable private key files.
+        UMask = "0077";
         ExecStart = "${init}/bin/dcs-init";
       };
     };
