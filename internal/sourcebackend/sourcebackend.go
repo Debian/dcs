@@ -505,7 +505,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		cnt := 0
 		errorShown := false
 		var lastProgressUpdate time.Time
-		progressInterval := 2*time.Second + time.Duration(rand.Int64N(int64(500*time.Millisecond)))
+		progressInterval := 500*time.Millisecond + time.Duration(rand.Int64N(int64(100*time.Millisecond)))
 		for cnt < len(files) {
 			add := <-progress
 			cnt += add
