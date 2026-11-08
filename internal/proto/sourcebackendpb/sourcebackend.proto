@@ -55,7 +55,8 @@ message ProgressUpdate {
 // SearchStats describes the work a source backend did for one query.
 // It is sent once, on the last SearchReply.
 message SearchStats {
-  // Whether the query is case-insensitive.
+  // Whether any part of the query is case-insensitive,
+  // e.g. foo.*(?i)bar.
   bool case_insensitive = 10;
 
   // Whether the query was run on the positional index

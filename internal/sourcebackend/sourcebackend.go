@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp/syntax"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -296,6 +297,13 @@ func (s *Server) query(ix *index.Index, hidden map[string]bool, query *index.Que
 	return possible, nil
 }
 
+func hasFoldCase(re *syntax.Regexp) bool {
+	if re.Flags&syntax.FoldCase != 0 {
+		return true
+	}
+	return slices.ContainsFunc(re.Sub, hasFoldCase)
+}
+
 type SearchSink interface {
 	// Match is called for each found match.
 	// Returning an error stops the search.
@@ -354,8 +362,9 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
 	simplified := re.Simplify()
-	caseInsensitive := simplified.Flags&syntax.FoldCase != 0
-	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseInsensitive
+	queryPos := s.UsePositionalIndex && // positional index enabled
+		simplified.Op == syntax.OpLiteral && // query is a single literal
+		simplified.Flags&syntax.FoldCase == 0 // …and case-sensitive
 	literal := string(simplified.Rune)
 	requiredLiteral := index.LongestLiteral(simplified)
 	var files ranking.ResultPaths
@@ -423,7 +432,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		requiredLiterals = []string{requiredLiteral}
 	}
 	stats := &sourcebackendpb.SearchStats{
-		CaseInsensitive:  caseInsensitive,
+		CaseInsensitive:  hasFoldCase(simplified),
 		Positional:       queryPos,
 		RequiredLiterals: requiredLiterals,
 		Candidates:       uint64(len(files)),

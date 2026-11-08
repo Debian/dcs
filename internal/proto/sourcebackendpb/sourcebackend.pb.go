@@ -409,7 +409,8 @@ func (x *ProgressUpdate) GetFilesTotal() uint64 {
 // It is sent once, on the last SearchReply.
 type SearchStats struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether the query is case-insensitive.
+	// Whether any part of the query is case-insensitive,
+	// e.g. foo.*(?i)bar.
 	CaseInsensitive bool `protobuf:"varint,10,opt,name=case_insensitive,json=caseInsensitive,proto3" json:"case_insensitive,omitempty"`
 	// Whether the query was run on the positional index
 	// (only possible for case-sensitive literal queries).
