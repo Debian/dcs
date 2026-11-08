@@ -356,16 +356,17 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	simplified := re.Simplify()
 	caseSensitive := simplified.Flags&syntax.FoldCase != 0
 	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseSensitive
+	literal := string(simplified.Rune)
 	requiredLiteral := index.LongestLiteral(simplified)
 	var files ranking.ResultPaths
 	var possible []fileMatches
 	if queryPos {
-		possible, err = s.queryPositional(ix, nil, string(simplified.Rune))
+		possible, err = s.queryPositional(ix, nil, literal)
 		if err != nil {
 			return err
 		}
 		if base != nil {
-			tmp, err := s.queryPositional(base, hidden, string(simplified.Rune))
+			tmp, err := s.queryPositional(base, hidden, literal)
 			if err != nil {
 				return err
 			}
@@ -529,6 +530,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	workerFn := func() {
 		grep := regexp.NewGrep(compiled.Clone())
 		grep.RequiredLiteral = []byte(requiredLiteral)
+		matcher := newMatcher(grep, queryPos, literal)
 
 		for file := range work {
 			if ctx.Err() != nil {
@@ -554,7 +556,11 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			// << 64 KB).
 			// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
 			fileStart := time.Now()
-			matches, read := grep.OpenFile(path.Join(s.UnpackedPath.Name(), file.Path))
+			var ms []index.Match
+			if queryPos {
+				ms = possible[file.MatchIdx].matches
+			}
+			matches, read := matcher.Match(path.Join(s.UnpackedPath.Name(), file.Path), ms)
 			if dur := int64(time.Since(fileStart)); dur > slowestNs.Load() {
 				slowestMu.Lock()
 				// Check again in case another goroutine got the lock before us.
