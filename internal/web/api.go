@@ -288,6 +288,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	log.Printf("api(%q, %q, %q)\n", queryid, src, q)
 
 	if err := validateQuery("?" + q); err != nil {
+		logRejected(cl, q, err)
 		metricErroredQueries.With(srcLabel).Inc()
 		return httpError(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
 	}

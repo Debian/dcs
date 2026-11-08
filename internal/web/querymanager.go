@@ -434,6 +434,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		if !owner.sem.TryAcquire(1) {
 			unref()
 			// Reject with HTTP 429 (Too Many Requests).
+			logRejected(cl, query, errTooManyQueries)
 			return nil, false, errTooManyQueries
 		}
 		releaseOwner = func() {
@@ -531,6 +532,16 @@ func logReused(s *queryState, cl client) {
 		"user_agent", cl.userAgent,
 		"entry", cl.entry,
 		"apikey", cl.apiKey)
+}
+
+func logRejected(cl client, request string, err error) {
+	slog.Info("query rejected",
+		"request", request,
+		"client_ip", cl.ip,
+		"user_agent", cl.userAgent,
+		"entry", cl.entry,
+		"apikey", cl.apiKey,
+		"error", err)
 }
 
 func (o *Opts) ownerSlot(owner string) (_ *ownerSlot, unref func()) {

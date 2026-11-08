@@ -253,7 +253,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	log.Printf("server-render(%q, %q, %q)\n", queryid, src, q)
 
 	if err := validateQuery("?" + q); err != nil {
-		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
+		logRejected(cl, q, err)
 		http.Error(w, fmt.Sprintf("Invalid query: %v", err), http.StatusBadRequest)
 		return
 	}

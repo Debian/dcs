@@ -140,7 +140,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[%s] (events) Received query %q\n", src, q)
 	if err := validateQuery("?" + q); err != nil {
-		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
+		logRejected(cl, q, err)
 		b, _ := json.Marshal(struct {
 			Type         string
 			ErrorType    string
@@ -327,7 +327,7 @@ func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer)
 
 	log.Printf("[%s] (events) Received query %q\n", src, q)
 	if err := validateQuery("?" + q); err != nil {
-		log.Printf("[%s] Query %q failed validation: %v\n", src, q, err)
+		logRejected(cl, q, err)
 		return fmt.Errorf("invalid query: %v", err)
 	}
 
