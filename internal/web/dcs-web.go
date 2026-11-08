@@ -656,11 +656,18 @@ func (o *Opts) Main(ln net.Listener) error {
 
 	mux := o.Mux
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]any{
+				"criticalcss": common.CriticalCss,
+				"version":     version.Read(),
+				"host":        r.Host,
+			}); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
 		// Check if a static file was requested with full name
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
-		if r.URL.Path == "/" {
-			name = "index.html"
-		}
 		if _, err := fs.Stat(static.FS, name); err == nil {
 			serveStatic(w, r, name)
 			return
@@ -673,14 +680,7 @@ func (o *Opts) Main(ln net.Listener) error {
 			return
 		}
 
-		if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]any{
-			"criticalcss": common.CriticalCss,
-			"version":     version.Read(),
-			"host":        r.Host,
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		http.NotFound(w, r)
 	})
 	mux.HandleFunc("/show", show.Show(o.UseSourcesDebianNet))
 	mux.HandleFunc("/results/", ResultsHandler)
