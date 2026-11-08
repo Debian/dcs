@@ -30,8 +30,8 @@ let
       -tls_require_client_auth=false \
       -listen_address=localhost:30443 \
       -listen_address_http=localhost:30000 \
-      -securecookie_hash_key=$(cat hash.key) \
-      -securecookie_block_key=$(cat block.key)${
+      -securecookie_hash_key=hash.key \
+      -securecookie_block_key=block.key${
         lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.web.extraFlags
       }
   '';
@@ -184,7 +184,7 @@ in
       default = [ ];
       example = [
         "-use_positional_index"
-        "-securecookie_hash_key=$(cat $CREDENTIALS_DIRECTORY/securecookie_hash_key)"
+        "-securecookie_hash_key=$CREDENTIALS_DIRECTORY/securecookie_hash_key"
       ];
       description = ''
         Additional dcs-web flags (inserted verbatim, i.e. $(cat …) works).

@@ -541,8 +541,8 @@ type Opts struct {
 	TLSCertPath                 string
 	TLSKeyPath                  string
 	TLSRequireClientAuth        bool
-	HashKeyStr                  string
-	BlockKeyStr                 string
+	HashKeyPath                 string
+	BlockKeyPath                string
 	ClickLogPath                string
 	ClientID                    string
 	ClientSecret                string
@@ -616,20 +616,28 @@ func (o *Opts) Main(ln net.Listener) error {
 		common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
 	}
 
-	if o.HashKeyStr == "" {
-		return fmt.Errorf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))
+	if o.HashKeyPath == "" {
+		return fmt.Errorf("-securecookie_hash_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
 	}
 
-	hashKey, err := hex.DecodeString(o.HashKeyStr)
+	b, err := os.ReadFile(o.HashKeyPath)
+	if err != nil {
+		return err
+	}
+	hashKey, err := hex.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return err
 	}
 
-	if o.BlockKeyStr == "" {
-		return fmt.Errorf("-securecookie_block_key is required. E.g.: -securecookie_block_key=%x", securecookie.GenerateRandomKey(32))
+	if o.BlockKeyPath == "" {
+		return fmt.Errorf("-securecookie_block_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
 	}
 
-	blockKey, err := hex.DecodeString(o.BlockKeyStr)
+	b, err = os.ReadFile(o.BlockKeyPath)
+	if err != nil {
+		return err
+	}
+	blockKey, err := hex.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return err
 	}

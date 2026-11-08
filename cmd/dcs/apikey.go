@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Debian/dcs/internal/apikeys"
@@ -26,13 +27,13 @@ func apikeyCreate(args []string) error {
 	var subject string
 	fset.StringVar(&subject, "subject", "", "subject")
 
-	hashKeyStr := fset.String("securecookie_hash_key",
+	hashKeyPath := fset.String("securecookie_hash_key",
 		"",
-		"32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
+		"Path to a file containing a 32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
 
-	blockKeyStr := fset.String("securecookie_block_key",
+	blockKeyPath := fset.String("securecookie_block_key",
 		"",
-		"32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
+		"Path to a file containing a 32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
 
 	if err := fset.Parse(args); err != nil {
 		return err
@@ -42,20 +43,28 @@ func apikeyCreate(args []string) error {
 		os.Exit(1)
 	}
 
-	if *hashKeyStr == "" {
-		return fmt.Errorf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))
+	if *hashKeyPath == "" {
+		return fmt.Errorf("-securecookie_hash_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
 	}
 
-	hashKey, err := hex.DecodeString(*hashKeyStr)
+	b, err := os.ReadFile(*hashKeyPath)
+	if err != nil {
+		return err
+	}
+	hashKey, err := hex.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return err
 	}
 
-	if *blockKeyStr == "" {
-		return fmt.Errorf("-securecookie_block_key is required. E.g.: -securecookie_block_key=%x", securecookie.GenerateRandomKey(32))
+	if *blockKeyPath == "" {
+		return fmt.Errorf("-securecookie_block_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
 	}
 
-	blockKey, err := hex.DecodeString(*blockKeyStr)
+	b, err = os.ReadFile(*blockKeyPath)
+	if err != nil {
+		return err
+	}
+	blockKey, err := hex.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return err
 	}
@@ -91,13 +100,13 @@ func apikeyVerify(args []string) error {
 	fset := flag.NewFlagSet("apikey-verify", flag.ExitOnError)
 	fset.Usage = usage(fset, apikeyVerifyHelp)
 
-	hashKeyStr := fset.String("securecookie_hash_key",
+	hashKeyPath := fset.String("securecookie_hash_key",
 		"",
-		"32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
+		"Path to a file containing a 32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
 
-	blockKeyStr := fset.String("securecookie_block_key",
+	blockKeyPath := fset.String("securecookie_block_key",
 		"",
-		"32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
+		"Path to a file containing a 32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
 
 	if err := fset.Parse(args); err != nil {
 		return err
@@ -107,20 +116,28 @@ func apikeyVerify(args []string) error {
 		os.Exit(1)
 	}
 
-	if *hashKeyStr == "" {
-		return fmt.Errorf("-securecookie_hash_key is required. E.g.: -securecookie_hash_key=%x", securecookie.GenerateRandomKey(32))
+	if *hashKeyPath == "" {
+		return fmt.Errorf("-securecookie_hash_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
 	}
 
-	hashKey, err := hex.DecodeString(*hashKeyStr)
+	b, err := os.ReadFile(*hashKeyPath)
+	if err != nil {
+		return err
+	}
+	hashKey, err := hex.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return err
 	}
 
-	if *blockKeyStr == "" {
-		return fmt.Errorf("-securecookie_block_key is required. E.g.: -securecookie_block_key=%x", securecookie.GenerateRandomKey(32))
+	if *blockKeyPath == "" {
+		return fmt.Errorf("-securecookie_block_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
 	}
 
-	blockKey, err := hex.DecodeString(*blockKeyStr)
+	b, err = os.ReadFile(*blockKeyPath)
+	if err != nil {
+		return err
+	}
+	blockKey, err := hex.DecodeString(strings.TrimSpace(string(b)))
 	if err != nil {
 		return err
 	}

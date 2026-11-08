@@ -6,6 +6,7 @@ import (
 	"flag"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -29,12 +30,15 @@ func TestEndToEnd(t *testing.T) {
 	flag.Set("localdcs_path", temp)
 	flag.Set("shard_path", filepath.Join(temp, "shard"))
 	flag.Set("shard_path", filepath.Join(temp, "shard"))
-
-	const (
-		hashKey  = "3270b4d09abccbf3fe59b957b1d429c8c58ac5def079ea4b245f66ade65168c2"
-		blockKey = "cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"
-	)
-	instance, err := localdcs.Start(hashKey, blockKey, "testdata")
+	hashKeyPath := filepath.Join(temp, "hash.key")
+	if err := os.WriteFile(hashKeyPath, []byte("3270b4d09abccbf3fe59b957b1d429c8c58ac5def079ea4b245f66ade65168c2"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	blockKeyPath := filepath.Join(temp, "block.key")
+	if err := os.WriteFile(blockKeyPath, []byte("cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	instance, err := localdcs.Start(hashKeyPath, blockKeyPath, "testdata")
 	if err != nil {
 		t.Fatal(err)
 	}

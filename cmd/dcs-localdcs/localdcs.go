@@ -3,17 +3,28 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/Debian/dcs/internal/localdcs"
 )
 
 func main() {
 	flag.Parse()
-	const (
-		hashKey  = "268afdf10dfe2bd9bc1aa7ceb3f448071cfb3e06488f02affabb6e8d60ccf994"
-		blockKey = "132c2e1cff7c4735f746500bd03780bf9b2aaa1ba7f706b8edb22dedeb39f46e"
-	)
-	instance, err := localdcs.Start(hashKey, blockKey, "internal/endtoend/testdata")
+	temp, err := os.MkdirTemp("", "dcs-localdcs")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(temp)
+	hashKeyPath := filepath.Join(temp, "hash.key")
+	if err := os.WriteFile(hashKeyPath, []byte("3270b4d09abccbf3fe59b957b1d429c8c58ac5def079ea4b245f66ade65168c2"), 0600); err != nil {
+		log.Fatal(err)
+	}
+	blockKeyPath := filepath.Join(temp, "block.key")
+	if err := os.WriteFile(blockKeyPath, []byte("cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"), 0600); err != nil {
+		log.Fatal(err)
+	}
+	instance, err := localdcs.Start(hashKeyPath, blockKeyPath, "internal/endtoend/testdata")
 	if err != nil {
 		log.Fatal(err)
 	}

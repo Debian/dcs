@@ -354,8 +354,8 @@ func Start(hashKey, blockKey, dataDir string) (*Instance, error) {
 		TLSKeyPath:         filepath.Join(*localdcsPath, "key.pem"),
 		SourceBackends:     sourceBackend,
 		QueryResultsPath:   filepath.Join(*localdcsPath, "qr"),
-		HashKeyStr:         hashKey,
-		BlockKeyStr:        blockKey,
+		HashKeyPath:        hashKey,
+		BlockKeyPath:       blockKey,
 	}
 	webLn, err := net.Listen("tcp", webOpts.ListenAddress)
 	if err != nil {

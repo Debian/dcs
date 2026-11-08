@@ -35,13 +35,13 @@ func main() {
 
 	flag.StringVar(&opts.TLSKeyPath, "tls_key_path", "", "Path to a .pem file containing the TLS private key.")
 
-	flag.StringVar(&opts.HashKeyStr, "securecookie_hash_key",
+	flag.StringVar(&opts.HashKeyPath, "securecookie_hash_key",
 		"",
-		"32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
+		"Path to a file containing a 32-byte hexadecimal key for HMAC-based secure cookie storage (hashing, i.e. for authentication)")
 
-	flag.StringVar(&opts.BlockKeyStr, "securecookie_block_key",
+	flag.StringVar(&opts.BlockKeyPath, "securecookie_block_key",
 		"",
-		"32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
+		"Path to a file containing a 32-byte hexadecimal key for HMAC-based secure cookie storage (block, i.e. for encryption)")
 
 	flag.StringVar(&opts.ClickLogPath, "click_log_path",
 		"",
