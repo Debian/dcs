@@ -84,6 +84,77 @@ let
     # All DCS services go into dcs.slice, so that
     # resource dimensions can be controlled in one place.
     Slice = "dcs.slice";
+
+    # Remove all capabilities(7):
+    CapabilityBoundingSet = "";
+
+    # Ensure the service can never gain new privileges:
+    NoNewPrivileges = true;
+
+    # Prohibit access to any kind of namespacing:
+    RestrictNamespaces = true;
+
+    # Make home directories inaccessible:
+    ProtectHome = true;
+
+    # Make device nodes except for /dev/null, /dev/zero, /dev/full,
+    # /dev/random and /dev/urandom inaccessible:
+    PrivateDevices = true;
+
+    # Make users other than root and the user for this daemon inaccessible:
+    PrivateUsers = true;
+
+    # Make cgroup file system hierarchy inaccessible:
+    ProtectControlGroups = true;
+
+    # Deny kernel module loading:
+    ProtectKernelModules = true;
+
+    # Make kernel variables (e.g. /proc/sys) read-only:
+    ProtectKernelTunables = true;
+
+    # Hide processes of other users in /proc:
+    ProtectProc = "invisible";
+
+    # Filter dangerous system calls. The following is listed as safe basic
+    # choice in systemd.exec(5):
+    SystemCallArchitectures = "native";
+    SystemCallFilter = [ "@system-service" ];
+
+    # Make the entire file system read-only, except for the data directory:
+    ProtectSystem = "strict";
+    ReadWritePaths = [ cfg.dataDir ];
+
+    # Use a private /tmp, not shared with other services:
+    PrivateTmp = true;
+
+    # Make dmesg inaccessible:
+    ProtectKernelLogs = true;
+
+    # Prohibit changing the system clock:
+    ProtectClock = true;
+
+    # Prohibit changing the hostname:
+    ProtectHostname = true;
+
+    # Prohibit acquiring realtime scheduling:
+    RestrictRealtime = true;
+
+    # Prohibit creating setuid / setgid files:
+    RestrictSUIDSGID = true;
+
+    # Prohibit changing the execution domain:
+    LockPersonality = true;
+
+    # Prohibit memory mappings that are writable and executable:
+    MemoryDenyWriteExecute = true;
+
+    # Prohibit obscure socket families (allow only IP and Unix sockets):
+    RestrictAddressFamilies = [
+      "AF_INET"
+      "AF_INET6"
+      "AF_UNIX"
+    ];
   };
 
   defaultDaemonServiceConfig = defaultServiceConfig // {
