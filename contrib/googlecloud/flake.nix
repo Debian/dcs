@@ -20,16 +20,6 @@
         system = "x86_64-linux";
         specialArgs = { inherit dcs; };
         modules = [
-          {
-            nixpkgs.overlays = [
-              (final: prev: {
-                dcs = dcs.packages.x86_64-linux.default.override {
-                  # All N2 CPU platforms (Cascade Lake, Ice Lake) support AVX-512.
-                  goAMD64 = "v4";
-                };
-              })
-            ];
-          }
           ./configuration.nix
         ];
       };

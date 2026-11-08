@@ -29,7 +29,8 @@
 
   services.dcs = {
     enable = true;
-    package = pkgs.dcs;
+    # All N2 CPU platforms (Cascade Lake, Ice Lake) support AVX-512.
+    goAMD64 = "v4";
     numShards = 6;
   };
 
