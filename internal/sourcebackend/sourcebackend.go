@@ -310,7 +310,7 @@ type SearchSink interface {
 	Match(*sourcebackendpb.Match) error
 
 	// Returning an error stops the search.
-	Progress(filesProcessed, filesTotal int) error
+	Progress(filesProcessed, filesTotal int, readBytes uint64) error
 
 	// Stats is called once, when the search completes
 	// (or is cancelled).
@@ -456,7 +456,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 
 	// Send the first progress update so that clients know how many files are
 	// going to be searched.
-	if err := sink.Progress(0, len(files)); err != nil {
+	if err := sink.Progress(0, len(files), 0); err != nil {
 		return fmt.Errorf("%s %v\n", logprefix, err)
 	}
 
@@ -514,7 +514,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			// signaling completion multiple times (here and in the
 			// unconditional sink.Progress below).
 			if cnt < len(files) && time.Since(lastProgressUpdate) > progressInterval {
-				if err := sink.Progress(cnt, len(files)); err != nil {
+				if err := sink.Progress(cnt, len(files), readBytes.Load()); err != nil {
 					if !errorShown {
 						log.Printf("%s %v\n", logprefix, err)
 						// We need to read the 'progress' channel, so we cannot
@@ -527,7 +527,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			}
 		}
 
-		if err := sink.Progress(len(files), len(files)); err != nil {
+		if err := sink.Progress(len(files), len(files), readBytes.Load()); err != nil {
 			log.Printf("%s %v\n", logprefix, err)
 		}
 		close(progress)

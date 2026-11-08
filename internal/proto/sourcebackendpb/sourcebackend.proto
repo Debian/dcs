@@ -50,6 +50,7 @@ message Match {
 message ProgressUpdate {
   uint64 files_processed = 1;
   uint64 files_total = 2;
+  uint64 read_bytes = 3; // bytes of candidate files read so far (cumulative)
 }
 
 // SearchStats describes the work a source backend did for one query.

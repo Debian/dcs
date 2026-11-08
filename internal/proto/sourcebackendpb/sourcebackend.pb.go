@@ -357,6 +357,7 @@ type ProgressUpdate struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	FilesProcessed uint64                 `protobuf:"varint,1,opt,name=files_processed,json=filesProcessed,proto3" json:"files_processed,omitempty"`
 	FilesTotal     uint64                 `protobuf:"varint,2,opt,name=files_total,json=filesTotal,proto3" json:"files_total,omitempty"`
+	ReadBytes      uint64                 `protobuf:"varint,3,opt,name=read_bytes,json=readBytes,proto3" json:"read_bytes,omitempty"` // bytes of candidate files read so far (cumulative)
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -401,6 +402,13 @@ func (x *ProgressUpdate) GetFilesProcessed() uint64 {
 func (x *ProgressUpdate) GetFilesTotal() uint64 {
 	if x != nil {
 		return x.FilesTotal
+	}
+	return 0
+}
+
+func (x *ProgressUpdate) GetReadBytes() uint64 {
+	if x != nil {
+		return x.ReadBytes
 	}
 	return 0
 }
@@ -726,11 +734,13 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\bpathrank\x18\b \x01(\x02R\bpathrank\x12\x18\n" +
 	"\aranking\x18\t \x01(\x02R\aranking\x12\x18\n" +
 	"\apackage\x18\n" +
-	" \x01(\tR\apackage\"Z\n" +
+	" \x01(\tR\apackage\"y\n" +
 	"\x0eProgressUpdate\x12'\n" +
 	"\x0ffiles_processed\x18\x01 \x01(\x04R\x0efilesProcessed\x12\x1f\n" +
 	"\vfiles_total\x18\x02 \x01(\x04R\n" +
-	"filesTotal\"\x8e\x03\n" +
+	"filesTotal\x12\x1d\n" +
+	"\n" +
+	"read_bytes\x18\x03 \x01(\x04R\treadBytes\"\x8e\x03\n" +
 	"\vSearchStats\x12)\n" +
 	"\x10case_insensitive\x18\n" +
 	" \x01(\bR\x0fcaseInsensitive\x12\x1e\n" +

@@ -48,7 +48,7 @@ func (ss *streamSink) Match(m *sourcebackendpb.Match) error {
 	})
 }
 
-func (ss *streamSink) Progress(filesProcessed, filesTotal int) error {
+func (ss *streamSink) Progress(filesProcessed, filesTotal int, readBytes uint64) error {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 	return ss.stream.Send(&sourcebackendpb.SearchReply{
@@ -56,6 +56,7 @@ func (ss *streamSink) Progress(filesProcessed, filesTotal int) error {
 		ProgressUpdate: &sourcebackendpb.ProgressUpdate{
 			FilesProcessed: uint64(filesProcessed),
 			FilesTotal:     uint64(filesTotal),
+			ReadBytes:      readBytes,
 		},
 	})
 }

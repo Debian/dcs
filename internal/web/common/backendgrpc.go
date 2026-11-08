@@ -40,7 +40,7 @@ func (g *grpcBackend) Search(ctx context.Context, in *sourcebackendpb.SearchRequ
 			}
 
 		case sourcebackendpb.SearchReply_PROGRESS_UPDATE:
-			if err := sink.Progress(int(msg.ProgressUpdate.FilesProcessed), int(msg.ProgressUpdate.FilesTotal)); err != nil {
+			if err := sink.Progress(int(msg.ProgressUpdate.FilesProcessed), int(msg.ProgressUpdate.FilesTotal), msg.ProgressUpdate.ReadBytes); err != nil {
 				return err
 			}
 

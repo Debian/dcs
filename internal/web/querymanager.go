@@ -88,6 +88,7 @@ type ProgressUpdate struct {
 	FilesProcessed int
 	FilesTotal     int
 	Results        int
+	ReadBytes      uint64 // cumulative, for displaying read throughput
 }
 
 func (p *ProgressUpdate) EventType() string {
@@ -210,6 +211,7 @@ type queryState struct {
 
 	filesTotal     []int
 	filesProcessed []int
+	readBytes      []uint64
 
 	resultPages int
 
@@ -273,7 +275,7 @@ func (s *sink) Match(m *sourcebackendpb.Match) error {
 }
 
 // Progress implements sourcebackend.SearchSink.
-func (s *sink) Progress(filesProcessed, filesTotal int) error {
+func (s *sink) Progress(filesProcessed, filesTotal int, readBytes uint64) error {
 	if err := s.ctx.Err(); err != nil {
 		return err
 	}
@@ -290,6 +292,7 @@ func (s *sink) Progress(filesProcessed, filesTotal int) error {
 	s.opts.storeProgress(s.queryState, s.backendidx, &sourcebackendpb.ProgressUpdate{
 		FilesProcessed: uint64(filesProcessed),
 		FilesTotal:     uint64(filesTotal),
+		ReadBytes:      readBytes,
 	})
 	if s.queryState.completed() && filesProcessed < filesTotal {
 		return fmt.Errorf("query was cancelled")
@@ -471,6 +474,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		client:         cl,
 		filesTotal:     make([]int, len(common.Backends)),
 		filesProcessed: make([]int, len(common.Backends)),
+		readBytes:      make([]uint64, len(common.Backends)),
 		perBackend:     make([]*perBackendState, len(common.Backends)),
 		resultPointers: memPointers(nil),
 		resultWriter: diskWriter{
@@ -927,6 +931,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		FilesProcessed: filesTotal,
 		FilesTotal:     filesTotal,
 		Results:        numResults,
+		ReadBytes:      readBytes,
 	})
 
 	slog.Info("query done",
@@ -1161,6 +1166,7 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 
 	s.filesTotal[backendidx] = int(progress.FilesTotal)
 	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
+	s.readBytes[backendidx] = progress.ReadBytes
 	allSet := true
 	for i := 0; i < len(common.Backends); i++ {
 		if s.filesTotal[i] == -1 {
@@ -1176,6 +1182,10 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	filesTotal := 0
 	for _, total := range s.filesTotal {
 		filesTotal += total
+	}
+	var readBytes uint64
+	for _, read := range s.readBytes {
+		readBytes += read
 	}
 	numResults := s.numResults
 	s.mu.Unlock()
@@ -1194,6 +1204,7 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 		FilesProcessed: filesProcessed,
 		FilesTotal:     filesTotal,
 		Results:        numResults,
+		ReadBytes:      readBytes,
 	})
 }
 
