@@ -72,6 +72,39 @@ function progress(percentage, temporary, text) {
     }
 }
 
+let rateMark = null;
+let rate = null;
+
+function updateRate(readBytes) {
+    const now = performance.now();
+    if (rateMark === null) {
+        rateMark = {
+            time: now,
+            readBytes: readBytes,
+        };
+        return;
+    }
+    const secs = (now - rateMark.time) / 1000;
+    if (secs < 1) {
+        return; // keep showing the last rate
+    }
+    rate = (readBytes - rateMark.readBytes) / secs;
+    rateMark = {
+        time: now,
+        readBytes: readBytes,
+    };
+}
+
+function formatBytes(n) {
+    if (n >= 1e9) {
+        return `${(n / 1e9).toFixed(1)} GB`;
+    }
+    if (n >= 1e6) {
+        return `${(n / 1e6).toFixed(0)} MB`;
+    }
+    return `${(n / 1e3).toFixed(0)} kB`;
+}
+
 function sendQuery(term, literal) {
     document.getElementById('normalresults').style.display = ''; // show
     document.getElementById('progressbar').style.display = ''; // show
@@ -352,7 +385,7 @@ function getDefault(searchparams, name, def) {
 
 function onQueryDone(msg) {
     if (msg.Results === 0) {
-        progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
+        progress(100, false, `${msg.FilesTotal.toLocaleString('en-US')} files grepped; results: ${msg.Results.toLocaleString('en-US')}`);
         var sp = new URLSearchParams(location.search.slice(1));
         var literal = sp.get('literal') === '1';
         if (literal) {
@@ -365,7 +398,7 @@ function onQueryDone(msg) {
 
     document.getElementById('options').style.display = '';
 
-    progress(100, false, msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
+    progress(100, false, `${msg.FilesTotal.toLocaleString('en-US')} files grepped; results: ${msg.Results.toLocaleString('en-US')}`);
 
     // Request the results, but grouped by Debian source package.
     // Having these available means we can directly show them when the
@@ -438,15 +471,22 @@ function onQueryDone(msg) {
         });
 }
 
+// e.g. “41% of 180,000 files grepped (2.6 GB/s); results: 387,985”
+function progressText(msg) {
+    const percent = Math.floor(msg.FilesProcessed / msg.FilesTotal * 100);
+    const files = msg.FilesTotal.toLocaleString('en-US');
+    const speed = rate === null ? '' : ` (${formatBytes(rate)}/s)`;
+    const results = msg.Results.toLocaleString('en-US');
+    return `${percent}% of ${files} files grepped${speed}; results: ${results}`;
+}
+
 function onEvent(e) {
     var msg = JSON.parse(e.data);
     switch (msg.Type) {
         case "progress":
         queryid = msg.QueryId;
-
-        progress(((msg.FilesProcessed / msg.FilesTotal) * 90) + 10,
-                 false,
-                 msg.FilesProcessed + ' / ' + msg.FilesTotal + ' files grepped (' + msg.Results + ' results)');
+        updateRate(msg.ReadBytes);
+        progress(((msg.FilesProcessed / msg.FilesTotal) * 90) + 10, false, progressText(msg));
         if (msg.FilesProcessed == msg.FilesTotal) {
             this.close();
             onQueryDone(msg);
