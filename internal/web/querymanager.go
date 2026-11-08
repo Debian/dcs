@@ -196,14 +196,15 @@ type queryState struct {
 	// https://golang.org/design/12914-monotonic
 	lastAccess atomic.Int64
 	// state (protected by mu)
-	mu        sync.Mutex
-	events    []event
-	ended     time.Time
-	released  bool    // evicted (what a failed state map lookup used to mean)
-	errors    []error // one error per failed backend
-	cancel    context.CancelFunc
-	cancelled bool
-	queued    time.Duration
+	mu          sync.Mutex
+	events      []event
+	firstResult time.Time
+	ended       time.Time
+	released    bool    // evicted (what a failed state map lookup used to mean)
+	errors      []error // one error per failed backend
+	cancel      context.CancelFunc
+	cancelled   bool
+	queued      time.Duration
 
 	results [10]resultPointer
 
@@ -766,6 +767,9 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 	if s.released {
 		return fmt.Errorf("query %s no longer exists", s.queryid)
 	}
+	if s.firstResult.IsZero() {
+		s.firstResult = time.Now()
+	}
 
 	if s.FirstPathRank == 0 {
 		// This code path (and lock acquisition) gets executed only on the
@@ -845,6 +849,12 @@ func (o *Opts) finishQuery(s *queryState) {
 		filesTotal += total
 	}
 	numResults := s.numResults
+	var firstResult time.Duration
+	if s.firstResult.IsZero() {
+		// firstResult remains 0 for queries without results
+	} else {
+		firstResult = s.firstResult.Sub(s.started)
+	}
 	errors := s.errors
 	cancelled := s.cancelled
 	var (
@@ -924,6 +934,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		"user_agent", s.client.userAgent,
 		"entry", s.client.entry,
 		"apikey", s.client.apiKey,
+		"first_result", firstResult.Round(time.Millisecond),
 		"duration", time.Since(s.started).Round(time.Millisecond),
 		"queued", s.queued.Round(time.Millisecond),
 		"running", o.running.Load(),
