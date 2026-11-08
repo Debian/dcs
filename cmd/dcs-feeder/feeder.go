@@ -1,3 +1,10 @@
+// Disable HTTP/2 for much higher feeding throughput:
+// With HTTP/2, Go multiplexes all streams over one TCP connection,
+// but with HTTP/1.1, we get multiple TCP connections,
+// which scales noticeably better with deb.debian.org (Fastly CDN).
+//
+//go:debug http2client=0
+
 // Takes care of feeding packages to the dcs-package-importer processes running
 // on index/source backends.
 //
