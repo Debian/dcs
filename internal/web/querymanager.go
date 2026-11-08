@@ -527,7 +527,7 @@ func logReused(s *queryState, cl client) {
 	slog.Info("query reused",
 		"query_id", s.queryid,
 		"request", s.query,
-		"running", !s.completed(),
+		"in_progress", !s.completed(),
 		"client_ip", cl.ip,
 		"user_agent", cl.userAgent,
 		"entry", cl.entry,
@@ -542,6 +542,18 @@ func logRejected(cl client, request string, err error) {
 		"entry", cl.entry,
 		"apikey", cl.apiKey,
 		"error", err)
+}
+
+func logStarted(s *queryState, cl client, running int32) {
+	slog.Info("query started",
+		"query_id", s.queryid,
+		"request", s.query,
+		"client_ip", cl.ip,
+		"user_agent", cl.userAgent,
+		"entry", cl.entry,
+		"apikey", cl.apiKey,
+		"queued", s.queued.Round(time.Millisecond),
+		"running", running)
 }
 
 func (o *Opts) ownerSlot(owner string) (_ *ownerSlot, unref func()) {
@@ -622,6 +634,10 @@ func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRe
 		s.queued = time.Since(s.started)
 		s.mu.Unlock()
 	}
+
+	running := o.running.Add(1)
+	defer o.running.Add(-1)
+	logStarted(s, s.client, running)
 
 	// The query timeout starts after queueing.
 	if timeout := o.QueryTimeout; timeout > 0 {
@@ -907,6 +923,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		"apikey", s.client.apiKey,
 		"duration", time.Since(s.started).Round(time.Millisecond),
 		"queued", s.queued.Round(time.Millisecond),
+		"running", o.running.Load(),
 		"outcome", outcome,
 		"results", numResults,
 		"searched", searched,

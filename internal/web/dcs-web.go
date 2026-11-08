@@ -561,6 +561,7 @@ type Opts struct {
 	// state
 	maxQuerySem     *semaphore.Weighted // see MaxConcurrentQueries
 	maxQueryWaiting atomic.Int32        // queries waiting for maxQuerySem
+	running         atomic.Int32        // queries currently running
 
 	ownersMu sync.Mutex
 	owners   map[string]*ownerSlot // see MaxConcurrentQueriesByOwner
