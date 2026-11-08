@@ -862,6 +862,10 @@ func (o *Opts) finishQuery(s *queryState) {
 		searched   uint64
 		readBytes  uint64
 		slowest    *sourcebackendpb.SearchStats
+		indexMax   time.Duration
+		indexSum   time.Duration
+		grepMax    time.Duration
+		grepSum    time.Duration
 		missing    int
 		timedOut   bool
 	)
@@ -880,6 +884,10 @@ func (o *Opts) finishQuery(s *queryState) {
 		if st.Cancelled {
 			timedOut = true
 		}
+		indexMax = max(indexMax, time.Duration(st.IndexNs))
+		indexSum += time.Duration(st.IndexNs)
+		grepMax = max(grepMax, time.Duration(st.GrepNs))
+		grepSum += time.Duration(st.GrepNs)
 	}
 	s.mu.Unlock()
 
@@ -945,6 +953,10 @@ func (o *Opts) finishQuery(s *queryState) {
 		"read_bytes", readBytes,
 		"slowest_path", slowest.GetSlowestPath(),
 		"slowest", time.Duration(slowest.GetSlowestNs()),
+		"index_max", indexMax.Round(time.Microsecond),
+		"index_sum", indexSum.Round(time.Microsecond),
+		"grep_max", grepMax.Round(time.Microsecond),
+		"grep_sum", grepSum.Round(time.Microsecond),
 		"missing_shards", missing)
 
 	s.touch()
