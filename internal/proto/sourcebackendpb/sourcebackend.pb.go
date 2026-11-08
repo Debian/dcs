@@ -409,6 +409,13 @@ func (x *ProgressUpdate) GetFilesTotal() uint64 {
 // It is sent once, on the last SearchReply.
 type SearchStats struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the query is case-insensitive.
+	CaseInsensitive bool `protobuf:"varint,10,opt,name=case_insensitive,json=caseInsensitive,proto3" json:"case_insensitive,omitempty"`
+	// Whether the query was run on the positional index
+	// (only possible for case-sensitive literal queries).
+	Positional bool `protobuf:"varint,11,opt,name=positional,proto3" json:"positional,omitempty"`
+	// All required literals of this (regexp) query, if any.
+	RequiredLiterals []string `protobuf:"bytes,12,rep,name=required_literals,json=requiredLiterals,proto3" json:"required_literals,omitempty"`
 	// Number of candidate files.
 	Candidates uint64 `protobuf:"varint,1,opt,name=candidates,proto3" json:"candidates,omitempty"`
 	// Number of candidate files that were actually searched
@@ -459,6 +466,27 @@ func (x *SearchStats) ProtoReflect() protoreflect.Message {
 // Deprecated: Use SearchStats.ProtoReflect.Descriptor instead.
 func (*SearchStats) Descriptor() ([]byte, []int) {
 	return file_sourcebackend_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *SearchStats) GetCaseInsensitive() bool {
+	if x != nil {
+		return x.CaseInsensitive
+	}
+	return false
+}
+
+func (x *SearchStats) GetPositional() bool {
+	if x != nil {
+		return x.Positional
+	}
+	return false
+}
+
+func (x *SearchStats) GetRequiredLiterals() []string {
+	if x != nil {
+		return x.RequiredLiterals
+	}
+	return nil
 }
 
 func (x *SearchStats) GetCandidates() uint64 {
@@ -701,8 +729,14 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\x0eProgressUpdate\x12'\n" +
 	"\x0ffiles_processed\x18\x01 \x01(\x04R\x0efilesProcessed\x12\x1f\n" +
 	"\vfiles_total\x18\x02 \x01(\x04R\n" +
-	"filesTotal\"\x96\x02\n" +
-	"\vSearchStats\x12\x1e\n" +
+	"filesTotal\"\x8e\x03\n" +
+	"\vSearchStats\x12)\n" +
+	"\x10case_insensitive\x18\n" +
+	" \x01(\bR\x0fcaseInsensitive\x12\x1e\n" +
+	"\n" +
+	"positional\x18\v \x01(\bR\n" +
+	"positional\x12+\n" +
+	"\x11required_literals\x18\f \x03(\tR\x10requiredLiterals\x12\x1e\n" +
 	"\n" +
 	"candidates\x18\x01 \x01(\x04R\n" +
 	"candidates\x12\x1a\n" +

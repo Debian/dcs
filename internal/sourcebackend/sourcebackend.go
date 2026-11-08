@@ -418,9 +418,16 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	sort.Sort(files)
 
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
+	var requiredLiterals []string
+	if requiredLiteral != "" {
+		requiredLiterals = []string{requiredLiteral}
+	}
 	stats := &sourcebackendpb.SearchStats{
-		Candidates: uint64(len(files)),
-		IndexNs:    int64(time.Since(indexStart)),
+		CaseInsensitive:  caseInsensitive,
+		Positional:       queryPos,
+		RequiredLiterals: requiredLiterals,
+		Candidates:       uint64(len(files)),
+		IndexNs:          int64(time.Since(indexStart)),
 	}
 	var (
 		slowestNs   atomic.Int64

@@ -55,6 +55,16 @@ message ProgressUpdate {
 // SearchStats describes the work a source backend did for one query.
 // It is sent once, on the last SearchReply.
 message SearchStats {
+  // Whether the query is case-insensitive.
+  bool case_insensitive = 10;
+
+  // Whether the query was run on the positional index
+  // (only possible for case-sensitive literal queries).
+  bool positional = 11;
+
+  // All required literals of this (regexp) query, if any.
+  repeated string required_literals = 12;
+
   // Number of candidate files.
   uint64 candidates = 1;
 
