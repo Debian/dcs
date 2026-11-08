@@ -1,7 +1,7 @@
 {
   pkgs,
   src,
-  goAMD64 ? "v3", # set to v4 for AVX512-capable machines
+  goAMD64 ? "v3", # services.dcs.goAMD64 sets this option via override
 }:
 
 pkgs.buildGoLatestModule {

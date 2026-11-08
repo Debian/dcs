@@ -107,9 +107,34 @@ in
   options.services.dcs = {
     enable = lib.mkEnableOption "Debian Code Search";
 
+    goAMD64 = lib.mkOption {
+      type = lib.types.enum [
+        "v1"
+        "v2"
+        "v3"
+        "v4"
+      ];
+      default = "v3";
+      description = ''
+        GOAMD64 microarchitecture level to compile for.
+        Can be lowered to "v1" for widest binary compatibility.
+        Default "v3", which is the recommendation.
+        Bump to "v4" if your destination machine has AVX512.
+        For more details, see:
+        https://michael.stapelberg.ch/posts/2026-09-06-dcs-fast-turbopfor-go-simd/#goamd64
+      '';
+    };
+
     package = lib.mkOption {
       type = lib.types.package;
-      default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+      default = self.packages.${pkgs.stdenv.hostPlatform.system}.default.override {
+        inherit (cfg) goAMD64;
+      };
+      defaultText = lib.literalExpression ''
+        dcs.packages.''${pkgs.stdenv.hostPlatform.system}.default.override {
+          goAMD64 = config.services.dcs.goAMD64;
+        }
+      '';
       description = "The dcs package to use";
     };
 
