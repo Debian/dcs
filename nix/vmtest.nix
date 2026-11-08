@@ -34,6 +34,9 @@ in
     };
     services.dcs = {
       enable = true;
+      # Make the tests pass on any x86-64 CPU,
+      # to enable machines without AVX512 to build GOAMD64=v4.
+      goAMD64 = "v1";
       feeder.extraFlags = [
         "-mirror_url=http://localhost:8787"
         "-merge_last_activity=1s"

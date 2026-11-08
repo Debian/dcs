@@ -30,4 +30,10 @@ pkgs.buildGoLatestModule {
     # Source code, not web assets: keep off codesearch.debian.net/.
     rm $out/share/static/*.go
   '';
+
+  # Make the tests pass on any x86-64 CPU,
+  # to enable machines without AVX512 to build GOAMD64=v4.
+  preCheck = ''
+    export GOAMD64=v1
+  '';
 }
