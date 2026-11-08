@@ -1,7 +1,15 @@
 # Debian Code Search on Google Compute Engine
 
-NixOS image with `services.dcs` for an N2 VM with 4 local NVMe SSDs
-(RAID0 at `/srv/dcs`). The VM imports Debian sid by itself after boot.
+This directory contains the definition for a NixOS image with
+`services.dcs` (= with Debian Code Search set up) for a Google Cloud
+N2 VM with 4 local NVMe SSDs (RAID0 at `/srv/dcs`).
+
+The VM imports Debian sid by itself after boot.
+
+In case you are not familiar with Nix or NixOS,
+see this blog post of mine for an introduction:
+
+https://michael.stapelberg.ch/posts/2025-07-27-dev-shells-with-nix-4-quick-examples/
 
 ```sh
 BUCKET=…   # any GCS bucket in the same project
