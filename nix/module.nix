@@ -173,6 +173,38 @@ let
       "GOTRACEBACK=crash"
     ];
   };
+
+  caddyConfig = ''
+    # Serve static files like research papers or OpenAPI specs.
+    root * ${config.services.dcs.package}/share/static
+
+    encode zstd gzip {
+      minimum_length 20
+    }
+
+    # Browser-based tools load the OpenAPI spec cross-origin, e.g.
+    # https://editor.swagger.io/?url=https://codesearch.debian.net/openapi2.yaml
+    # A plain GET needs no preflight, so allowing the origin is enough.
+    @openapi path_regexp openapi ^/openapi2?\.(yaml|json)$
+    handle @openapi {
+      header Access-Control-Allow-Origin "*"
+      file_server
+    }
+
+    handle /research/* {
+      file_server browse
+    }
+
+    handle_errors 5xx {
+      rewrite * /50x.html
+      file_server
+    }
+
+    # dcs-web sets Cache-Control and content-hash ETag.
+    # /events/ works by default: Caddy flushes text/event-stream
+    # immediately and has no read timeout by default.
+    reverse_proxy 127.0.0.1:30000
+  '';
 in
 {
   options.services.dcs = {
@@ -282,6 +314,20 @@ in
       description = ''
         Additional dcs-package-importer flags (inserted verbatim, i.e. $(cat …) works).
       '';
+    };
+
+    domain = lib.mkOption {
+      type = lib.types.str;
+      example = "codesearch.example.com";
+      description = ''
+        Domain to use for the virtual host (Caddy site address).
+        Caddy sets up HTTPS by default, use e.g. http://localhost
+        for plain HTTP (for testing).
+      '';
+    };
+
+    caddy = {
+      enable = lib.mkEnableOption "set up a Caddy virtual host in front of dcs-web";
     };
   };
 
@@ -415,6 +461,13 @@ in
       serviceConfig = defaultDaemonServiceConfig // {
         ExecStart = "${web}/bin/dcs-web";
       };
+    };
+
+    services.caddy = lib.mkIf cfg.caddy.enable {
+      enable = lib.mkDefault true;
+      # Site-specific additions (e.g. serverAliases, rate limits) can
+      # go directly into services.caddy.virtualHosts.<domain>.
+      virtualHosts.${cfg.domain}.extraConfig = caddyConfig;
     };
   };
 }

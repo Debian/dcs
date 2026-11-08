@@ -41,6 +41,9 @@ in
         "-mirror_url=http://localhost:8787"
         "-merge_last_activity=1s"
       ];
+      # Enable Caddy (for testing) without HTTPS.
+      caddy.enable = true;
+      domain = "http://localhost";
     };
   };
 
@@ -50,9 +53,14 @@ in
   # dcs-web has actually picked up the index.
   testScript = ''
     machine.wait_until_succeeds("readlink /srv/dcs/shard0/full | grep -q ^/", timeout=60)
+
     machine.wait_for_unit("dcs-web.service")
     machine.wait_for_open_port(30000)
     out = machine.succeed("curl -fs 'http://localhost:30000/search?q=i3Font&wait=1'")
+    assert "i3-wm_4.5.1-2" in out, out
+
+    machine.wait_for_open_port(80)
+    out = machine.succeed("curl -fs 'http://localhost/search?q=i3Font&wait=1'")
     assert "i3-wm_4.5.1-2" in out, out
   '';
 }
