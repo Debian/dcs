@@ -416,14 +416,18 @@ func (g *Grep) AddFlags() {
 	flag.BoolVar(&g.H, "h", false, "omit file names")
 }
 
-func (g *Grep) File(name string) ([]Match, int64) {
+func (g *Grep) File(f *os.File, name string) ([]Match, int64) {
+	return g.Reader(f, name), g.nr.read
+}
+
+func (g *Grep) OpenFile(name string) ([]Match, int64) {
 	f, err := os.Open(name)
 	if err != nil {
 		fmt.Fprintf(g.Stderr, "%s\n", err)
 		return []Match{}, 0
 	}
 	defer f.Close()
-	return g.Reader(f, name), g.nr.read
+	return g.File(f, name)
 }
 
 // nlNormReader is a an io.Reader which normalizes newlines,

@@ -188,7 +188,7 @@ func grep(query string, files ranking.ResultPaths, rankingopts ranking.RankingOp
 							f.Close()
 						}
 					} else {
-						matches, _ := grep.File(file.Path)
+						matches, _ := grep.OpenFile(file.Path)
 						matchCntMu.Lock()
 						matchCnt += len(matches)
 						// for _, match := range matches {

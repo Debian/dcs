@@ -554,7 +554,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 			// << 64 KB).
 			// https://eklausmeier.wordpress.com/2016/02/03/performance-comparison-mmap-versus-read-versus-fread/
 			fileStart := time.Now()
-			matches, read := grep.File(path.Join(s.UnpackedPath.Name(), file.Path))
+			matches, read := grep.OpenFile(path.Join(s.UnpackedPath.Name(), file.Path))
 			if dur := int64(time.Since(fileStart)); dur > slowestNs.Load() {
 				slowestMu.Lock()
 				// Check again in case another goroutine got the lock before us.
