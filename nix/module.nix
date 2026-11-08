@@ -163,7 +163,7 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       example = [
-        "-mirror_url=http://ftp.ch.debian.org/debian"
+        "-mirror_url=https://ftp.ch.debian.org/debian"
       ];
       description = ''
         Additional dcs-feeder flags (inserted verbatim, i.e. $(cat …) works).
@@ -195,7 +195,7 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       example = [
-        "-mirror_url=http://ftp.ch.debian.org/debian"
+        "-mirror_url=https://ftp.ch.debian.org/debian"
       ];
       description = ''
         Additional dcs-compute-ranking flags (inserted verbatim, i.e. $(cat …) works).

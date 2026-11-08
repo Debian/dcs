@@ -9,7 +9,7 @@ import (
 
 var (
 	mirrorURL = flag.String("mirror_url",
-		"http://deb.debian.org/debian",
+		"https://deb.debian.org/debian",
 		"URL to the debian mirror to use")
 
 	popconURL = flag.String("popcon_url",
