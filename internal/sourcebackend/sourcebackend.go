@@ -354,8 +354,8 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
 	simplified := re.Simplify()
-	caseSensitive := simplified.Flags&syntax.FoldCase != 0
-	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseSensitive
+	caseInsensitive := simplified.Flags&syntax.FoldCase != 0
+	queryPos := s.UsePositionalIndex && simplified.Op == syntax.OpLiteral && !caseInsensitive
 	literal := string(simplified.Rune)
 	requiredLiteral := index.LongestLiteral(simplified)
 	var files ranking.ResultPaths
