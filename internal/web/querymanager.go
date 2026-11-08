@@ -405,6 +405,9 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 				}
 				releaseQueryLocked(s)
 				delete(state, s.queryid)
+				if err := os.RemoveAll(s.resultWriter.dir); err != nil {
+					log.Printf("[%s] removing query results: %v", s.queryid, err)
+				}
 			}
 			log.Printf("Garbage collection done. %d queries remaining", len(state))
 		}
