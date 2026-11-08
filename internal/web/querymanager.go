@@ -826,6 +826,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		readBytes  uint64
 		slowest    *sourcebackendpb.SearchStats
 		missing    int
+		timedOut   bool
 	)
 	for _, b := range s.perBackend {
 		st := b.stats
@@ -838,6 +839,9 @@ func (o *Opts) finishQuery(s *queryState) {
 		readBytes += st.ReadBytes
 		if slowest == nil || st.SlowestNs > slowest.SlowestNs {
 			slowest = st
+		}
+		if st.Cancelled {
+			timedOut = true
 		}
 	}
 	s.mu.Unlock()
@@ -867,6 +871,9 @@ func (o *Opts) finishQuery(s *queryState) {
 			Type:      "error",
 			ErrorType: "backendunavailable",
 		})
+
+	case timedOut:
+		outcome = "timeout"
 	}
 
 	s.addEventMarshal(&ProgressUpdate{
