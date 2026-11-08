@@ -44,6 +44,10 @@ in
     };
   };
 
+  # dcs-package-importer creates a relative 'full' symlink,
+  # dcs-web replaces that with an absolute symlink in ReplaceIndex,
+  # i.e. by polling for an absolute symlink we wait until
+  # dcs-web has actually picked up the index.
   testScript = ''
     machine.wait_until_succeeds("readlink /srv/dcs/shard0/full | grep -q ^/", timeout=60)
     machine.wait_for_unit("dcs-web.service")
