@@ -95,11 +95,6 @@ let
     Restart = "always";
     RestartSec = 1;
 
-    # Disable stdout (very verbose); only enable when debugging.
-    # TODO: reduce logspam to make this setting obsolete.
-    StandardOutput = "null";
-    StandardError = "journal";
-
     Environment = [
       # Write a core dump when panicing (systemd-coredump(8) collects).
       #
