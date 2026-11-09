@@ -3,7 +3,6 @@ package web
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"html/template"
@@ -27,14 +26,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/Debian/dcs/internal/apikeys"
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/index"
-	"github.com/Debian/dcs/internal/proto/dcspb"
-	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/static"
 	_ "github.com/Debian/dcs/internal/varz"
@@ -48,7 +43,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "golang.org/x/net/trace"
 	"golang.org/x/sync/semaphore"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -298,220 +292,6 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		err = s.writePerPkgResults(page, w, w, r)
 	}
 	handleError(w, err)
-}
-
-type server struct {
-	// For forward compatibility
-	dcspb.UnimplementedDCSServer
-
-	opts    *Opts
-	decoder *apikeys.Decoder
-}
-
-func (s *server) Search(req *dcspb.SearchRequest, stream dcspb.DCS_SearchServer) error {
-	ctx := stream.Context()
-	query := req.GetQuery()
-
-	key, err := s.decoder.Decode(req.GetApikey())
-	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "invalid x-dcs-apikey header; please see https://codesearch.debian.net/apikeys/")
-	}
-
-	cl := clientFromGRPC(ctx, key.Subject)
-	src := cl.String()
-	literal := "0"
-	if req.GetLiteral() {
-		literal = "1"
-	}
-	q := "q=" + url.QueryEscape(query) + "&literal=" + literal
-
-	log.Printf("[%s] (events) Received query %q\n", src, q)
-	if err := validateQuery("?" + q); err != nil {
-		logRejected(cl, q, err)
-		return fmt.Errorf("invalid query: %v", err)
-	}
-
-	// Uniquely (well, good enough) identify this query for a couple of minutes
-	// (as long as we want to cache results). We could try to normalize the
-	// query before hashing it, but that seems hardly worth the complexity.
-	h := fnv.New64()
-	io.WriteString(h, q)
-	identifier := fmt.Sprintf("%x", h.Sum64())
-
-	state, cached, err := s.opts.maybeStartQuery(ctx, identifier, cl, q)
-	if err != nil {
-		if errors.Is(err, errTooManyQueries) {
-			return status.Error(codes.ResourceExhausted, err.Error())
-		}
-		return fmt.Errorf("query(%s): %v", query, err)
-	}
-
-	// Create an apache common log format entry.
-	if accessLog != nil {
-		responseCode := 200
-		if cached {
-			responseCode = 304
-		}
-		fmt.Fprintf(accessLog, "%s - - [%s] \"GET /events/%s HTTP/1.1\" %d -\n",
-			cl.ip, time.Now().Format("02/Jan/2006:15:04:05 -0700"), q, responseCode)
-	}
-
-	lastseen := -1
-	for {
-		message, sequence, ok := state.getEvent(lastseen)
-		if !ok {
-			return fmt.Errorf("query no longer exists")
-		}
-		lastseen = sequence
-		// This message was obsoleted by a more recent one, e.g. a more
-		// recent progress update obsoletes all earlier progress updates.
-		if message.obsolete.Load() {
-			continue
-		}
-		if len(message.data) == 0 {
-			break
-		}
-		ev, err := toEventProto(message.data)
-		if err != nil {
-			return err
-		}
-		if err := stream.Send(ev); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *server) Results(req *dcspb.ResultsRequest, stream dcspb.DCS_ResultsServer) error {
-	// TODO: de-dup with Search
-
-	queryid := req.GetQueryId()
-
-	key, err := s.decoder.Decode(req.GetApikey())
-	if err != nil {
-		return status.Errorf(codes.Unauthenticated, "invalid x-dcs-apikey header; please see https://codesearch.debian.net/apikeys/")
-	}
-
-	src := clientFromGRPC(stream.Context(), key.Subject).String()
-
-	log.Printf("Results(queryid=%s, src=%s)", queryid, src)
-
-	state, ok := lookupQuery(queryid)
-	if !ok {
-		// TODO: canonical code
-		return fmt.Errorf("not found")
-	}
-	state.mu.Lock()
-	resultPointers := state.resultPointers
-	state.mu.Unlock()
-
-	perBackend, err := perBackendFromState(state)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		for _, mapping := range perBackend {
-			mapping.Close()
-		}
-	}()
-
-	var msg sourcebackendpb.SearchReply
-	for ptr, err := range resultPointers.All() {
-		if err != nil {
-			return err
-		}
-		mapping := perBackend[ptr.backendidx]
-		if err := proto.Unmarshal(mapping.Data[ptr.offset:ptr.offset+int64(ptr.length)], &msg); err != nil {
-			return err
-		}
-		if msg.Type != sourcebackendpb.SearchReply_MATCH {
-			continue
-		}
-		if err := stream.Send(msg.Match); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// TODO: consider refactoring so that protos are retained instead of JSON
-// bytes. maybe accompanied by a lazily-initialized JSON version?
-func toEventProto(data []byte) (*dcspb.Event, error) {
-	var messageType struct {
-		Type string
-	}
-	if err := json.Unmarshal(data, &messageType); err != nil {
-		return nil, err
-	}
-	switch messageType.Type {
-	case "progress":
-		var p struct {
-			QueryId        string
-			FilesProcessed int
-			FilesTotal     int
-			Results        int
-		}
-		if err := json.Unmarshal(data, &p); err != nil {
-			return nil, err
-		}
-		return &dcspb.Event{
-			Data: &dcspb.Event_Progress{
-				Progress: &dcspb.Progress{
-					QueryId:        p.QueryId,
-					FilesProcessed: int64(p.FilesProcessed),
-					FilesTotal:     int64(p.FilesTotal),
-					Results:        int64(p.Results),
-				},
-			},
-		}, nil
-
-	case "queued":
-		var q Queued
-		if err := json.Unmarshal(data, &q); err != nil {
-			return nil, err
-		}
-		return &dcspb.Event{
-			Data: &dcspb.Event_Progress{
-				Progress: &dcspb.Progress{
-					Queued: int64(q.Ahead),
-					// Sending 0, 1 is understood by old clients.
-					// Newer clients look at Queued>0.
-					FilesProcessed: 0,
-					FilesTotal:     1,
-				},
-			},
-		}, nil
-
-	case "pagination":
-		var p struct {
-			QueryId     string
-			ResultPages int
-		}
-		if err := json.Unmarshal(data, &p); err != nil {
-			return nil, err
-		}
-		return &dcspb.Event{
-			Data: &dcspb.Event_Pagination{
-				Pagination: &dcspb.Pagination{
-					QueryId:     p.QueryId,
-					ResultPages: int64(p.ResultPages),
-				},
-			},
-		}, nil
-
-	default: // match
-		var m sourcebackendpb.Match
-		if err := json.Unmarshal(data, &m); err != nil {
-			return nil, err
-		}
-		return &dcspb.Event{
-			Data: &dcspb.Event_Match{
-				Match: &m,
-			},
-		}, nil
-	}
 }
 
 func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
@@ -774,13 +554,5 @@ func (o *Opts) Main(ln net.Listener) error {
 		o.TLSCertPath,
 		o.TLSKeyPath,
 		o.TLSRequireClientAuth,
-		func(s *grpc.Server) {
-			decoder := &apikeys.Decoder{
-				SecureCookie: apiOpts.SecureCookie(),
-			}
-			dcspb.RegisterDCSServer(s, &server{
-				opts:    o,
-				decoder: decoder,
-			})
-		})
+		func(s *grpc.Server) {})
 }

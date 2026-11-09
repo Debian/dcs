@@ -1,13 +1,9 @@
 package web
 
 import (
-	"context"
 	"net"
 	"net/http"
 	"strings"
-
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 )
 
 // client identifies who started a query, for logging. dcs-web runs behind a
@@ -16,7 +12,7 @@ import (
 type client struct {
 	ip        string
 	userAgent string
-	entry     string // e.g. /search, /events, /api, grpc
+	entry     string // e.g. /search, /events, /api
 	apiKey    string // apikeys.Key.Subject, empty for anonymous requests
 }
 
@@ -80,20 +76,4 @@ func clientFromRequest(r *http.Request, entry, apiKey string) client {
 		entry:     entry,
 		apiKey:    apiKey,
 	}
-}
-
-func clientFromGRPC(ctx context.Context, apiKey string) client {
-	c := client{
-		ip:     "unknown",
-		entry:  "grpc",
-		apiKey: apiKey,
-	}
-	md, _ := metadata.FromIncomingContext(ctx)
-	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
-		c.ip = clientIP(p.Addr.String(), md.Get("x-forwarded-for"))
-	}
-	if ua := md.Get("user-agent"); len(ua) > 0 {
-		c.userAgent = truncateUserAgent(ua[0])
-	}
-	return c
 }

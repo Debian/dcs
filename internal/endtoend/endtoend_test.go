@@ -1,7 +1,7 @@
 package endtoend_test
 
 import (
-	"context"
+	"bufio"
 	"encoding/json"
 	"flag"
 	"io"
@@ -12,16 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	"github.com/Debian/dcs/internal/api"
-	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/localdcs"
-	"github.com/Debian/dcs/internal/proto/dcspb"
-	"github.com/google/go-cmp/cmp"
-	"google.golang.org/protobuf/encoding/prototext"
-	"google.golang.org/protobuf/proto"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -46,102 +38,69 @@ func TestEndToEnd(t *testing.T) {
 	// Created using dcs apikey-create; subject is set to “unittest!”
 	const apikey = "MTYxNDAxMzI4OXwyb2pFeXdGd0Q0VmdhTkZtMkRoeDdsa1JUa3ZwOTQtM3M2MG1ybGFWRkhacUZwZ1dmMmFlMG5lbkM3UWQ1SV96LXc9PXxdMAS04xLgPDL02_RXt7IftcfPZ4x839RuMhy0_WSX0g=="
 
-	t.Run("GRPC", func(t *testing.T) {
-
-		conn, err := grpcutil.DialTLS(instance.Addr,
-			filepath.Join(temp, "cert.pem"),
-			filepath.Join(temp, "key.pem"))
-		if err != nil {
-			t.Fatalf("could not connect to %q: %v", instance.Addr, err)
-		}
-		defer conn.Close()
-		dcs := dcspb.NewDCSClient(conn)
-
-		{
-			// Verify API key are required:
-			stream, err := dcs.Search(context.Background(), &dcspb.SearchRequest{
-				Query: "i3Font",
-			})
-			if err != nil && status.Code(err) != codes.Unauthenticated {
-				t.Fatalf("Search(without API key) = %v, want Unauthenticated", err)
-			}
-			if _, err := stream.Recv(); err == nil || status.Code(err) != codes.Unauthenticated {
-				t.Fatalf("Search(without API key) = %v, want Unauthenticated", err)
-			}
-		}
-
-		stream, err := dcs.Search(context.Background(), &dcspb.SearchRequest{
-			Query:  "i3Font",
-			Apikey: apikey,
-		})
+	t.Run("EventStream", func(t *testing.T) {
+		urlPrefix := "https://" + instance.Addr
+		req, err := http.NewRequest("GET", urlPrefix+"/events/i3Font", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var events []*dcspb.Event
-		for {
-			event, err := stream.Recv()
-			if err == io.EOF {
-				break
+		// No API key needed, this is the API which instant.js (browser) uses.
+		resp, err := instance.HTTPClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		if got, want := resp.StatusCode, http.StatusOK; got != want {
+			b, _ := io.ReadAll(resp.Body)
+			t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
+				resp.Status,
+				strings.TrimSpace(string(b)),
+				want)
+		}
+
+		type progress struct {
+			Type           string `json:"Type"`
+			QueryId        string `json:"QueryId"`
+			FilesProcessed int    `json:"FilesProcessed"`
+			FilesTotal     int    `json:"FilesTotal"`
+		}
+		// Verify progress messages are sent.
+		scanner := bufio.NewScanner(resp.Body)
+		var events []progress
+		for scanner.Scan() {
+			data, ok := strings.CutPrefix(scanner.Text(), "data: ")
+			if !ok {
+				continue
 			}
-			if err != nil {
+			var ev progress
+			if err := json.Unmarshal([]byte(data), &ev); err != nil {
 				t.Fatal(err)
 			}
-			if prog, ok := event.Data.(*dcspb.Event_Progress); !ok {
-				continue // TODO: compare the rest, too
-			} else {
-				if prog.Progress.FilesProcessed > 0 &&
-					prog.Progress.FilesProcessed < prog.Progress.FilesTotal {
-					continue // TODO: compare intermediate progress updates, too
-				}
+			if ev.Type != "progress" {
+				continue
 			}
-			events = append(events, event)
+			events = append(events, ev)
 		}
-		t.Logf("%d events", len(events))
-		for idx, ev := range events {
-			t.Logf("event %d: %+v", idx, ev)
+		if err := scanner.Err(); err != nil {
+			t.Fatal(err)
 		}
-		var queryId string
-		last := events[len(events)-1]
-		if p, ok := last.Data.(*dcspb.Event_Progress); ok {
-			queryId = p.Progress.QueryId
-		}
-
-		want := []*dcspb.Event{
-			&dcspb.Event{
-				Data: &dcspb.Event_Progress{
-					Progress: &dcspb.Progress{
-						QueryId:    queryId,
-						FilesTotal: 8,
-					},
-				},
-			},
-
-			&dcspb.Event{
-				Data: &dcspb.Event_Progress{
-					Progress: &dcspb.Progress{
-						QueryId:        queryId,
-						FilesProcessed: 8,
-						FilesTotal:     8,
-						// Results:        17,
-					},
-				},
-			},
-		}
-
 		t.Logf("printing %d events:", len(events))
 		for _, ev := range events {
-			t.Logf("event: %s", prototext.Format(ev))
-			// TODO: figure out why results is sometimes 17, sometimes less?!
-			// might be related to positional index
-			ev.Data.(*dcspb.Event_Progress).Progress.Results = 0
+			t.Logf("event: %+v", ev)
 		}
-
-		diff1 := cmp.Diff(want, events, cmp.Comparer(proto.Equal))
-		// The second event (progress update) obsoletes the first one. Depending
-		// on timing, only the second one may be received.
-		diff2 := cmp.Diff(want[1:], events, cmp.Comparer(proto.Equal))
-		if diff1 != "" && diff2 != "" {
-			t.Fatalf("Search: events differ (-want +got)\n%s", diff1)
+		if len(events) == 0 {
+			t.Fatalf("no progress events received")
+		}
+		last := events[len(events)-1]
+		if last.FilesProcessed == 0 {
+			t.Errorf("last.FilesProcessed unexpectedly 0")
+		}
+		if last.FilesTotal == 0 {
+			t.Errorf("last.FilesTotal unexpectedly 0")
+		}
+		if last.FilesProcessed != last.FilesTotal {
+			t.Errorf("last progress event: FilesProcessed=%d != FilesTotal=%d",
+				last.FilesProcessed, last.FilesTotal)
 		}
 	})
 
@@ -157,6 +116,7 @@ func TestEndToEnd(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer resp.Body.Close()
 			if got, want := resp.StatusCode, http.StatusNoContent; got != want {
 				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
@@ -176,6 +136,7 @@ func TestEndToEnd(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer resp.Body.Close()
 			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
 				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
@@ -195,6 +156,7 @@ func TestEndToEnd(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer resp.Body.Close()
 			if got, want := resp.StatusCode, http.StatusOK; got != want {
 				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
@@ -243,6 +205,7 @@ func TestEndToEnd(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer resp.Body.Close()
 			if got, want := resp.StatusCode, http.StatusOK; got != want {
 				b, _ := io.ReadAll(resp.Body)
 				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",

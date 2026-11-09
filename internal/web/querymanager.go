@@ -599,7 +599,7 @@ func (o *Opts) admitOrQueue(ctx context.Context, s *queryState) (release func(),
 	log.Printf("[%s] waiting for a search slot (queries ahead: %d)", s.queryid, ahead)
 	s.addEventMarshal(&Queued{
 		Type: "queued",
-		// Add 1 so that dcspb.Progress.Queued is always >0
+		// Add 1 so that the Queued event always has Ahead>0
 		// when a query is queued. This also avoids
 		// the awkward special case of “You are queued,
 		// there are 0 queries in front”, which can happen
