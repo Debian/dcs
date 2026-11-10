@@ -221,7 +221,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func ResultsHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO: ideally, this would also start the search in the background to avoid waiting for the round-trip to the client.
 
 	// Try to match /page_n.json or /perpackage_2_page_n.json
@@ -245,7 +245,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		queryid := matches[1]
-		s, ok := lookupQuery(queryid)
+		s, ok := o.lookupQuery(queryid)
 		if !ok {
 			w.Header().Set("Cache-Control", "no-store")
 			http.Error(w, "No such query.", http.StatusNotFound)
@@ -279,7 +279,7 @@ func ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	perpackage := (matches[2] == "perpackage_2_")
-	s, ok := lookupQuery(queryid)
+	s, ok := o.lookupQuery(queryid)
 	if !ok {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "No such query.", http.StatusNotFound)
@@ -346,6 +346,9 @@ type Opts struct {
 
 	ownersMu sync.Mutex
 	owners   map[string]*ownerSlot // see MaxConcurrentQueriesByOwner
+
+	queriesMu sync.RWMutex
+	queries   map[string]*queryState
 }
 
 type ownerSlot struct {
@@ -396,6 +399,8 @@ func (o *Opts) Main(ln net.Listener) error {
 	} else {
 		o.backends = common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
 	}
+
+	o.queries = make(map[string]*queryState)
 
 	if o.HashKeyPath == "" {
 		return fmt.Errorf("-securecookie_hash_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
@@ -472,7 +477,7 @@ func (o *Opts) Main(ln net.Listener) error {
 		http.NotFound(w, r)
 	})
 	mux.HandleFunc("/show", show.Show(o.backends, o.UseSourcesDebianNet))
-	mux.HandleFunc("/results/", ResultsHandler)
+	mux.HandleFunc("/results/", o.ResultsHandler)
 	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
 	mux.HandleFunc("/track", Track)
 	mux.HandleFunc("/search", o.Search)

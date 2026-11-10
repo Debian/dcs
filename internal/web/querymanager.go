@@ -225,11 +225,6 @@ type queryState struct {
 	FirstPathRank float32
 }
 
-var (
-	stateMu sync.RWMutex
-	state   = make(map[string]*queryState)
-)
-
 type sink struct {
 	ctx context.Context // for respecting cancellation
 
@@ -342,10 +337,10 @@ func releaseQueryLocked(s *queryState) {
 	}
 }
 
-func lookupQuery(queryid string) (*queryState, bool) {
-	stateMu.RLock()
-	defer stateMu.RUnlock()
-	s, ok := state[queryid]
+func (o *Opts) lookupQuery(queryid string) (*queryState, bool) {
+	o.queriesMu.RLock()
+	defer o.queriesMu.RUnlock()
+	s, ok := o.queries[queryid]
 	if ok {
 		s.touch()
 	}
@@ -363,10 +358,10 @@ const (
 	maxQueriesPerOwner = 10
 )
 
-func startQuery(querystate *queryState) (*queryState, bool) {
-	stateMu.Lock()
-	defer stateMu.Unlock()
-	if s, ok := state[querystate.queryid]; ok {
+func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
+	o.queriesMu.Lock()
+	defer o.queriesMu.Unlock()
+	if s, ok := o.queries[querystate.queryid]; ok {
 		if !s.expired() {
 			// This query is already active, do not interfere.
 			return s, true
@@ -376,9 +371,9 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 	} else {
 		// See if we need to garbage collect old queries. This is unnecessary when
 		// the query is expired, as we can just re-use the previous slot.
-		if len(state) >= maxQueries {
-			log.Printf("Trying to garbage collect queries (currently %d)", len(state))
-			candidates := slices.Collect(maps.Values(state))
+		if len(o.queries) >= maxQueries {
+			log.Printf("Trying to garbage collect queries (currently %d)", len(o.queries))
+			candidates := slices.Collect(maps.Values(o.queries))
 			sort.Slice(candidates, func(i, j int) bool {
 				return candidates[i].lastAccess.Load() < candidates[j].lastAccess.Load()
 			})
@@ -397,22 +392,22 @@ func startQuery(querystate *queryState) (*queryState, bool) {
 				candidates = append(own, others...)
 			}
 			for _, s := range candidates {
-				if len(state) < maxQueries {
+				if len(o.queries) < maxQueries {
 					break
 				}
 				if !s.completed() {
 					continue
 				}
 				releaseQueryLocked(s)
-				delete(state, s.queryid)
+				delete(o.queries, s.queryid)
 				if err := os.RemoveAll(s.resultWriter.dir); err != nil {
 					log.Printf("[%s] removing query results: %v", s.queryid, err)
 				}
 			}
-			log.Printf("Garbage collection done. %d queries remaining", len(state))
+			log.Printf("Garbage collection done. %d queries remaining", len(o.queries))
 		}
 	}
-	state[querystate.queryid] = querystate
+	o.queries[querystate.queryid] = querystate
 	activeQueries.Add(1)
 	frequency.IncUsers()
 	querystate.touch()
@@ -428,7 +423,7 @@ var errTooManyQueries = errors.New("too many concurrent queries, see https://cod
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns the *queryState and whether the query existed.
 func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, query string) (*queryState, bool, error) {
-	if s, ok := lookupQuery(queryid); ok && !s.expired() {
+	if s, ok := o.lookupQuery(queryid); ok && !s.expired() {
 		logReused(s, cl)
 		return s, true, nil
 	}
@@ -518,7 +513,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 	}
 	querystate.request = searchRequest
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
-	if existing, ok := startQuery(querystate); ok {
+	if existing, ok := o.startQuery(querystate); ok {
 		// Another goroutine must have raced us since we called lookupQuery().
 		logReused(existing, cl)
 		return existing, true, nil
@@ -689,7 +684,7 @@ type queryStats struct {
 func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
-		if s, ok := lookupQuery(cancel); ok {
+		if s, ok := o.lookupQuery(cancel); ok {
 			s.mu.Lock()
 			cancel := s.cancel
 			s.cancelled = true
@@ -702,10 +697,10 @@ func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stateMu.RLock()
-	stats := make([]queryStats, len(state))
+	o.queriesMu.RLock()
+	stats := make([]queryStats, len(o.queries))
 	idx := 0
-	for queryid, s := range state {
+	for queryid, s := range o.queries {
 		s.mu.Lock()
 		stats[idx] = queryStats{
 			Searchterm:     s.query,
@@ -727,7 +722,7 @@ func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		idx++
 	}
-	stateMu.RUnlock()
+	o.queriesMu.RUnlock()
 
 	sort.Slice(stats, func(i, j int) bool {
 		return stats[i].Started.After(stats[j].Started)
@@ -1233,7 +1228,7 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, fmt.Sprintf("Could not convert %q into a number: %v", matches[2], err), http.StatusBadRequest)
 		return
 	}
-	s, ok := lookupQuery(queryid)
+	s, ok := o.lookupQuery(queryid)
 	if !ok {
 		w.Header().Set("Cache-Control", "no-store")
 		http.Error(w, "No such query.", http.StatusNotFound)
