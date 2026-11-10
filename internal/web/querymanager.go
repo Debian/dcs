@@ -475,10 +475,10 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		done:           make(chan struct{}),
 		query:          query,
 		client:         cl,
-		filesTotal:     make([]int, len(common.Backends)),
-		filesProcessed: make([]int, len(common.Backends)),
-		readBytes:      make([]uint64, len(common.Backends)),
-		perBackend:     make([]*perBackendState, len(common.Backends)),
+		filesTotal:     make([]int, len(o.backends)),
+		filesProcessed: make([]int, len(o.backends)),
+		readBytes:      make([]uint64, len(o.backends)),
+		perBackend:     make([]*perBackendState, len(o.backends)),
 		resultPointers: memPointers(nil),
 		resultWriter: diskWriter{
 			// NOTE: append overshoots by up to 25%, so the 64 MB here
@@ -489,7 +489,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 	}
 	querystate.newEvent = sync.NewCond(&querystate.mu)
 
-	for i := 0; i < len(common.Backends); i++ {
+	for i := 0; i < len(o.backends); i++ {
 		querystate.filesTotal[i] = -1
 		path := filepath.Join(dir, fmt.Sprintf("unsorted_%d.pb", i))
 		f, err := os.Create(path)
@@ -656,7 +656,7 @@ func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRe
 	}
 
 	var wg sync.WaitGroup
-	for idx, backend := range common.Backends {
+	for idx, backend := range o.backends {
 		wg.Go(func() {
 			if err := o.queryBackend(ctx, s, src, backend, idx, searchRequest); err != nil {
 				s.mu.Lock()
@@ -1171,7 +1171,7 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	s.filesProcessed[backendidx] = int(progress.FilesProcessed)
 	s.readBytes[backendidx] = progress.ReadBytes
 	allSet := true
-	for i := 0; i < len(common.Backends); i++ {
+	for i := 0; i < len(o.backends); i++ {
 		if s.filesTotal[i] == -1 {
 			allSet = false
 			break

@@ -15,7 +15,7 @@ import (
 	"github.com/Debian/dcs/internal/web/health"
 )
 
-func Show(useSourcesDebianNet bool) http.HandlerFunc {
+func Show(backends []common.Backend, useSourcesDebianNet bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL
 		filename := query.Query().Get("file")
@@ -46,7 +46,7 @@ func Show(useSourcesDebianNet bool) http.HandlerFunc {
 			return
 		}
 		pkg := before
-		shard := common.Backends[shardmapping.TaskIdxForPackage(pkg, len(common.Backends))]
+		shard := backends[shardmapping.TaskIdxForPackage(pkg, len(backends))]
 		resp, err := shard.ReadFile(context.Background(), filename)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

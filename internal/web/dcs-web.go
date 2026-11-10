@@ -337,6 +337,7 @@ type Opts struct {
 	QueryTimeout                time.Duration
 	MaxConcurrentQueries        int
 	MaxConcurrentQueriesByOwner int
+	backends                    []common.Backend
 
 	// state
 	maxQuerySem     *semaphore.Weighted // see MaxConcurrentQueries
@@ -391,9 +392,9 @@ func (o *Opts) Main(ln net.Listener) error {
 		if err != nil {
 			return err
 		}
-		common.Backends = backends
+		o.backends = backends
 	} else {
-		common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
+		o.backends = common.Init(o.TLSCertPath, o.TLSKeyPath, o.SourceBackends, templates)
 	}
 
 	if o.HashKeyPath == "" {
@@ -470,7 +471,7 @@ func (o *Opts) Main(ln net.Listener) error {
 
 		http.NotFound(w, r)
 	})
-	mux.HandleFunc("/show", show.Show(o.UseSourcesDebianNet))
+	mux.HandleFunc("/show", show.Show(o.backends, o.UseSourcesDebianNet))
 	mux.HandleFunc("/results/", ResultsHandler)
 	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
 	mux.HandleFunc("/track", Track)
