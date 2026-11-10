@@ -25,6 +25,11 @@ message SearchRequest {
   string rewritten_url = 2;
 
   bool literal = 3;
+
+  // If non-zero, the grep phase of searches is stopped after this long.
+  // (Used for the speedbump feature.)
+  // Sets cancelled=false and incomplete=true in SearchStats.
+  int64 grep_deadline_ns = 5;
 }
 
 message Match {
@@ -92,6 +97,10 @@ message SearchStats {
 
   // Whether the context was cancelled before the query completed.
   bool cancelled = 9;
+
+  // Whether the grep deadline was hit before the query completed,
+  // i.e. the results are incomplete.
+  bool incomplete = 13;
 }
 
 message SearchReply {

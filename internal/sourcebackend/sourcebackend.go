@@ -426,6 +426,13 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	// sorting the list of potential files first.
 	sort.Sort(files)
 
+	grepCtx := ctx
+	if d := time.Duration(in.GetGrepDeadlineNs()); d > 0 {
+		var cancel context.CancelFunc
+		grepCtx, cancel = context.WithTimeout(ctx, d)
+		defer cancel()
+	}
+
 	log.Printf("%s regexp = %q, %d possible files\n", logprefix, re, len(files))
 	var requiredLiterals []string
 	if requiredLiteral != "" {
@@ -480,6 +487,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		// IndexNs filled in above
 		stats.GrepNs = int64(time.Since(grepStart))
 		// Cancelled filled in above
+		stats.Incomplete = grepCtx.Err() != nil && ctx.Err() == nil && stats.Searched < stats.Candidates
 	}()
 
 	// The tricky part here is “flow control”: if we just start grepping like
@@ -537,10 +545,19 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 
 	work := make(chan ranking.ResultPath)
 	go func() {
-		for _, file := range files {
+		defer close(work)
+		for idx, file := range files {
+			if grepCtx.Err() != nil {
+				// Skip feeding the remaining files:
+				// This saves about a second of wall-clock time
+				// when working on millions of candidate files.
+				remaining := len(files) - idx
+				wg.Add(-remaining)
+				progress <- remaining
+				return
+			}
 			work <- file
 		}
-		close(work)
 	}()
 
 	workerFn := func() {
@@ -549,7 +566,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		matcher := newMatcher(grep, queryPos, literal)
 
 		for file := range work {
-			if ctx.Err() != nil {
+			if grepCtx.Err() != nil {
 				// Skip further grep work if the context is already cancelled
 				progress <- 1
 				wg.Done()

@@ -168,10 +168,14 @@ type SearchRequest struct {
 	QueryId string `protobuf:"bytes,4,opt,name=query_id,json=queryId,proto3" json:"query_id,omitempty"`
 	// Rewritten URL (after RewriteQuery()) with all the parameters that
 	// are relevant for ranking.
-	RewrittenUrl  string `protobuf:"bytes,2,opt,name=rewritten_url,json=rewrittenUrl,proto3" json:"rewritten_url,omitempty"`
-	Literal       bool   `protobuf:"varint,3,opt,name=literal,proto3" json:"literal,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RewrittenUrl string `protobuf:"bytes,2,opt,name=rewritten_url,json=rewrittenUrl,proto3" json:"rewritten_url,omitempty"`
+	Literal      bool   `protobuf:"varint,3,opt,name=literal,proto3" json:"literal,omitempty"`
+	// If non-zero, the grep phase of searches is stopped after this long.
+	// (Used for the speedbump feature.)
+	// Sets cancelled=false and incomplete=true in SearchStats.
+	GrepDeadlineNs int64 `protobuf:"varint,5,opt,name=grep_deadline_ns,json=grepDeadlineNs,proto3" json:"grep_deadline_ns,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SearchRequest) Reset() {
@@ -230,6 +234,13 @@ func (x *SearchRequest) GetLiteral() bool {
 		return x.Literal
 	}
 	return false
+}
+
+func (x *SearchRequest) GetGrepDeadlineNs() int64 {
+	if x != nil {
+		return x.GrepDeadlineNs
+	}
+	return 0
 }
 
 type Match struct {
@@ -442,7 +453,10 @@ type SearchStats struct {
 	SlowestPath string `protobuf:"bytes,7,opt,name=slowest_path,json=slowestPath,proto3" json:"slowest_path,omitempty"`
 	SlowestNs   int64  `protobuf:"varint,8,opt,name=slowest_ns,json=slowestNs,proto3" json:"slowest_ns,omitempty"`
 	// Whether the context was cancelled before the query completed.
-	Cancelled     bool `protobuf:"varint,9,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
+	Cancelled bool `protobuf:"varint,9,opt,name=cancelled,proto3" json:"cancelled,omitempty"`
+	// Whether the grep deadline was hit before the query completed,
+	// i.e. the results are incomplete.
+	Incomplete    bool `protobuf:"varint,13,opt,name=incomplete,proto3" json:"incomplete,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -557,6 +571,13 @@ func (x *SearchStats) GetSlowestNs() int64 {
 func (x *SearchStats) GetCancelled() bool {
 	if x != nil {
 		return x.Cancelled
+	}
+	return false
+}
+
+func (x *SearchStats) GetIncomplete() bool {
+	if x != nil {
+		return x.Incomplete
 	}
 	return false
 }
@@ -717,12 +738,13 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\vFileRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"'\n" +
 	"\tFileReply\x12\x1a\n" +
-	"\bcontents\x18\x01 \x01(\fR\bcontents\"\x7f\n" +
+	"\bcontents\x18\x01 \x01(\fR\bcontents\"\xa9\x01\n" +
 	"\rSearchRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x19\n" +
 	"\bquery_id\x18\x04 \x01(\tR\aqueryId\x12#\n" +
 	"\rrewritten_url\x18\x02 \x01(\tR\frewrittenUrl\x12\x18\n" +
-	"\aliteral\x18\x03 \x01(\bR\aliteral\"\xf1\x01\n" +
+	"\aliteral\x18\x03 \x01(\bR\aliteral\x12(\n" +
+	"\x10grep_deadline_ns\x18\x05 \x01(\x03R\x0egrepDeadlineNs\"\xf1\x01\n" +
 	"\x05Match\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04line\x18\x02 \x01(\rR\x04line\x12\x14\n" +
@@ -740,7 +762,7 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\vfiles_total\x18\x02 \x01(\x04R\n" +
 	"filesTotal\x12\x1d\n" +
 	"\n" +
-	"read_bytes\x18\x03 \x01(\x04R\treadBytes\"\x8e\x03\n" +
+	"read_bytes\x18\x03 \x01(\x04R\treadBytes\"\xae\x03\n" +
 	"\vSearchStats\x12)\n" +
 	"\x10case_insensitive\x18\n" +
 	" \x01(\bR\x0fcaseInsensitive\x12\x1e\n" +
@@ -760,7 +782,10 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\fslowest_path\x18\a \x01(\tR\vslowestPath\x12\x1d\n" +
 	"\n" +
 	"slowest_ns\x18\b \x01(\x03R\tslowestNs\x12\x1c\n" +
-	"\tcancelled\x18\t \x01(\bR\tcancelled\"\xa3\x02\n" +
+	"\tcancelled\x18\t \x01(\bR\tcancelled\x12\x1e\n" +
+	"\n" +
+	"incomplete\x18\r \x01(\bR\n" +
+	"incomplete\"\xa3\x02\n" +
 	"\vSearchReply\x125\n" +
 	"\x04type\x18\x01 \x01(\x0e2!.sourcebackendpb.SearchReply.TypeR\x04type\x12,\n" +
 	"\x05match\x18\x02 \x01(\v2\x16.sourcebackendpb.MatchR\x05match\x12H\n" +

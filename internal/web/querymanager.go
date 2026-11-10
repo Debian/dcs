@@ -870,6 +870,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		grepSum    time.Duration
 		missing    int
 		timedOut   bool
+		incomplete bool
 	)
 	for _, b := range s.perBackend {
 		st := b.stats
@@ -885,6 +886,9 @@ func (o *Opts) finishQuery(s *queryState) {
 		}
 		if st.Cancelled {
 			timedOut = true
+		}
+		if st.Incomplete {
+			incomplete = true
 		}
 		indexMax = max(indexMax, time.Duration(st.IndexNs))
 		indexSum += time.Duration(st.IndexNs)
@@ -918,6 +922,9 @@ func (o *Opts) finishQuery(s *queryState) {
 			Type:      "error",
 			ErrorType: "backendunavailable",
 		})
+
+	case incomplete:
+		outcome = "speedbump"
 
 	case timedOut:
 		outcome = "timeout"
