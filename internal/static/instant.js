@@ -9,6 +9,7 @@ var resultsPerPackage = 2;
 
 var searchterm;
 var ppHideAfterAnimation = false;
+var speedbumped = false;
 
 // fatal (bool): Whether all ongoing operations should be cancelled.
 //
@@ -105,14 +106,17 @@ function formatBytes(n) {
     return `${(n / 1e3).toFixed(0)} kB`;
 }
 
-function sendQuery(term, literal) {
+function sendQuery(term, literal, exhaustive) {
     document.getElementById('normalresults').style.display = ''; // show
     document.getElementById('progressbar').style.display = ''; // show
     document.getElementById('options').style.display = 'none'; // hide
     document.getElementById('packageshint').style.display = 'none'; // hide
-    var query = term;
+    var query = term + "&literal=" + (literal ? "1" : "0");
+    if (exhaustive) {
+        query += "&exhaustive=1";
+    }
     // EventSource is supported by Chrome 9+ and Firefox 6+.
-    var eventsrc = new EventSource("/events/?q=" + query + "&literal=" + (literal ? "1" : "0"));
+    var eventsrc = new EventSource("/events/?q=" + query);
     eventsrc.onmessage = onEvent;
     document.title = searchterm + ' · Debian Code Search';
     progress(0, false, 'Checking which files to grep…');
@@ -383,9 +387,21 @@ function getDefault(searchparams, name, def) {
     return (val === null ? def : val);
 }
 
+function doneText(msg) {
+    var text = `${msg.FilesTotal.toLocaleString('en-US')} files grepped; results: ${msg.Results.toLocaleString('en-US')}`;
+    if (speedbumped) {
+        return '⚠️ incomplete: ' + text;
+    }
+    return text;
+}
+
 function onQueryDone(msg) {
     if (msg.Results === 0) {
-        progress(100, false, `${msg.FilesTotal.toLocaleString('en-US')} files grepped; results: ${msg.Results.toLocaleString('en-US')}`);
+        progress(100, false, doneText(msg));
+	if (speedbumped) {
+	    return;
+	}
+	// Query was fully run and yet had no results.
         var sp = new URLSearchParams(location.search.slice(1));
         var literal = sp.get('literal') === '1';
         if (literal) {
@@ -398,7 +414,7 @@ function onQueryDone(msg) {
 
     document.getElementById('options').style.display = '';
 
-    progress(100, false, `${msg.FilesTotal.toLocaleString('en-US')} files grepped; results: ${msg.Results.toLocaleString('en-US')}`);
+    progress(100, false, doneText(msg));
 
     // Request the results, but grouped by Debian source package.
     // Having these available means we can directly show them when the
@@ -417,7 +433,7 @@ function onQueryDone(msg) {
             p.innerText = '';
             packages = data.Packages;
             updatePagination(currentpage_pkg, Math.ceil(packages.length / packagesPerPage), true);
-            if (data.Packages.length === 1) {
+            if (data.Packages.length === 1 && !speedbumped) {
                 p.insertAdjacentHTML('beforeend', 'All results from Debian source package <strong>' + data.Packages[0] + '</strong>');
                 document.getElementById('enable-perpackage').setAttribute('disabled', 'disabled');
                 document.querySelector('label[for=enable-perpackage]').style.opacity = '0.5';
@@ -480,6 +496,31 @@ function progressText(msg) {
     return `${percent}% of ${files} files grepped${speed}; results: ${results}`;
 }
 
+function showSpeedbump(msg) {
+    if (document.querySelector('#errors [data-uniqueid="speedbump"]') !== null) {
+        return; // already rendered by the server
+    }
+    var speedbumpHTML = '<div class="alert alert-warning" data-uniqueid="speedbump">' +
+        '<p>' +
+        '  <strong>Speedbump:</strong> This expensive query was stopped ' +
+        '  (<a href="/faq#speedbump">see FAQ</a>):<br> ' +
+        '  <strong>Limit:</strong> <span id="speedbump-message"></span>' +
+        '</p>' +
+        '<form method="POST" action="/speedbump">' +
+        '  <input type="hidden" name="q">' +
+        '  <input type="hidden" name="continuation_token">' +
+        '  <button type="submit">Yes, I really want to search all files (expensive)</button>' +
+        '</form>' +
+        '</div>';
+    var errors = document.getElementById('errors');
+    errors.insertAdjacentHTML('beforeend', speedbumpHTML);
+    var message = document.getElementById('speedbump-message');
+    message.innerText = msg.Message;
+    var form = errors.lastElementChild.lastElementChild;
+    form.elements.q.value = msg.Query;
+    form.elements.continuation_token.value = msg.ContinuationToken;
+}
+
 function onEvent(e) {
     var msg = JSON.parse(e.data);
     switch (msg.Type) {
@@ -491,6 +532,11 @@ function onEvent(e) {
             this.close();
             onQueryDone(msg);
         }
+        break;
+
+        case "speedbump":
+        speedbumped = true;
+        showSpeedbump(msg);
         break;
 
         case "queued":
@@ -665,9 +711,10 @@ window.addEventListener('load', function() {
     if (location.pathname === '/search') {
         var sp = new URLSearchParams(location.search.slice(1));
         searchterm = sp.get('q');
+        var exhaustive = sp.get('exhaustive') === '1';
         var literal = sp.get('literal') === '1';
         document.querySelector('#searchbox option[value="' + (literal ? '1' : '0') + '"]').selected = true;
-        sendQuery(encodeURIComponent(searchterm), literal);
+        sendQuery(encodeURIComponent(searchterm), literal, exhaustive);
     }
 
     // This is triggered when the user navigates (e.g. via back button) between

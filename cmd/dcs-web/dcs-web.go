@@ -94,6 +94,10 @@ func main() {
 		10*time.Minute,
 		"Duration after which a query is cancelled (timeout)")
 
+	flag.DurationVar(&opts.SpeedbumpDeadline, "query_speedbump_deadline",
+		10*time.Second,
+		"Duration after which a query is stopped (https://codesearch.debian.net/faq#speedbump) to confirm an exhaustive search with this expensive query term was really desired.")
+
 	flag.IntVar(&opts.MaxConcurrentQueries, "max_concurrent_queries",
 		8,
 		"Number of queries to run concurrently. Any further queries are queued until the currently running queries complete.")

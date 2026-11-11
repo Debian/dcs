@@ -6,6 +6,9 @@
   </div>
 </div>
 <div id="errors">
+  {{ if .speedbump }}
+  {{ template "speedbump.html" .speedbump }}
+  {{ end }}
 </div>
 
 <div id="packages">

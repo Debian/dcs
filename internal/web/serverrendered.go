@@ -119,6 +119,10 @@ func (s *queryState) readPackagesFile() []string {
 }
 
 func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, page int) {
+	s.mu.Lock()
+	speedbump := s.speedbump
+	s.mu.Unlock()
+
 	var buffer bytes.Buffer
 	if err := s.writePerPkgResults(page, &buffer, w, r); err != nil {
 		handleError(w, err)
@@ -196,6 +200,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 		"page":        page,
 		"host":        r.Host,
 		"version":     version.Read(),
+		"speedbump":   speedbump,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -224,7 +229,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	literal := r.Form.Get("literal")
-	if literal == "" {
+	if literal != "1" {
 		literal = "0"
 	}
 
@@ -241,9 +246,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queryid := queryID(q)
-
-	log.Printf("server-render(%q, %q, %q)\n", queryid, src, q)
+	log.Printf("server-render(%q, %q)\n", src, q)
 
 	if err := validateQuery("?" + q); err != nil {
 		logRejected(cl, q, err)
@@ -251,7 +254,8 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s, _, err := o.maybeStartQuery(ctx, queryid, cl, q)
+	exhaustive := r.FormValue("exhaustive") == "1"
+	s, _, err := o.maybeStartQuerySpeedbumped(ctx, cl, q, exhaustive)
 	if err != nil {
 		log.Printf("[%s] could not start query: %v\n", src, err)
 		if errors.Is(err, errTooManyQueries) {
@@ -286,7 +290,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[%s] server-rendering page %d\n", queryid, page)
+	log.Printf("[%s] server-rendering page %d\n", s.queryid, page)
 
 	if r.Form.Get("perpkg") == "1" {
 		renderPerPackage(w, r, s, page)
@@ -338,6 +342,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	resultPages := s.resultPages
 	pagination := updatePagination(page, resultPages, baseurl.String())
+	speedbump := s.speedbump
 	s.mu.Unlock()
 
 	basequery.Set("perpkg", "1")
@@ -358,6 +363,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		"results":     halfrendered,
 		"packages":    packages,
 		"pagination":  template.HTML(pagination),
+		"speedbump":   speedbump,
 		"q":           r.Form.Get("q"),
 		"literal":     literal == "1",
 		"page":        page,

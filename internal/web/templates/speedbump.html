@@ -1,0 +1,12 @@
+<div class="alert alert-warning" data-uniqueid="speedbump">
+<p>
+  <strong>Speedbump:</strong> This expensive query was stopped
+  (<a href="/faq#speedbump">see FAQ</a>):<br>
+  <strong>Limit:</strong> <span id="speedbump-message">{{ .Message }}</span>
+</p>
+<form method="POST" action="/speedbump">
+  <input type="hidden" name="q" value="{{ .Query }}">
+  <input type="hidden" name="continuation_token" value="{{ .ContinuationToken }}">
+  <button type="submit">Yes, I really want to search all files (expensive)</button>
+</form>
+</div>

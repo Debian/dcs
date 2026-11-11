@@ -58,6 +58,29 @@
   </ul>
 </p>
 
+<a id="speedbump"><h2>Q: Why did my search query run into a speedbump?</h2></a>
+
+<p>
+  Debian Code Search can handle most queries very efficiently, most in under 1
+  second, slower ones mostly in under 10 seconds. However, some queries which
+  produce a lot of results (e.g. “test”) or need to read through many candidate
+  files (have low selectivity / do not make good use of the index) can run
+  extremely long (for minutes) and use lots of CPU time or read lots of data
+  from disk.
+</p>
+
+<p>
+  Because such queries are often sent without knowing that they are expensive,
+  Debian Code Search introduced the concept of a speedbump in November 2026:
+  When a query uses a lot of resources, it is stopped after 10 seconds and you
+  have to confirm that you actually meant to search all files with this
+  expensive query.
+</p>
+
+<p>
+  See also <a href="#throttled">Q: I am being throttled! How can I run many queries efficiently?</a>.
+</p>
+
 <a id="keywords"><h2>Q: What kind of keywords can I use in the search field?</h2></a>
 
 <p>

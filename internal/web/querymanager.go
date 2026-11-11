@@ -82,6 +82,13 @@ type Error struct {
 	ErrorType string
 }
 
+type SpeedbumpError struct {
+	Type              string
+	Message           string // human-readable message for displaying
+	Query             string // full query string (must match 1:1 for ContinuationToken)
+	ContinuationToken string
+}
+
 type ProgressUpdate struct {
 	Type           string
 	QueryId        string
@@ -206,6 +213,7 @@ type queryState struct {
 	cancel      context.CancelFunc
 	cancelled   bool
 	queued      time.Duration
+	speedbump   *SpeedbumpError
 
 	results [10]resultPointer
 
@@ -430,6 +438,29 @@ func queryID(q string) string {
 
 var errTooManyQueries = errors.New("too many concurrent queries, see https://codesearch.debian.net/faq#throttled")
 
+const speedbumpSuffix = "&speedbump=1"
+
+// maybeStartQuerySpeedbumped is a wrapper around maybeStartQuery
+// which applies the speedbump deadline if non-zero.
+func (o *Opts) maybeStartQuerySpeedbumped(ctx context.Context, cl client, query string, exhaustive bool) (*queryState, bool, error) {
+	if o.SpeedbumpDeadline <= 0 {
+		return o.maybeStartQuery(ctx, queryID(query), cl, query)
+	}
+
+	if exhaustive {
+		// Not maybeStartQuery: We only attach to existing queries
+		// without validating the speedbump continuation token.
+		if s, ok := o.lookupQuery(queryID(query)); ok && !s.expired() {
+			logReused(s, cl)
+			return s, true, nil
+		}
+		// No query found; fallthrough: append the speedbump query parameter
+		// and start the query (with the speedbump deadline).
+	}
+	query += speedbumpSuffix
+	return o.maybeStartQuery(ctx, queryID(query), cl, query)
+}
+
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns the *queryState and whether the query existed.
 func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, query string) (*queryState, bool, error) {
@@ -520,6 +551,9 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		QueryId:      queryid,
 		RewrittenUrl: rewritten.String(),
 		Literal:      rewritten.Query().Get("literal") == "1",
+	}
+	if rewritten.Query().Get("speedbump") == "1" {
+		searchRequest.GrepDeadlineNs = int64(o.SpeedbumpDeadline)
 	}
 	querystate.request = searchRequest
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
@@ -905,6 +939,20 @@ func (o *Opts) finishQuery(s *queryState) {
 		grepMax = max(grepMax, time.Duration(st.GrepNs))
 		grepSum += time.Duration(st.GrepNs)
 	}
+	// Undo what maybeStartQuerySpeedbumped force-appended.
+	fullQuery := strings.TrimSuffix(s.query, speedbumpSuffix)
+	if incomplete {
+		// This query could not run to completion within the deadline
+		// (= it encountered the configured speedbump),
+		// so sign a token that allows users to run the full query.
+		token, _ := o.speedbumpCookie.Encode("speedbump", fullQuery)
+		s.speedbump = &SpeedbumpError{
+			Type:              "speedbump",
+			Message:           fmt.Sprintf("stopped after %v", o.SpeedbumpDeadline),
+			Query:             fullQuery,
+			ContinuationToken: token,
+		}
+	}
 	s.mu.Unlock()
 
 	log.Printf("[%s] query done on all backends, writing to disk.\n", s.queryid)
@@ -940,14 +988,23 @@ func (o *Opts) finishQuery(s *queryState) {
 		outcome = "timeout"
 	}
 
-	s.addEventMarshal(&ProgressUpdate{
+	if incomplete {
+		s.addEventMarshal(s.speedbump)
+	}
+
+	doneUpdate := &ProgressUpdate{
 		Type:           "progress",
 		QueryId:        s.queryid,
 		FilesProcessed: filesTotal,
 		FilesTotal:     filesTotal,
 		Results:        numResults,
 		ReadBytes:      readBytes,
-	})
+	}
+	if incomplete {
+		doneUpdate.FilesProcessed = int(searched)
+		doneUpdate.FilesTotal = int(searched)
+	}
+	s.addEventMarshal(doneUpdate)
 
 	slog.Info("query done",
 		"query_id", s.queryid,

@@ -125,7 +125,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	cl := clientFromRequest(r, "/events", "")
 	src := cl.String()
 	literal := r.FormValue("literal")
-	if literal == "" {
+	if literal != "1" {
 		literal = "0"
 	}
 	q := "q=" + url.QueryEscape(query) + "&literal=" + literal
@@ -149,9 +149,8 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	identifier := queryID(q)
-
-	s, cached, err := o.maybeStartQuery(ctx, identifier, cl, q)
+	exhaustive := r.FormValue("exhaustive") == "1"
+	s, cached, err := o.maybeStartQuerySpeedbumped(ctx, cl, q, exhaustive)
 	if err != nil {
 		log.Printf("[%s] could not start query: %+v", src, err)
 		b, _ := json.Marshal(struct {
@@ -328,11 +327,13 @@ type Opts struct {
 	UseSourcesDebianNet         bool
 	QueryResultsPath            string
 	QueryTimeout                time.Duration
+	SpeedbumpDeadline           time.Duration
 	MaxConcurrentQueries        int
 	MaxConcurrentQueriesByOwner int
 	backends                    []common.Backend
 
 	// state
+	speedbumpCookie *securecookie.SecureCookie
 	maxQuerySem     *semaphore.Weighted // see MaxConcurrentQueries
 	maxQueryWaiting atomic.Int32        // queries waiting for maxQuerySem
 	running         atomic.Int32        // queries currently running
@@ -421,6 +422,12 @@ func (o *Opts) Main(ln net.Listener) error {
 		return err
 	}
 
+	// Signs continuation tokens for expensive queries,
+	// using the same key as we use for API keys.
+	// Reduce MaxAge to 1 hour,
+	// increase the max length to unlimited.
+	o.speedbumpCookie = securecookie.New(hashKey, nil).MaxAge(3600).MaxLength(0)
+
 	if o.AccessLogPath != "" {
 		var err error
 		accessLog, err = os.OpenFile(o.AccessLogPath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
@@ -475,6 +482,7 @@ func (o *Opts) Main(ln net.Listener) error {
 	mux.HandleFunc("/track", Track)
 	mux.HandleFunc("/search", o.Search)
 	mux.HandleFunc("/events/", o.EventsHandler)
+	mux.HandleFunc("POST /speedbump", o.SpeedbumpHandler)
 
 	// Used by the service worker.
 	mux.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
