@@ -4,9 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"html/template"
-	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -151,12 +149,7 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Uniquely (well, good enough) identify this query for a couple of minutes
-	// (as long as we want to cache results). We could try to normalize the
-	// query before hashing it, but that seems hardly worth the complexity.
-	h := fnv.New64()
-	io.WriteString(h, q)
-	identifier := fmt.Sprintf("%x", h.Sum64())
+	identifier := queryID(q)
 
 	s, cached, err := o.maybeStartQuery(ctx, identifier, cl, q)
 	if err != nil {

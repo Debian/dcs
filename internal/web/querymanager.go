@@ -418,6 +418,16 @@ func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
 // query is not a great idea. Best fix may be to make getEvent() use a
 // querystate instead of the string identifier.
 
+// queryID uniquely (well, good enough) identifies this query
+// for a couple of minutes (as long as we want to cache results).
+// We could try to normalize the query before hashing it,
+// but that seems hardly worth the complexity.
+func queryID(q string) string {
+	h := fnv.New64()
+	io.WriteString(h, q)
+	return fmt.Sprintf("%x", h.Sum64())
+}
+
 var errTooManyQueries = errors.New("too many concurrent queries, see https://codesearch.debian.net/faq#throttled")
 
 // maybeStartQuery starts a specified query if that query does not already

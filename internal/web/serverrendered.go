@@ -10,10 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"html"
 	"html/template"
-	"io"
 	"log"
 	"math"
 	"net/http"
@@ -243,12 +241,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Uniquely (well, good enough) identify this query for a couple of minutes
-	// (as long as we want to cache results). We could try to normalize the
-	// query before hashing it, but that seems hardly worth the complexity.
-	h := fnv.New64()
-	io.WriteString(h, q)
-	queryid := fmt.Sprintf("%x", h.Sum64())
+	queryid := queryID(q)
 
 	log.Printf("server-render(%q, %q, %q)\n", queryid, src, q)
 

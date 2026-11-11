@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"io"
 	"log"
 	"net/http"
@@ -276,12 +275,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	// We encode a URL that contains _only_ the q parameter.
 	q := url.Values{"q": []string{query}}.Encode() + "&literal=" + literal
 
-	// Uniquely (well, good enough) identify this query for a couple of minutes
-	// (as long as we want to cache results). We could try to normalize the
-	// query before hashing it, but that seems hardly worth the complexity.
-	h := fnv.New64()
-	io.WriteString(h, q)
-	queryid := fmt.Sprintf("%x", h.Sum64())
+	queryid := queryID(q)
 
 	metricInflightQueries.With(srcLabel).Inc()
 	defer metricInflightQueries.With(srcLabel).Dec()
