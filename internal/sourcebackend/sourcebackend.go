@@ -357,12 +357,18 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	if err != nil {
 		return err
 	}
-	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
+	rq := rewritten.Query()
+	// For queries with pathFilter, querying the positional index
+	// is most likely slower than just querying the trigram index:
+	// the decoding cost for positions can easily win.
+	pathFilter := rq.Has("package") || rq.Has("path")
+	rankingopts := ranking.RankingOptsFromQuery(rq)
 
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
 	simplified := re.Simplify()
 	queryPos := s.UsePositionalIndex && // positional index enabled
+		!pathFilter &&
 		simplified.Op == syntax.OpLiteral && // query is a single literal
 		simplified.Flags&syntax.FoldCase == 0 // …and case-sensitive
 	literal := string(simplified.Rune)
