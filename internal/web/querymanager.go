@@ -196,9 +196,7 @@ type queryState struct {
 	started  time.Time
 	newEvent *sync.Cond
 
-	// This guards concurrent access to any perBackend[].tempFile.
-	tempFilesMu sync.Mutex
-	perBackend  []*perBackendState
+	perBackend []*perBackendState
 
 	// state
 	done chan struct{} // closed when done
@@ -1099,9 +1097,6 @@ func (s *queryState) writeFromPointers(f io.Writer, pointers []resultPointer) er
 	s.mu.Lock()
 	firstPathRank := s.FirstPathRank
 	s.mu.Unlock()
-
-	s.tempFilesMu.Lock()
-	defer s.tempFilesMu.Unlock()
 
 	if _, err := f.Write([]byte("[")); err != nil {
 		return err

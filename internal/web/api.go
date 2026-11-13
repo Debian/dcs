@@ -146,8 +146,6 @@ func (rw *resultWriter) Close() error {
 }
 
 func perBackendFromState(state *queryState) ([]*mmap.File, error) {
-	state.tempFilesMu.Lock()
-	defer state.tempFilesMu.Unlock()
 	perBackend := make([]*mmap.File, len(state.perBackend))
 	for idx, state := range state.perBackend {
 		mapping, err := mmap.Map(state.tempFile)
