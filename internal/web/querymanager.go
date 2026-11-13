@@ -260,16 +260,18 @@ func (s *sink) Match(m *sourcebackendpb.Match) error {
 
 	bstate := s.queryState.perBackend[s.backendidx]
 	bstate.tempFileMu.Lock()
-	defer bstate.tempFileMu.Unlock()
-	if _, err := bstate.tempFileWriter.Write(b); err != nil {
+	offset := bstate.tempFileOffset
+	n, err := bstate.tempFileWriter.Write(b)
+	bstate.tempFileOffset += int64(n)
+	bstate.tempFileMu.Unlock()
+	if err != nil {
 		return fmt.Errorf("writing proto: %v", err)
 	}
 
-	if err := s.queryState.storeResult(s.backendidx, m, len(b)); err != nil {
+	if err := s.queryState.storeResult(s.backendidx, bstate, offset, m, len(b)); err != nil {
 		return fmt.Errorf("writing result: %v", err)
 	}
 
-	bstate.tempFileOffset += int64(len(b))
 	if s.queryState.completed() {
 		return fmt.Errorf("query was cancelled")
 	}
@@ -802,7 +804,7 @@ func (s *queryState) touch() {
 	s.lastAccess.Store(int64(time.Since(processStart)))
 }
 
-func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, resultLen int) error {
+func (s *queryState) storeResult(backendidx int, bstate *perBackendState, offset int64, result *sourcebackendpb.Match, resultLen int) error {
 	h := fnv.New64()
 	io.WriteString(h, result.Path)
 
@@ -858,12 +860,11 @@ func (s *queryState) storeResult(backendidx int, result *sourcebackendpb.Match, 
 		s.mu.Lock()
 	}
 
-	bstate := s.perBackend[backendidx]
 	bstate.allPackages[result.Package] = true
 	err := s.resultWriter.Add(resultPointer{
 		backendidx: uint32(backendidx),
 		ranking:    result.Ranking,
-		offset:     bstate.tempFileOffset,
+		offset:     offset,
 		length:     uint32(resultLen),
 		pathHash:   h.Sum64(),
 		packageIdx: bstate.packagePool.Intern(result.Package),
