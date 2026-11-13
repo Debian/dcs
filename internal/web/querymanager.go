@@ -174,12 +174,15 @@ type perBackendState struct {
 	// One file per backend, containing JSON-serialized results. When writing,
 	// we keep the offsets, so that we can later sort the pointers and write
 	// the resulting files.
-	tempFile       *os.File
+	tempFile *os.File
+
+	packagePool *stringpool.StringPool
+	allPackages map[string]bool
+	stats       *sourcebackendpb.SearchStats
+
+	tempFileMu     sync.Mutex
 	tempFileWriter *bufio.Writer
 	tempFileOffset int64
-	packagePool    *stringpool.StringPool
-	allPackages    map[string]bool
-	stats          *sourcebackendpb.SearchStats
 }
 
 var processStart = time.Now()
@@ -239,12 +242,11 @@ type sink struct {
 	opts       *Opts
 	queryState *queryState
 	backendidx int
-
-	// mu guards the perBackend.tempFileWriter
-	mu sync.Mutex
 }
 
 // Match implements sourcebackend.SearchSink.
+//
+// Match is called concurrently by the grep worker goroutines.
 func (s *sink) Match(m *sourcebackendpb.Match) error {
 	if err := s.ctx.Err(); err != nil {
 		return err
@@ -258,9 +260,9 @@ func (s *sink) Match(m *sourcebackendpb.Match) error {
 		return fmt.Errorf("encoding proto: %v", err)
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	bstate := s.queryState.perBackend[s.backendidx]
+	bstate.tempFileMu.Lock()
+	defer bstate.tempFileMu.Unlock()
 	if _, err := bstate.tempFileWriter.Write(b); err != nil {
 		return fmt.Errorf("writing proto: %v", err)
 	}
@@ -287,10 +289,10 @@ func (s *sink) Progress(filesProcessed, filesTotal int, readBytes uint64) error 
 	if orderlyFinished {
 		// Flush before storeProgress so that the file is on disk
 		// before clients start requesting it.
-		s.mu.Lock()
 		bstate := s.queryState.perBackend[s.backendidx]
+		bstate.tempFileMu.Lock()
 		bstate.tempFileWriter.Flush()
-		s.mu.Unlock()
+		bstate.tempFileMu.Unlock()
 	}
 	s.opts.storeProgress(s.queryState, s.backendidx, &sourcebackendpb.ProgressUpdate{
 		FilesProcessed: uint64(filesProcessed),
