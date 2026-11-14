@@ -5,7 +5,6 @@
 package regexp
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"flag"
@@ -15,7 +14,6 @@ import (
 	"regexp/syntax"
 	"sort"
 
-	"github.com/Debian/dcs/internal/index"
 	"github.com/google/codesearch/sparse"
 )
 
@@ -389,23 +387,25 @@ type Grep struct {
 
 	Match bool
 
-	nr nlNormReader
-	br *bufio.Reader
+	nr  nlNormReader
+	buf []byte // see chunkSize
 }
+
+// Grep.Reader processes each file in chunks of this size.
+// Most source files are smaller (mean < 10 KiB),
+// meaning we fill our buffer with only one read(2) syscall
+// and are done with a non-matching file after one bytes.Index call.
+//
+// The minimum chunkSize is 5 * index.MaxLineLen,
+// so that the loop below can find two context lines around each match line.
+const chunkSize = 256 * 1024 // 256 KiB
 
 func NewGrep(re *Regexp) *Grep {
 	return &Grep{
 		Regexp: re,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
-		// bufio.Reader defaults to a buffer size of 4096,
-		// which always fits index.MaxLineLen (or MaxLineLen+1
-		// in case nlNormReader adds a \n), meaning:
-		// indexed files can safely be read using br.ReadSlice('\n').
-		//
-		// Increase the buffer size from 4 KiB (default) to 64 KiB
-		// to amortize read(2) system calls.
-		br: bufio.NewReaderSize(nil, 64*1024),
+		buf:    make([]byte, 0, chunkSize),
 	}
 }
 
@@ -494,56 +494,104 @@ type Match struct {
 	Ranking  float32
 }
 
+// prevLine returns the byte offset of the start of the line
+// which comes before the line starting at buf[lineStart:],
+// or 0 if there is none. As an example:
+//
+//	buf contains "first\nsecond\nthird"
+//	                     ^       ^ lineStart = 13
+//	                     prevLine = 6 ("second")
+func prevLine(buf []byte, lineStart int) int {
+	return bytes.LastIndexByte(buf[:max(lineStart-1, 0)], '\n') + 1
+}
+
 func (g *Grep) Reader(r io.Reader, name string) []Match {
 	g.nr = newNlNormReader(r) // store in Grep to avoid per-file allocations
-	g.br.Reset(&g.nr)
-	var linebuf1, linebuf2 [index.MaxLineLen]byte
-	prev1 := linebuf1[:0]
-	prev2 := linebuf2[:0]
+	buf := g.buf[:0]          // reuse g.buf between Reader calls
+
+	searchStart := 0
+	lineno := 1
 	var result []Match
-	for lineno := 1; ; lineno++ {
-		line, err := g.br.ReadSlice('\n')
-		if err != nil {
-			if err != io.EOF {
-				fmt.Fprintf(g.Stderr, "%s: %v\n", name, err)
-			}
+	for {
+		lastChunk := true
+		// Fill the existing buffer until it contains up to chunkSize.
+		n, err := io.ReadFull(&g.nr, buf[len(buf):cap(buf)])
+		switch err {
+		case io.ErrUnexpectedEOF:
+			// Normal case (only unexpected from io.ReadFull’s POV):
+			// buf is not filled because the file’s data is fully read.
+		case nil:
+			// buf is exactly at chunkSize, another ReadFull is needed.
+			lastChunk = false
+		case io.EOF:
+			// Nothing read: The previous read stopped exactly at end of file.
+
+		default: // err != nil
+			fmt.Fprintf(g.Stderr, "%s: %v\n", name, err)
 			return result
 		}
-		// Unconditionally strip the last character,
-		// which is always '\n' thanks to nlNormReader.
-		text := line[:len(line)-1]
+		buf = buf[:len(buf)+n]
 
-		// Store the current line as context line if the last line
-		// (or second to last line) were a match.
-		for i := max(len(result)-2, 0); i < len(result); i++ {
-			switch lineno {
-			case result[i].Line + 1:
-				result[i].Ctxn1 = string(text)
-			case result[i].Line + 2:
-				result[i].Ctxn2 = string(text)
+		// If lastChunk is true, we know the last line in buf is not truncated.
+		// Otherwise, exclude the last 2 lines from our search,
+		// so that we can always unconditionally find 2 context lines
+		// when we encounter a match.
+		searchEnd := len(buf)
+		if !lastChunk {
+			lastLineStart := bytes.LastIndexByte(buf, '\n') + 1
+			lastCompleteLine := prevLine(buf, lastLineStart)
+			searchEnd = prevLine(buf, lastCompleteLine)
+		}
+
+		pos := searchStart // always the start of a line
+		for pos < searchEnd {
+			lineStart := pos
+			if req := g.RequiredLiteral; len(req) > 0 {
+				reqIdx := bytes.Index(buf[pos:searchEnd], req)
+				if reqIdx < 0 {
+					break // chunk contains no matches
+				}
+				// Skip over all lines before the line containing reqIdx.
+				lineStart = bytes.LastIndexByte(buf[:pos+reqIdx], '\n') + 1
+				lineno += bytes.Count(buf[pos:lineStart], []byte{'\n'})
 			}
+			lineEnd := lineStart + bytes.IndexByte(buf[lineStart:], '\n')
+			pos = lineEnd + 1
+			line := buf[lineStart:pos]
+			// Unconditionally strip the last character,
+			// which is always '\n' thanks to nlNormReader.
+			text := line[:len(line)-1]
+			beginText := lineno == 1
+			const endText = false
+			if g.Regexp.Match(line, beginText, endText) >= 0 {
+				g.Match = true
+				before1 := prevLine(buf, lineStart)
+				before2 := prevLine(buf, before1)
+				prev2 := bytes.TrimSuffix(buf[before2:before1], []byte{'\n'})
+				prev1 := bytes.TrimSuffix(buf[before1:lineStart], []byte{'\n'})
+				next1, rest, _ := bytes.Cut(buf[pos:], []byte{'\n'})
+				next2, _, _ := bytes.Cut(rest, []byte{'\n'})
+				result = append(result, Match{
+					Path:    name,
+					Line:    lineno,
+					Ctxp2:   string(prev2),
+					Ctxp1:   string(prev1),
+					Context: string(text),
+					Ctxn1:   string(next1),
+					Ctxn2:   string(next2),
+				})
+			}
+			lineno++
+		}
+		if lastChunk {
+			return result // we know we are done
 		}
 
-		// containsReq is a cheap filter to avoid calling Match
-		// on a line that we know can never match.
-		containsReq := true
-		if req := g.RequiredLiteral; len(req) > 0 {
-			containsReq = bytes.Contains(line, req)
-		}
-		beginText := lineno == 1
-		const endText = false
-		if containsReq && g.Regexp.Match(line, beginText, endText) >= 0 {
-			g.Match = true
-			result = append(result, Match{
-				Path:    name,
-				Line:    lineno,
-				Ctxp2:   string(prev2),
-				Ctxp1:   string(prev1),
-				Context: string(text),
-			})
-		}
-
-		// Keep the previous two lines for context of upcoming matches.
-		prev1, prev2 = append(prev2[:0], text...), prev1
+		// Keep the last two lines in the buffer for the next iteration.
+		lineno += bytes.Count(buf[pos:searchEnd], []byte{'\n'})
+		before1 := prevLine(buf, searchEnd)
+		before2 := prevLine(buf, before1)
+		searchStart = searchEnd - before2
+		buf = buf[:copy(buf, buf[before2:])]
 	}
 }

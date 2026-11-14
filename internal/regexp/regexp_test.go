@@ -5,7 +5,6 @@
 package regexp
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"reflect"
@@ -206,7 +205,7 @@ func TestGrep(t *testing.T) {
 			continue
 		}
 		g := tt.g
-		g.br = bufio.NewReader(nil)
+		g.buf = make([]byte, 0, chunkSize)
 		g.Regexp = re
 		var out, errb bytes.Buffer
 		g.Stdout = &out
