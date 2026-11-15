@@ -14,15 +14,20 @@ message FileReply {
 }
 
 message SearchRequest {
-  string query = 1;
-
   // The query_id that dcs-web assigned. Will be logged,
   // which is convenient when joining dcs-web + source-backend logs.
   string query_id = 4;
 
-  // Rewritten URL (after RewriteQuery()) with all the parameters that
-  // are relevant for ranking.
-  string rewritten_url = 2;
+  // The query (?q= parameter), e.g. “i3Font”, or “xcb_create_(window|gc)”.
+  string query = 1;
+
+  // Keyword filters, like “package:i3-wm”.
+  repeated string package = 6;
+  repeated string npackage = 7;
+  repeated string path = 8;
+  repeated string npath = 9;
+  repeated string filetype = 10;
+  repeated string nfiletype = 11;
 
   bool literal = 3;
 

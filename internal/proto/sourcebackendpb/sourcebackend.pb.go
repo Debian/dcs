@@ -162,14 +162,19 @@ func (x *FileReply) GetContents() []byte {
 
 type SearchRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	Query string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	// The query_id that dcs-web assigned. Will be logged,
 	// which is convenient when joining dcs-web + source-backend logs.
 	QueryId string `protobuf:"bytes,4,opt,name=query_id,json=queryId,proto3" json:"query_id,omitempty"`
-	// Rewritten URL (after RewriteQuery()) with all the parameters that
-	// are relevant for ranking.
-	RewrittenUrl string `protobuf:"bytes,2,opt,name=rewritten_url,json=rewrittenUrl,proto3" json:"rewritten_url,omitempty"`
-	Literal      bool   `protobuf:"varint,3,opt,name=literal,proto3" json:"literal,omitempty"`
+	// The query (?q= parameter), e.g. “i3Font”, or “xcb_create_(window|gc)”.
+	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Keyword filters, like “package:i3-wm”.
+	Package   []string `protobuf:"bytes,6,rep,name=package,proto3" json:"package,omitempty"`
+	Npackage  []string `protobuf:"bytes,7,rep,name=npackage,proto3" json:"npackage,omitempty"`
+	Path      []string `protobuf:"bytes,8,rep,name=path,proto3" json:"path,omitempty"`
+	Npath     []string `protobuf:"bytes,9,rep,name=npath,proto3" json:"npath,omitempty"`
+	Filetype  []string `protobuf:"bytes,10,rep,name=filetype,proto3" json:"filetype,omitempty"`
+	Nfiletype []string `protobuf:"bytes,11,rep,name=nfiletype,proto3" json:"nfiletype,omitempty"`
+	Literal   bool     `protobuf:"varint,3,opt,name=literal,proto3" json:"literal,omitempty"`
 	// If non-zero, the grep phase of searches is stopped after this long.
 	// (Used for the speedbump feature.)
 	// Sets cancelled=false and incomplete=true in SearchStats.
@@ -208,13 +213,6 @@ func (*SearchRequest) Descriptor() ([]byte, []int) {
 	return file_sourcebackend_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *SearchRequest) GetQuery() string {
-	if x != nil {
-		return x.Query
-	}
-	return ""
-}
-
 func (x *SearchRequest) GetQueryId() string {
 	if x != nil {
 		return x.QueryId
@@ -222,11 +220,53 @@ func (x *SearchRequest) GetQueryId() string {
 	return ""
 }
 
-func (x *SearchRequest) GetRewrittenUrl() string {
+func (x *SearchRequest) GetQuery() string {
 	if x != nil {
-		return x.RewrittenUrl
+		return x.Query
 	}
 	return ""
+}
+
+func (x *SearchRequest) GetPackage() []string {
+	if x != nil {
+		return x.Package
+	}
+	return nil
+}
+
+func (x *SearchRequest) GetNpackage() []string {
+	if x != nil {
+		return x.Npackage
+	}
+	return nil
+}
+
+func (x *SearchRequest) GetPath() []string {
+	if x != nil {
+		return x.Path
+	}
+	return nil
+}
+
+func (x *SearchRequest) GetNpath() []string {
+	if x != nil {
+		return x.Npath
+	}
+	return nil
+}
+
+func (x *SearchRequest) GetFiletype() []string {
+	if x != nil {
+		return x.Filetype
+	}
+	return nil
+}
+
+func (x *SearchRequest) GetNfiletype() []string {
+	if x != nil {
+		return x.Nfiletype
+	}
+	return nil
 }
 
 func (x *SearchRequest) GetLiteral() bool {
@@ -738,11 +778,17 @@ const file_sourcebackend_proto_rawDesc = "" +
 	"\vFileRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\"'\n" +
 	"\tFileReply\x12\x1a\n" +
-	"\bcontents\x18\x01 \x01(\fR\bcontents\"\xa9\x01\n" +
-	"\rSearchRequest\x12\x14\n" +
-	"\x05query\x18\x01 \x01(\tR\x05query\x12\x19\n" +
-	"\bquery_id\x18\x04 \x01(\tR\aqueryId\x12#\n" +
-	"\rrewritten_url\x18\x02 \x01(\tR\frewrittenUrl\x12\x18\n" +
+	"\bcontents\x18\x01 \x01(\fR\bcontents\"\x9e\x02\n" +
+	"\rSearchRequest\x12\x19\n" +
+	"\bquery_id\x18\x04 \x01(\tR\aqueryId\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12\x18\n" +
+	"\apackage\x18\x06 \x03(\tR\apackage\x12\x1a\n" +
+	"\bnpackage\x18\a \x03(\tR\bnpackage\x12\x12\n" +
+	"\x04path\x18\b \x03(\tR\x04path\x12\x14\n" +
+	"\x05npath\x18\t \x03(\tR\x05npath\x12\x1a\n" +
+	"\bfiletype\x18\n" +
+	" \x03(\tR\bfiletype\x12\x1c\n" +
+	"\tnfiletype\x18\v \x03(\tR\tnfiletype\x12\x18\n" +
 	"\aliteral\x18\x03 \x01(\bR\aliteral\x12(\n" +
 	"\x10grep_deadline_ns\x18\x05 \x01(\x03R\x0egrepDeadlineNs\"\xf1\x01\n" +
 	"\x05Match\x12\x12\n" +

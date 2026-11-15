@@ -2,11 +2,6 @@
 
 package ranking
 
-import (
-	"net/url"
-	"strconv"
-)
-
 type RankingOpts struct {
 	// Map of file suffix (e.g. ".c") ranking. This is filled in based on the
 	// filetype= parameter (which is extracted from the query string).
@@ -44,16 +39,6 @@ type RankingOpts struct {
 	// meta: turns on all rankings and uses 'optimal' weights (as determined in
 	// the thesis).
 	Weighted bool
-}
-
-// TODO: parse floats which specify the weight of each ranking
-func boolFromQuery(query url.Values, name string) bool {
-	intval, err := strconv.ParseInt(query.Get(name), 10, 8)
-	if err != nil {
-		return false
-	}
-
-	return intval == 1
 }
 
 func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
@@ -115,30 +100,17 @@ func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
 	}
 }
 
-func RankingOptsFromQuery(query url.Values) RankingOpts {
-	var result RankingOpts
-	result.Suffixes = make(map[string]float32)
-	result.Nsuffixes = make(map[string]float32)
-	types := query["filetype"]
-	for _, t := range types {
+func RankingOptsFromFiletypes(filetypes, nfiletypes []string) RankingOpts {
+	result := RankingOpts{
+		Weighted:  true, // default
+		Suffixes:  make(map[string]float32),
+		Nsuffixes: make(map[string]float32),
+	}
+	for _, t := range filetypes {
 		addSuffixesForFiletype(&result.Suffixes, t)
 	}
-	excludetypes := query["nfiletype"]
-	for _, t := range excludetypes {
+	for _, t := range nfiletypes {
 		addSuffixesForFiletype(&result.Nsuffixes, t)
-	}
-	result.Rdep = boolFromQuery(query, "rdep")
-	result.Inst = boolFromQuery(query, "inst")
-	result.Filetype = boolFromQuery(query, "filetype")
-	result.Pathmatch = boolFromQuery(query, "pathmatch")
-	result.Sourcepkgmatch = boolFromQuery(query, "sourcepkgmatch")
-	result.Scope = boolFromQuery(query, "scope")
-	result.Linematch = boolFromQuery(query, "linematch")
-	// Special case: weighted is the default, so assume true if unset.
-	if _, ok := query["weighted"]; !ok {
-		result.Weighted = true
-	} else {
-		result.Weighted = boolFromQuery(query, "weighted")
 	}
 	return result
 }

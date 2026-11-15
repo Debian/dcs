@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand/v2"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -25,18 +24,13 @@ import (
 	"github.com/google/renameio/v2"
 )
 
-func FilterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.ResultPath {
-	// The "package:" keyword, if specified.
-	pkg := rewritten.Query().Get("package")
-	// The "-package:" keywords, if specified.
-	npkgs := rewritten.Query()["npackage"]
-	// The "path:" keywords, if specified.
-	paths := rewritten.Query()["path"]
-	// The "-path" keywords, if specified.
-	npaths := rewritten.Query()["npath"]
-
+func FilterByKeywords(req *sourcebackendpb.SearchRequest, files []ranking.ResultPath) []ranking.ResultPath {
 	// Filter the filenames if the "package:" keyword was specified.
-	if pkg != "" {
+	//
+	// Specifying multiple package: keywords makes sense
+	// as long as they contain partial restrictions only,
+	// e.g. “package:^lib package:perl$”
+	for _, pkg := range req.GetPackage() {
 		pkgRegexp, err := regexp.Compile(pkg)
 		if err != nil {
 			return files
@@ -54,7 +48,7 @@ func FilterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 	}
 
 	// Filter the filenames if the "-package:" keyword was specified.
-	for _, npkg := range npkgs {
+	for _, npkg := range req.GetNpackage() {
 		npkgRegexp, err := regexp.Compile(npkg)
 		if err != nil {
 			return files
@@ -71,7 +65,7 @@ func FilterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 		files = filtered
 	}
 
-	for _, path := range paths {
+	for _, path := range req.GetPath() {
 		pathRegexp, err := regexp.Compile(path)
 		if err != nil {
 			return files
@@ -98,7 +92,7 @@ func FilterByKeywords(rewritten *url.URL, files []ranking.ResultPath) []ranking.
 		files = filtered
 	}
 
-	for _, path := range npaths {
+	for _, path := range req.GetNpath() {
 		pathRegexp, err := regexp.Compile(path)
 		if err != nil {
 			return files
@@ -352,17 +346,11 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 		return err
 	}
 
-	// Parse the (rewritten) URL to extract all ranking options/keywords.
-	rewritten, err := url.Parse(in.RewrittenUrl)
-	if err != nil {
-		return err
-	}
-	rq := rewritten.Query()
 	// For queries with pathFilter, querying the positional index
 	// is most likely slower than just querying the trigram index:
 	// the decoding cost for positions can easily win.
-	pathFilter := rq.Has("package") || rq.Has("path")
-	rankingopts := ranking.RankingOptsFromQuery(rq)
+	pathFilter := len(in.GetPackage()) > 0 || len(in.GetPath()) > 0
+	rankingopts := ranking.RankingOptsFromFiletypes(in.GetFiletype(), in.GetNfiletype())
 
 	// TODO: analyze the query to see if fast path can be taken
 	// maybe by using a different worker?
@@ -425,7 +413,7 @@ func (s *Server) Search(ctx context.Context, in *sourcebackendpb.SearchRequest, 
 	}
 
 	// Filter all files that should be excluded.
-	files = FilterByKeywords(rewritten, files)
+	files = FilterByKeywords(in, files)
 
 	// While not strictly necessary, this will lead to better results being
 	// discovered (and returned!) earlier, so let’s spend a few cycles on

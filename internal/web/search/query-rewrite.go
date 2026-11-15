@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 )
 
 var (
@@ -58,4 +60,20 @@ func RewriteQuery(u url.URL) url.URL {
 	u.RawQuery = query.Encode()
 
 	return u
+}
+
+// ToSearchRequest fills a sourcebackendpb.SearchRequest
+// from a rewritten query (i.e. the result of [RewriteQuery]).
+func ToSearchRequest(rewritten url.URL) *sourcebackendpb.SearchRequest {
+	rq := rewritten.Query()
+	return &sourcebackendpb.SearchRequest{
+		Query:     rq.Get("q"),
+		Literal:   rq.Get("literal") == "1",
+		Package:   rq["package"],
+		Npackage:  rq["npackage"],
+		Path:      rq["path"],
+		Npath:     rq["npath"],
+		Filetype:  rq["filetype"],
+		Nfiletype: rq["nfiletype"],
+	}
 }

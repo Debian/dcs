@@ -66,8 +66,7 @@ func search(args []string) error {
 	defer cleanup()
 	cl := sourcebackendpb.NewSourceBackendClient(conn)
 	stream, err := cl.Search(context.Background(), &sourcebackendpb.SearchRequest{
-		Query:        query,
-		RewrittenUrl: "",
+		Query: query,
 	})
 	if err != nil {
 		return err

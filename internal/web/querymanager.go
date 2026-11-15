@@ -191,6 +191,7 @@ type queryState struct {
 	// config (never changed)
 	queryid  string
 	query    string
+	queryURL string // for logging
 	client   client
 	request  *sourcebackendpb.SearchRequest
 	started  time.Time
@@ -548,12 +549,9 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		log.Fatal(err)
 	}
 	rewritten := search.RewriteQuery(*fakeUrl)
-	searchRequest := &sourcebackendpb.SearchRequest{
-		Query:        rewritten.Query().Get("q"),
-		QueryId:      queryid,
-		RewrittenUrl: rewritten.String(),
-		Literal:      rewritten.Query().Get("literal") == "1",
-	}
+	querystate.queryURL = rewritten.String()
+	searchRequest := search.ToSearchRequest(rewritten)
+	searchRequest.QueryId = queryid
 	if rewritten.Query().Get("speedbump") == "1" {
 		searchRequest.GrepDeadlineNs = int64(o.SpeedbumpDeadline)
 	}
@@ -1012,7 +1010,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		"request", s.query,
 		"query", s.request.GetQuery(),
 		"literal", s.request.GetLiteral(),
-		"rewritten_url", s.request.GetRewrittenUrl(),
+		"rewritten_url", s.queryURL,
 		"case_insensitive", slowest.GetCaseInsensitive(),
 		"positional", slowest.GetPositional(),
 		"required_literals", slowest.GetRequiredLiterals(),

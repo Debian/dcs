@@ -315,7 +315,8 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 	//log.Printf("rewritten: %q, query = %v", rewritten.String(), rewritten.Query())
 
 	// Parse the (rewritten) URL to extract all ranking options/keywords.
-	rankingopts := ranking.RankingOptsFromQuery(rewritten.Query())
+	req := dcssearch.ToSearchRequest(rewritten)
+	rankingopts := ranking.RankingOptsFromFiletypes(req.GetFiletype(), req.GetNfiletype())
 	//log.Printf("rankingopts: %+v", rankingopts)
 
 	// query all index files
@@ -340,7 +341,7 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 				files = append(files, result)
 			}
 		}
-		files = sourcebackend.FilterByKeywords(&rewritten, files)
+		files = sourcebackend.FilterByKeywords(req, files)
 		m.PostingNano = int64(time.Since(start))
 		if !skipFile {
 			filesSearched, matches, err := verifyMatches(string(s.Rune), files, possible)
@@ -363,7 +364,7 @@ func (si *shardedIndex) measure(idx int, query string, pos, skipFile, skipGrep b
 				files = append(files, result)
 			}
 		}
-		files = sourcebackend.FilterByKeywords(&rewritten, files)
+		files = sourcebackend.FilterByKeywords(req, files)
 		m.FilesSearched = len(files)
 		m.PostingNano = int64(time.Since(start))
 		m.Matches = grep(rewritten.Query().Get("q"), files, rankingopts, skipFile, skipGrep)
