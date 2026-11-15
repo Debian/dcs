@@ -259,9 +259,9 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return nil
 	}
 
-	literal := r.FormValue("literal")
-	if literal == "" {
-		literal = "0"
+	literal := "0"
+	if r.FormValue("literal") == "1" {
+		literal = "1"
 	}
 	switch r.FormValue("match_mode") {
 	case "literal":
