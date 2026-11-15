@@ -80,6 +80,19 @@ func validateQuery(query string) error {
 	log.Printf("rewritten query = %q\n", rewritten.String())
 	literal := rewritten.Query().Get("literal") == "1"
 
+	for _, keyword := range []string{
+		"package",
+		"npackage",
+		"path",
+		"npath",
+	} {
+		for _, expr := range rewritten.Query()[keyword] {
+			if _, err := dcsregexp.Compile(expr); err != nil {
+				return fmt.Errorf("compiling keyword %s regexp %q: %v", keyword, expr, err)
+			}
+		}
+	}
+
 	flags := syntax.Perl
 	if literal {
 		flags |= syntax.Literal

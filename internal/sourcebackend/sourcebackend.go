@@ -69,15 +69,6 @@ func FilterByKeywords(req *sourcebackendpb.SearchRequest, files []ranking.Result
 		pathRegexp, err := regexp.Compile(path)
 		if err != nil {
 			return files
-			// TODO: perform this validation before accepting the query, i.e. in dcs-web
-			//err := common.Templates.ExecuteTemplate(w, "error.html", map[string]interface{}{
-			//	"q":          r.URL.Query().Get("q"),
-			//	"errormsg":   fmt.Sprintf(`%v`, err),
-			//	"suggestion": template.HTML(`See <a href="http://codesearch.debian.net/faq#regexp">http://codesearch.debian.net/faq#regexp</a> for help on regular expressions.`),
-			//})
-			//if err != nil {
-			//	http.Error(w, err.Error(), http.StatusInternalServerError)
-			//}
 		}
 
 		filtered := make(ranking.ResultPaths, 0, len(files))
@@ -96,15 +87,6 @@ func FilterByKeywords(req *sourcebackendpb.SearchRequest, files []ranking.Result
 		pathRegexp, err := regexp.Compile(path)
 		if err != nil {
 			return files
-			// TODO: perform this validation before accepting the query, i.e. in dcs-web
-			//err := common.Templates.ExecuteTemplate(w, "error.html", map[string]interface{}{
-			//	"q":          r.URL.Query().Get("q"),
-			//	"errormsg":   fmt.Sprintf(`%v`, err),
-			//	"suggestion": template.HTML(`See <a href="http://codesearch.debian.net/faq#regexp">http://codesearch.debian.net/faq#regexp</a> for help on regular expressions.`),
-			//})
-			//if err != nil {
-			//	http.Error(w, err.Error(), http.StatusInternalServerError)
-			//}
 		}
 
 		filtered := make(ranking.ResultPaths, 0, len(files))
