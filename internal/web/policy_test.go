@@ -23,6 +23,9 @@ speedbump = 0  # run all queries to completion
 [admission]
 max_concurrent = 64  # for servers with lots of CPUs
 max_concurrent_per_owner = 64  # no fairness
+
+[results]
+keep_max = 42
 `
 	fn := filepath.Join(t.TempDir(), "policy.toml")
 	if err := os.WriteFile(fn, []byte(testPolicy), 0600); err != nil {
@@ -40,6 +43,9 @@ max_concurrent_per_owner = 64  # no fairness
 	}
 	if got, want := policy.Admission.MaxConcurrent, 64; got != want {
 		t.Errorf("Admission.MaxConcurrent: got %v, want %v", got, want)
+	}
+	if got, want := policy.Results.KeepMax, 42; got != want {
+		t.Errorf("Results.KeepMax: got %v, want %v", got, want)
 	}
 }
 

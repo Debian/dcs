@@ -17,6 +17,7 @@ import (
 type Policy struct {
 	Search    SearchPolicy    `toml:"search"`
 	Admission AdmissionPolicy `toml:"admission"`
+	Results   ResultsPolicy   `toml:"results"`
 }
 
 // SearchPolicy configures how a search works:
@@ -45,6 +46,21 @@ type AdmissionPolicy struct {
 	MaxConcurrentPerOwner int `toml:"max_concurrent_per_owner"`
 }
 
+type ResultsPolicy struct {
+	// KeepMax determines how many query result directories to keep.
+	// Each finished query keeps one results file on disk and <= 64 MB of RAM.
+	KeepMax int `toml:"keep_max"`
+
+	// KeepMaxPerOwner determines how many result directories to keep
+	// per owner (per IP, per API key, etc.) before evicting results
+	// from other users.
+	KeepMaxPerOwner int `toml:"keep_max_per_owner"`
+
+	// Expiration determines when queries are re-run,
+	// even if their result directory is still around.
+	Expiration time.Duration `toml:"expiration"`
+}
+
 func defaultPolicy() *Policy {
 	return &Policy{
 		Search: SearchPolicy{
@@ -54,6 +70,11 @@ func defaultPolicy() *Policy {
 		Admission: AdmissionPolicy{
 			MaxConcurrent:         8,
 			MaxConcurrentPerOwner: 2,
+		},
+		Results: ResultsPolicy{
+			KeepMax:         300,
+			KeepMaxPerOwner: 10,
+			Expiration:      30 * time.Minute,
 		},
 	}
 }

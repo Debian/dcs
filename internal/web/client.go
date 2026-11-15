@@ -18,7 +18,7 @@ type client struct {
 
 func (c client) owner() string {
 	if c.apiKey != "" {
-		return c.apiKey // maxQueriesPerOwner for each API key
+		return c.apiKey
 	}
 	// For now, treat each anonymous IP as one owner.
 	// We might make this stricter for certain IP ranges or ASNs.

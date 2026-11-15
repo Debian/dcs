@@ -331,8 +331,8 @@ func (o *Opts) queryBackend(ctx context.Context, s *queryState, src string, back
 	return nil
 }
 
-func (s *queryState) expired() bool {
-	return time.Since(s.started) > 30*time.Minute
+func (s *queryState) expired(expiration time.Duration) bool {
+	return time.Since(s.started) > expiration
 }
 
 func releaseQueryLocked(s *queryState) {
@@ -358,22 +358,11 @@ func (o *Opts) lookupQuery(queryid string) (*queryState, bool) {
 	return s, ok
 }
 
-const (
-	// maxQueries is the upper limit of how many queries DCS keeps.
-	// Each finished query keeps one results file on disk and <= 64 MB of RAM.
-	maxQueries = 300
-
-	// maxQueriesPerOwner is the upper limit of how many queries DCS keeps
-	// per owner, i.e. API key owner, or IP address for anonymous access,
-	// when maxQueries is reached.
-	maxQueriesPerOwner = 10
-)
-
 func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
 	o.queriesMu.Lock()
 	defer o.queriesMu.Unlock()
 	if s, ok := o.queries[querystate.queryid]; ok {
-		if !s.expired() {
+		if !s.expired(o.policy.Results.Expiration) {
 			// This query is already active, do not interfere.
 			return s, true
 		}
@@ -382,7 +371,7 @@ func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
 	} else {
 		// See if we need to garbage collect old queries. This is unnecessary when
 		// the query is expired, as we can just re-use the previous slot.
-		if len(o.queries) >= maxQueries {
+		if len(o.queries) >= o.policy.Results.KeepMax {
 			log.Printf("Trying to garbage collect queries (currently %d)", len(o.queries))
 			candidates := slices.Collect(maps.Values(o.queries))
 			sort.Slice(candidates, func(i, j int) bool {
@@ -399,11 +388,11 @@ func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
 					others = append(others, s)
 				}
 			}
-			if len(own) >= maxQueriesPerOwner {
+			if len(own) >= o.policy.Results.KeepMaxPerOwner {
 				candidates = append(own, others...)
 			}
 			for _, s := range candidates {
-				if len(o.queries) < maxQueries {
+				if len(o.queries) < o.policy.Results.KeepMax {
 					break
 				}
 				if !s.completed() {
@@ -453,7 +442,7 @@ func (o *Opts) maybeStartQuerySpeedbumped(ctx context.Context, cl client, query 
 	if exhaustive {
 		// Not maybeStartQuery: We only attach to existing queries
 		// without validating the speedbump continuation token.
-		if s, ok := o.lookupQuery(queryID(query)); ok && !s.expired() {
+		if s, ok := o.lookupQuery(queryID(query)); ok && !s.expired(o.policy.Results.Expiration) {
 			logReused(s, cl)
 			return s, true, nil
 		}
@@ -467,7 +456,7 @@ func (o *Opts) maybeStartQuerySpeedbumped(ctx context.Context, cl client, query 
 // maybeStartQuery starts a specified query if that query does not already
 // exist. Returns the *queryState and whether the query existed.
 func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, query string) (*queryState, bool, error) {
-	if s, ok := o.lookupQuery(queryid); ok && !s.expired() {
+	if s, ok := o.lookupQuery(queryid); ok && !s.expired(o.policy.Results.Expiration) {
 		logReused(s, cl)
 		return s, true, nil
 	}
