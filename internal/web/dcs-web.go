@@ -514,12 +514,8 @@ func (o *Opts) Main(ln net.Listener) error {
 		RedirectURL:  o.RedirectURL,
 		Prefix:       "/apikeys",
 	}
-	{
-		apiMux := http.NewServeMux()
-		mux.Handle("/api/", http.StripPrefix("/api", apiMux))
-		if err := o.serveAPIOnMux(apiMux, apiOpts); err != nil {
-			return err
-		}
+	if err := o.serveAPIOnMux(mux, apiOpts); err != nil {
+		return err
 	}
 
 	// Initialize the /apikeys/ functionality asynchronously, so that a salsa

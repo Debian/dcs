@@ -338,7 +338,7 @@ func (o *Opts) serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error 
 			SecureCookie: apiOpts.SecureCookie(),
 		},
 	}
-	mux.Handle("/v1/search", httpErrorWrapper(a.search))
-	mux.Handle("/v1/searchperpackage", httpErrorWrapper(a.searchperpackage))
+	mux.Handle("/api/v1/search", httpErrorWrapper(a.search))
+	mux.Handle("/api/v1/searchperpackage", httpErrorWrapper(a.searchperpackage))
 	return nil
 }
