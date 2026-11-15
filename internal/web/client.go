@@ -7,6 +7,24 @@ import (
 	"strings"
 )
 
+func anonymousKey(apiKey string) bool {
+	switch apiKey {
+	case "program!github.com/Debian/dcs/cmd/dcs",
+		"salsa!https://salsa.debian.org/debian/codesearch-cli":
+		// As of November 2026, the API keys which dcs and codesearch-cli send
+		// only identifies the traffic, but has no effect on query ownership.
+		return true
+
+	default:
+		// A self-service API key (via salsa.debian.org login),
+		// or a manually created API key. Treat it as one owner,
+		// so that as many different users as possible can query DCS
+		// even when the service might need to throttle / block.
+		// https://codesearch.debian.net/apikeys/
+		return false
+	}
+}
+
 // client identifies who started a query, for logging. dcs-web runs behind a
 // reverse proxy (Caddy) on localhost, so the client address must be taken from
 // X-Forwarded-For.
@@ -18,7 +36,7 @@ type client struct {
 }
 
 func (c client) owner() string {
-	if c.apiKey != "" {
+	if c.apiKey != "" && !anonymousKey(c.apiKey) {
 		return c.apiKey
 	}
 	// For now, treat each anonymous IP as one owner.
@@ -27,7 +45,7 @@ func (c client) owner() string {
 }
 
 func (c client) resultsOwner() string {
-	if c.apiKey != "" {
+	if c.apiKey != "" && !anonymousKey(c.apiKey) {
 		return c.apiKey
 	}
 	addr, err := netip.ParseAddr(c.ip)
