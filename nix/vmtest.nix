@@ -41,6 +41,10 @@ in
         "-mirror_url=http://localhost:8787"
         "-merge_last_activity=1s"
       ];
+      # Set a dcs-web policy override just to exercise that mechanism.
+      web.policy = {
+        search.timeout = "1m";
+      };
       # Enable Caddy (for testing) without HTTPS.
       caddy.enable = true;
       domain = "http://localhost";

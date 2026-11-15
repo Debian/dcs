@@ -18,6 +18,9 @@ let
   '';
   init = pkgs.writeShellScriptBin "dcs-init" initSrc;
 
+  policyFormat = pkgs.formats.toml { };
+  policyFile = policyFormat.generate "dcs-policy.toml" cfg.web.policy;
+
   webSrc = ''
     set -eu
     exec ${cfg.package}/bin/dcs-web \
@@ -32,8 +35,8 @@ let
       -listen_address_http=localhost:30000 \
       -securecookie_hash_key=hash.key \
       -securecookie_block_key=block.key${
-        lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.web.extraFlags
-      }
+        lib.optionalString (cfg.web.policy != { }) " \\\n  -policy_path=${policyFile}"
+      }${lib.concatMapStrings (flag: " \\\n  ${flag}") cfg.web.extraFlags}
   '';
   # https://wiki.nixos.org/wiki/Nix-writers
   web = pkgs.writeShellScriptBin "dcs-web" webSrc;
@@ -280,6 +283,18 @@ in
       );
       example = "${cfg.dataDir}/shard0,${cfg.dataDir}/shard1";
       description = "Comma-separated index shard directories (containing src/ and full/) that dcs-web serves";
+    };
+
+    web.policy = lib.mkOption {
+      type = policyFormat.type;
+      default = { };
+      example = {
+        search.timeout = "1m";
+      };
+      description = ''
+        Overrides for the limits that dcs-web applies to accepting queries,
+        running queries, keeping results, etc. See internal/web/policy.go.
+      '';
     };
 
     web.extraFlags = lib.mkOption {
