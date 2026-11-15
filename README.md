@@ -15,6 +15,7 @@ Documentation:
 
 * [Setting up a small instance of DCS for hacking](https://github.com/Debian/dcs/blob/main/howto/hacking.md)
 * [Debian Code Search Index format](https://github.com/Debian/dcs/blob/main/howto/index.md)
+* [`OPTIMAL.md` describes how DCS is already optimal](OPTIMAL.md), so be sure to use that as a starting point in case you are exploring performance optimizations.
 
 Hardware requirements:
 
