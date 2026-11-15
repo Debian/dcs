@@ -323,14 +323,14 @@ type Opts struct {
 	SourceBackends              string
 	SourceIndexes               string
 	RankingDataPath             string
+	PolicyPath                  string
 	UsePositionalIndex          bool
 	UseSourcesDebianNet         bool
 	QueryResultsPath            string
-	QueryTimeout                time.Duration
-	SpeedbumpDeadline           time.Duration
 	MaxConcurrentQueries        int
 	MaxConcurrentQueriesByOwner int
 	backends                    []common.Backend
+	policy                      *Policy
 
 	// state
 	speedbumpCookie *securecookie.SecureCookie
@@ -382,6 +382,15 @@ func (o *Opts) Main(ln net.Listener) error {
 	if limit := o.MaxConcurrentQueries; limit > 0 {
 		o.maxQuerySem = semaphore.NewWeighted(int64(limit))
 		o.owners = make(map[string]*ownerSlot)
+	}
+	if o.PolicyPath != "" {
+		var err error
+		o.policy, err = readPolicy(o.PolicyPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		o.policy = defaultPolicy()
 	}
 	if o.SourceIndexes != "" {
 		common.LoadTemplates(templates)

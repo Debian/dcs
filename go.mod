@@ -3,6 +3,7 @@ module github.com/Debian/dcs
 go 1.27
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/google/codesearch v1.2.0

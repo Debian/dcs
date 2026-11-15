@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/Debian/dcs/internal/web"
 )
@@ -78,6 +77,10 @@ func main() {
 		"/var/dcs/ranking.json",
 		"Path to the JSON containing ranking data (with -source_indexes)")
 
+	flag.StringVar(&opts.PolicyPath, "policy_path",
+		"",
+		"If non-empty, the path to a TOML file for adjusting search behavior (how many clients are accepted, what are the query timeouts, etc.)")
+
 	flag.BoolVar(&opts.UsePositionalIndex, "use_positional_index",
 		false,
 		"use the pos and posrel index sections for identifier queries (with -source_indexes)")
@@ -89,14 +92,6 @@ func main() {
 	flag.StringVar(&opts.QueryResultsPath, "query_results_path",
 		"/tmp/qr/",
 		"Path where query results files (page_0.json etc.) are stored")
-
-	flag.DurationVar(&opts.QueryTimeout, "query_timeout",
-		10*time.Minute,
-		"Duration after which a query is cancelled (timeout)")
-
-	flag.DurationVar(&opts.SpeedbumpDeadline, "query_speedbump_deadline",
-		10*time.Second,
-		"Duration after which a query is stopped (https://codesearch.debian.net/faq#speedbump) to confirm an exhaustive search with this expensive query term was really desired.")
 
 	flag.IntVar(&opts.MaxConcurrentQueries, "max_concurrent_queries",
 		8,

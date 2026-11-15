@@ -446,7 +446,7 @@ const speedbumpSuffix = "&speedbump=1"
 // maybeStartQuerySpeedbumped is a wrapper around maybeStartQuery
 // which applies the speedbump deadline if non-zero.
 func (o *Opts) maybeStartQuerySpeedbumped(ctx context.Context, cl client, query string, exhaustive bool) (*queryState, bool, error) {
-	if o.SpeedbumpDeadline <= 0 {
+	if o.policy.Search.Speedbump <= 0 {
 		return o.maybeStartQuery(ctx, queryID(query), cl, query)
 	}
 
@@ -553,7 +553,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 	searchRequest := search.ToSearchRequest(rewritten)
 	searchRequest.QueryId = queryid
 	if rewritten.Query().Get("speedbump") == "1" {
-		searchRequest.GrepDeadlineNs = int64(o.SpeedbumpDeadline)
+		searchRequest.GrepDeadlineNs = int64(o.policy.Search.Speedbump)
 	}
 	querystate.request = searchRequest
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
@@ -687,7 +687,7 @@ func (o *Opts) runQuery(ctx context.Context, s *queryState, src string, searchRe
 	logStarted(s, s.client, running)
 
 	// The query timeout starts after queueing.
-	if timeout := o.QueryTimeout; timeout > 0 {
+	if timeout := o.policy.Search.Timeout; timeout > 0 {
 		// Shadow ctx, but not cancel
 		var cancelTimeout context.CancelFunc
 		ctx, cancelTimeout = context.WithTimeout(ctx, timeout)
@@ -947,7 +947,7 @@ func (o *Opts) finishQuery(s *queryState) {
 		token, _ := o.speedbumpCookie.Encode("speedbump", fullQuery)
 		s.speedbump = &SpeedbumpError{
 			Type:              "speedbump",
-			Message:           fmt.Sprintf("stopped after %v", o.SpeedbumpDeadline),
+			Message:           fmt.Sprintf("stopped after %v", o.policy.Search.Speedbump),
 			Query:             fullQuery,
 			ContinuationToken: token,
 		}
