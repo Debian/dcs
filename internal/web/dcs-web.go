@@ -305,41 +305,39 @@ func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
 
 type Opts struct {
 	// config
-	Mux                         *http.ServeMux
-	ListenAddressPlain          string
-	ListenAddressDebug          string
-	ListenAddress               string
-	AccessLogPath               string
-	TLSCertPath                 string
-	TLSKeyPath                  string
-	TLSRequireClientAuth        bool
-	HashKeyPath                 string
-	BlockKeyPath                string
-	ClickLogPath                string
-	ClientID                    string
-	ClientSecret                string
-	RedirectURL                 string
-	PrintVersion                bool
-	SourceBackends              string
-	SourceIndexes               string
-	RankingDataPath             string
-	PolicyPath                  string
-	UsePositionalIndex          bool
-	UseSourcesDebianNet         bool
-	QueryResultsPath            string
-	MaxConcurrentQueries        int
-	MaxConcurrentQueriesByOwner int
-	backends                    []common.Backend
-	policy                      *Policy
+	Mux                  *http.ServeMux
+	ListenAddressPlain   string
+	ListenAddressDebug   string
+	ListenAddress        string
+	AccessLogPath        string
+	TLSCertPath          string
+	TLSKeyPath           string
+	TLSRequireClientAuth bool
+	HashKeyPath          string
+	BlockKeyPath         string
+	ClickLogPath         string
+	ClientID             string
+	ClientSecret         string
+	RedirectURL          string
+	PrintVersion         bool
+	SourceBackends       string
+	SourceIndexes        string
+	RankingDataPath      string
+	PolicyPath           string
+	UsePositionalIndex   bool
+	UseSourcesDebianNet  bool
+	QueryResultsPath     string
+	backends             []common.Backend
+	policy               *Policy
 
 	// state
 	speedbumpCookie *securecookie.SecureCookie
-	maxQuerySem     *semaphore.Weighted // see MaxConcurrentQueries
+	maxQuerySem     *semaphore.Weighted // see AdmissionPolicy.MaxConcurrent
 	maxQueryWaiting atomic.Int32        // queries waiting for maxQuerySem
 	running         atomic.Int32        // queries currently running
 
 	ownersMu sync.Mutex
-	owners   map[string]*ownerSlot // see MaxConcurrentQueriesByOwner
+	owners   map[string]*ownerSlot // see AdmissionPolicy.MaxConcurrentPerOwner
 
 	queriesMu sync.RWMutex
 	queries   map[string]*queryState
@@ -374,15 +372,6 @@ func (o *Opts) Main(ln net.Listener) error {
 		return nil
 	}
 
-	criticalCSS, err := fs.ReadFile(static.FS, "critical.min.css")
-	if err != nil {
-		return fmt.Errorf("critical.min.css not found (did you not run make static?)")
-	}
-	common.CriticalCss = template.CSS(string(criticalCSS))
-	if limit := o.MaxConcurrentQueries; limit > 0 {
-		o.maxQuerySem = semaphore.NewWeighted(int64(limit))
-		o.owners = make(map[string]*ownerSlot)
-	}
 	if o.PolicyPath != "" {
 		var err error
 		o.policy, err = readPolicy(o.PolicyPath)
@@ -391,6 +380,16 @@ func (o *Opts) Main(ln net.Listener) error {
 		}
 	} else {
 		o.policy = defaultPolicy()
+	}
+
+	criticalCSS, err := fs.ReadFile(static.FS, "critical.min.css")
+	if err != nil {
+		return fmt.Errorf("critical.min.css not found (did you not run make static?)")
+	}
+	common.CriticalCss = template.CSS(string(criticalCSS))
+	if limit := o.policy.Admission.MaxConcurrent; limit > 0 {
+		o.maxQuerySem = semaphore.NewWeighted(int64(limit))
+		o.owners = make(map[string]*ownerSlot)
 	}
 	if o.SourceIndexes != "" {
 		common.LoadTemplates(templates)

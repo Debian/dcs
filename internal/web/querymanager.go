@@ -609,7 +609,7 @@ func (o *Opts) ownerSlot(owner string) (_ *ownerSlot, unref func()) {
 	slot, ok := o.owners[owner]
 	if !ok {
 		slot = &ownerSlot{
-			sem: semaphore.NewWeighted(int64(o.MaxConcurrentQueriesByOwner)),
+			sem: semaphore.NewWeighted(int64(o.policy.Admission.MaxConcurrentPerOwner)),
 		}
 		o.owners[owner] = slot
 	}

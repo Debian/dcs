@@ -15,10 +15,8 @@ import (
 // but the number of related flags grew too large,
 // so now we have a Policy, expressed in TOML.
 type Policy struct {
-	Search SearchPolicy `toml:"search"`
-	// AdmissionPolicy
-	// TODO: -max_concurrent_queries
-	// TODO: -max_concurrent_queries_by_owner
+	Search    SearchPolicy    `toml:"search"`
+	Admission AdmissionPolicy `toml:"admission"`
 }
 
 // SearchPolicy configures how a search works:
@@ -33,11 +31,29 @@ type SearchPolicy struct {
 	Speedbump time.Duration `toml:"speedbump"`
 }
 
+type AdmissionPolicy struct {
+	// MaxConcurrent sets how many queries can run concurrently
+	// at any given point in time.
+	//
+	// Further queries are queued until the current queries are done.
+	MaxConcurrent int `toml:"max_concurrent"`
+
+	// MaxConcurrentPerOwner further limits MaxConcurrent
+	// by applying a per-owner limit (per IP, per API key, etc.).
+	//
+	// Further queries are rejected with HTTP 429 (Too Many Requests).
+	MaxConcurrentPerOwner int `toml:"max_concurrent_per_owner"`
+}
+
 func defaultPolicy() *Policy {
 	return &Policy{
 		Search: SearchPolicy{
 			Timeout:   10 * time.Minute,
 			Speedbump: 10 * time.Second,
+		},
+		Admission: AdmissionPolicy{
+			MaxConcurrent:         8,
+			MaxConcurrentPerOwner: 2,
 		},
 	}
 }

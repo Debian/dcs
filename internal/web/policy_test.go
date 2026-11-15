@@ -18,7 +18,11 @@ func TestReadPolicy(t *testing.T) {
 	const testPolicy = `
 [search]
 timeout = "5m"  # reduce from the default (10 minutes)
-speedbump = 0 # run all queries to completion
+speedbump = 0  # run all queries to completion
+
+[admission]
+max_concurrent = 64  # for servers with lots of CPUs
+max_concurrent_per_owner = 64  # no fairness
 `
 	fn := filepath.Join(t.TempDir(), "policy.toml")
 	if err := os.WriteFile(fn, []byte(testPolicy), 0600); err != nil {
@@ -33,6 +37,9 @@ speedbump = 0 # run all queries to completion
 	}
 	if got, want := policy.Search.Speedbump, 0*time.Minute; got != want {
 		t.Errorf("Search.Speedbump: got %v, want %v", got, want)
+	}
+	if got, want := policy.Admission.MaxConcurrent, 64; got != want {
+		t.Errorf("Admission.MaxConcurrent: got %v, want %v", got, want)
 	}
 }
 

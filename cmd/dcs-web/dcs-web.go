@@ -93,14 +93,6 @@ func main() {
 		"/tmp/qr/",
 		"Path where query results files (page_0.json etc.) are stored")
 
-	flag.IntVar(&opts.MaxConcurrentQueries, "max_concurrent_queries",
-		8,
-		"Number of queries to run concurrently. Any further queries are queued until the currently running queries complete.")
-
-	flag.IntVar(&opts.MaxConcurrentQueriesByOwner, "max_concurrent_queries_by_owner",
-		2,
-		"Number of queries to queue or run concurrently, per owner (API key or IP). Any further queries are rejected with a HTTP 429 (Too Many Requests) error.")
-
 	flag.BoolVar(&opts.TLSRequireClientAuth, "tls_require_client_auth",
 		true,
 		"Require TLS Client Authentication")
