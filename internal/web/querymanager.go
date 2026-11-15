@@ -1134,7 +1134,6 @@ func (o *Opts) writeToDisk(s *queryState) error {
 		s.mu.Unlock()
 		return nil
 	}
-	idx := 0
 
 	// For each full package (i3-wm_4.8-1), store only the newest version.
 	packageVersions := make(map[string]version.Version)
@@ -1158,12 +1157,8 @@ func (o *Opts) writeToDisk(s *queryState) error {
 		}
 	}
 
-	packages := make([]string, len(packageVersions))
-	for pkg, _ := range packageVersions {
-		packages[idx] = pkg
-		idx++
-	}
-	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s first result, first stored)
+	packages := slices.Sorted(maps.Keys(packageVersions))
+	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s alphabetical)
 	s.allPackagesSorted = packages
 	s.mu.Unlock()
 
