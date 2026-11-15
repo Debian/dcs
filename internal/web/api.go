@@ -299,6 +299,13 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+	s.mu.Lock()
+	errs := s.errors
+	s.mu.Unlock()
+	if len(errs) > 0 {
+		metricErroredQueries.With(srcLabel).Inc()
+		return httpError(http.StatusInternalServerError, fmt.Errorf("search failed: %v", errs[0]))
+	}
 
 	metricSuccessfulQueries.With(srcLabel).Inc()
 
