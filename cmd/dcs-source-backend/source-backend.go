@@ -100,7 +100,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("GET /metrics", promhttp.Handler())
 	ln, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
 		log.Fatal(err)

@@ -791,7 +791,7 @@ func (o *Opts) Main(ln net.Listener) error {
 	}
 	defer os.RemoveAll(tmpdir)
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("GET /metrics", promhttp.Handler())
 
 	srv := &server{
 		unpacksem:         make(chan struct{}, runtime.NumCPU()),

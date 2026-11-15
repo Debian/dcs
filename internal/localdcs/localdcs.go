@@ -183,7 +183,7 @@ Version: 4.5.1-2
 
 `
 	sourcesGz := mustGzip(sources)
-	mux.HandleFunc("/debian/dists/sid/main/source/Sources.gz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /debian/dists/sid/main/source/Sources.gz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(sourcesGz)
 	})
 
@@ -201,7 +201,7 @@ Architecture: amd64
 
 `
 	packagesGz := mustGzip(packages)
-	mux.HandleFunc("/debian/dists/sid/main/binary-amd64/Packages.gz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /debian/dists/sid/main/binary-amd64/Packages.gz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(packagesGz)
 	})
 
@@ -210,7 +210,7 @@ Package: i3-wm                           100  200   50    10
 Package: i3                               50  100   25     5
 `
 	popconGz := mustGzip(popcon)
-	mux.HandleFunc("/all-popcon-results.txt.gz", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /all-popcon-results.txt.gz", func(w http.ResponseWriter, r *http.Request) {
 		w.Write(popconGz)
 	})
 	return httptest.NewServer(mux)

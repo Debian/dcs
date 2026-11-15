@@ -457,7 +457,7 @@ func (o *Opts) Main(ln net.Listener) error {
 	health.StartChecking(o.UseSourcesDebianNet)
 
 	mux := o.Mux
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]any{
 				"criticalcss": common.CriticalCss,
@@ -484,16 +484,16 @@ func (o *Opts) Main(ln net.Listener) error {
 
 		http.NotFound(w, r)
 	})
-	mux.HandleFunc("/show", show.Show(o.backends, o.UseSourcesDebianNet))
-	mux.HandleFunc("/results/", o.ResultsHandler)
-	mux.HandleFunc("/perpackage-results/", o.PerPackageResultsHandler)
-	mux.HandleFunc("/track", Track)
-	mux.HandleFunc("/search", o.Search)
-	mux.HandleFunc("/events/", o.EventsHandler)
+	mux.HandleFunc("GET /show", show.Show(o.backends, o.UseSourcesDebianNet))
+	mux.HandleFunc("GET /results/", o.ResultsHandler)
+	mux.HandleFunc("GET /perpackage-results/", o.PerPackageResultsHandler)
+	mux.HandleFunc("POST /track", Track)
+	mux.HandleFunc("GET /search", o.Search)
+	mux.HandleFunc("GET /events/", o.EventsHandler)
 	mux.HandleFunc("POST /speedbump", o.SpeedbumpHandler)
 
 	// Used by the service worker.
-	mux.HandleFunc("/placeholder.html", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /placeholder.html", func(w http.ResponseWriter, r *http.Request) {
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
@@ -522,7 +522,7 @@ func (o *Opts) Main(ln net.Listener) error {
 	// outage does not take down DCS:
 	{
 		apiKeysMux := http.NewServeMux()
-		mux.Handle("/apikeys/", http.StripPrefix("/apikeys", apiKeysMux))
+		mux.Handle("GET /apikeys/", http.StripPrefix("/apikeys", apiKeysMux))
 		go func() {
 			for {
 				if err := apikeys.ServeOnMux(apiKeysMux, apiOpts); err != nil {
@@ -535,13 +535,14 @@ func (o *Opts) Main(ln net.Listener) error {
 		}()
 	}
 
-	// Handled by nginx in production, so this is just for testing
+	// Handled by the frontend reverse proxy in production (Caddy),
+	// so this reverse proxy handler is just for testing.
 	{
 		u, err := url.Parse("https://codesearch.debian.net")
 		if err != nil {
 			return err
 		}
-		mux.Handle("/apidocs/", httputil.NewSingleHostReverseProxy(u))
+		mux.Handle("GET /apidocs/", httputil.NewSingleHostReverseProxy(u))
 	}
 
 	if o.ListenAddressPlain != "" {
@@ -552,9 +553,11 @@ func (o *Opts) Main(ln net.Listener) error {
 
 	if o.ListenAddressDebug != "" {
 		debugMux := http.NewServeMux()
-		debugMux.Handle("/metrics", promhttp.Handler())
-		debugMux.Handle("/debug/", http.DefaultServeMux)
-		debugMux.HandleFunc("/queryz", o.QueryzHandler)
+		debugMux.Handle("GET /metrics", promhttp.Handler())
+		debugMux.Handle("GET /debug/", http.DefaultServeMux)
+		debugMux.Handle("POST /debug/", http.DefaultServeMux)
+		debugMux.HandleFunc("GET /queryz", o.QueryzHandler)
+		debugMux.HandleFunc("POST /queryz", o.QueryzHandler)
 		go func() {
 			log.Fatal(http.ListenAndServe(o.ListenAddressDebug, debugMux))
 		}()

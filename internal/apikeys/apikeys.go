@@ -175,7 +175,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 	}
 
 	const cookieName = "dcs-session"
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		var session session
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			if err := cookies.Decode("dcs-session", cookie.Value, &session); err != nil {
@@ -195,7 +195,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		}
 	})
 
-	mux.HandleFunc("/logout", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /logout", func(w http.ResponseWriter, r *http.Request) {
 		cookie := &http.Cookie{
 			Name:     cookieName,
 			Value:    "", // clear
@@ -207,7 +207,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		http.Redirect(w, r, opts.Prefix+"/", http.StatusTemporaryRedirect)
 	})
 
-	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
 		// To prevent CSRF attacks, state needs to contain a unique and
 		// non-guessable value associated with each authentication request.  We
 		// use the securecookie package to encrypt and later authenticate the
@@ -223,7 +223,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	})
 
-	mux.HandleFunc("/download/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /download/", func(w http.ResponseWriter, r *http.Request) {
 		var session session
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			if err := cookies.Decode("dcs-session", cookie.Value, &session); err != nil {
@@ -241,7 +241,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		io.WriteString(w, session.GetAPIKey()+"\n")
 	})
 
-	mux.Handle("/redirect_uri", httpErrorWrapper(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /redirect_uri", httpErrorWrapper(func(w http.ResponseWriter, r *http.Request) error {
 		ctx := r.Context()
 
 		var st state

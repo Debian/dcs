@@ -583,7 +583,7 @@ func main() {
 		}
 	}()
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle("GET /metrics", promhttp.Handler())
 
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
