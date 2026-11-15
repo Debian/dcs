@@ -93,6 +93,14 @@ func readPolicy(path string) (*Policy, error) {
 	if undecoded := dec.Undecoded(); len(undecoded) > 0 {
 		return nil, fmt.Errorf("%s: unknown TOML keys: %v", path, undecoded)
 	}
-	// TODO: validate policy for plausibility / value ranges
+	if pol.Admission.MaxConcurrentPerOwner < 1 {
+		return nil, fmt.Errorf("%s: admission.max_concurrent_per_owner must be at least 1, otherwise every query is rejected", path)
+	}
+	if pol.Results.KeepMax < 1 {
+		return nil, fmt.Errorf("%s: results.keep_max must be at least 1", path)
+	}
+	if pol.Results.Expiration <= 0 {
+		return nil, fmt.Errorf("%s: results.expiration must be > 0, otherwise requesting the results page restarts the query", path)
+	}
 	return pol, nil
 }
