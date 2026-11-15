@@ -52,8 +52,8 @@ type ResultsPolicy struct {
 	KeepMax int `toml:"keep_max"`
 
 	// KeepMaxPerOwner determines how many result directories to keep
-	// per owner (per IP, per API key, etc.) before evicting results
-	// from other users.
+	// per owner (per IP network, per API key, etc.)
+	// before evicting results from other users.
 	KeepMaxPerOwner int `toml:"keep_max_per_owner"`
 
 	// Expiration determines when queries are re-run,
@@ -73,7 +73,7 @@ func defaultPolicy() *Policy {
 		},
 		Results: ResultsPolicy{
 			KeepMax:         300,
-			KeepMaxPerOwner: 10,
+			KeepMaxPerOwner: 30,
 			Expiration:      30 * time.Minute,
 		},
 	}

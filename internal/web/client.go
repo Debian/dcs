@@ -3,6 +3,7 @@ package web
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 )
 
@@ -23,6 +24,32 @@ func (c client) owner() string {
 	// For now, treat each anonymous IP as one owner.
 	// We might make this stricter for certain IP ranges or ASNs.
 	return c.ip
+}
+
+func (c client) resultsOwner() string {
+	if c.apiKey != "" {
+		return c.apiKey
+	}
+	addr, err := netip.ParseAddr(c.ip)
+	if err != nil {
+		return c.ip
+	}
+	// addr might be an IPv6 address containing a mapped IPv4
+	addr = addr.Unmap()
+	// For IPv4 addresses, we map each address to
+	// its containing network (CIDR /16 granularity).
+	// This is a good compromise between effectiveness
+	// (grouping individual IP addresses to their owner)
+	// and over-matching unrelated IP addresses.
+	bits := 16
+	if addr.Is6() {
+		bits = 48 // for IPv6, look at the entire /48 network
+	}
+	prefix, err := addr.Prefix(bits)
+	if err != nil {
+		return c.ip
+	}
+	return prefix.String()
 }
 
 // String returns a compact representation for the existing log.Printf lines.

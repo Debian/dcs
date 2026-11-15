@@ -380,15 +380,16 @@ func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
 			// Split candidates into own (same owner) and others,
 			// so that the owner’s queries are first considered for GC.
 			var own, others []*queryState
-			owner := querystate.client.owner()
+			owner := querystate.client.resultsOwner()
 			for _, s := range candidates {
-				if s.client.owner() == owner {
+				if s.client.resultsOwner() == owner {
 					own = append(own, s)
 				} else {
 					others = append(others, s)
 				}
 			}
 			if len(own) >= o.policy.Results.KeepMaxPerOwner {
+				log.Printf("results owner %q holds %d queries, evicting its own first", owner, len(own))
 				candidates = append(own, others...)
 			}
 			for _, s := range candidates {
