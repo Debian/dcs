@@ -30,7 +30,11 @@ func TestEndToEnd(t *testing.T) {
 	if err := os.WriteFile(blockKeyPath, []byte("cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	instance, err := localdcs.Start(hashKeyPath, blockKeyPath, "testdata")
+	packages := []string{
+		"i3-wm", // used by tests
+		"zsh",   // arbitrary (but small): merge needs ≥ 2 packages
+	}
+	instance, err := localdcs.Start(hashKeyPath, blockKeyPath, "testdata", packages)
 	if err != nil {
 		t.Fatal(err)
 	}

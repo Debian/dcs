@@ -24,7 +24,7 @@ func main() {
 	if err := os.WriteFile(blockKeyPath, []byte("cdba47f8f82be74175a75ec864aca56d8dcdc5610c88af446005766c6f9e6fd5"), 0600); err != nil {
 		log.Fatal(err)
 	}
-	instance, err := localdcs.Start(hashKeyPath, blockKeyPath, "internal/endtoend/testdata")
+	instance, err := localdcs.Start(hashKeyPath, blockKeyPath, "internal/endtoend/testdata", nil)
 	if err != nil {
 		log.Fatal(err)
 	}

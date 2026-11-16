@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -84,7 +85,7 @@ func feed(packageImporter packageimporterpb.PackageImporterClient, pkg, file str
 	return err
 }
 
-func importTestdata(packageImporterAddr, dataDir string) error {
+func importTestdata(packageImporterAddr, dataDir string, packages []string) error {
 	conn, err := grpcutil.DialTLS(
 		packageImporterAddr,
 		filepath.Join(*localdcsPath, "cert.pem"),
@@ -134,6 +135,12 @@ func importTestdata(packageImporterAddr, dataDir string) error {
 		//   testdata/pool/main/i/i3-wm/i3-wm_4.5.1-2.debian.tar.gz
 		//   testdata/pool/main/i/i3-wm/i3-wm_4.5.1.orig.tar.bz2]
 		pkg := strings.TrimSuffix(filepath.Base(dsc), ".dsc")
+		if len(packages) > 0 {
+			source, _, _ := strings.Cut(pkg, "_")
+			if !slices.Contains(packages, source) {
+				continue // not in the list; skip
+			}
+		}
 		log.Printf("Importing package %q (files %v, dsc %s)\n", pkg, rest, dsc)
 		for _, file := range append(rest, dsc) {
 			for _, dir := range []string{"idx", "src"} {
@@ -216,7 +223,7 @@ Package: i3                               50  100   25     5
 	return httptest.NewServer(mux)
 }
 
-func Start(hashKey, blockKey, dataDir string) (*Instance, error) {
+func Start(hashKey, blockKey, dataDir string, importPackages []string) (*Instance, error) {
 	if len(*localdcsPath) >= 2 && (*localdcsPath)[:2] == "~/" {
 		usr, err := user.Current()
 		if err != nil {
@@ -341,7 +348,7 @@ func Start(hashKey, blockKey, dataDir string) (*Instance, error) {
 		log.Fatal(impOpts.Main(impLn))
 	}()
 
-	if err := importTestdata(packageImporter, dataDir); err != nil {
+	if err := importTestdata(packageImporter, dataDir, importPackages); err != nil {
 		return nil, fmt.Errorf("Could not import testdata/: %v", err)
 	}
 
