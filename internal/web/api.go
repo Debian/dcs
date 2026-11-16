@@ -226,6 +226,49 @@ type apiserver struct {
 	decoder *apikeys.Decoder
 }
 
+func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prometheus.Labels, q string) (*queryState, error) {
+	queryid := queryID(q)
+
+	metricInflightQueries.With(srcLabel).Inc()
+	defer metricInflightQueries.With(srcLabel).Dec()
+	log.Printf("api(%q, %q, %q)\n", queryid, cl.String(), q)
+
+	if err := validateQuery("?" + q); err != nil {
+		logRejected(cl, q, err)
+		return nil, httpError(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
+	}
+
+	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
+	if err != nil {
+		if errors.Is(err, errTooManyQueries) {
+			return nil, httpError(http.StatusTooManyRequests, err)
+		}
+		return nil, fmt.Errorf("Could not start query: %v", err)
+	}
+
+	select {
+	case <-s.done:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	s.mu.Lock()
+	errs := s.errors
+	s.mu.Unlock()
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("search failed: %v", errs[0])
+	}
+
+	metricSuccessfulQueries.With(srcLabel).Inc()
+
+	log.Printf("[%s] serving API results\n", queryid)
+
+	s.mu.Lock()
+	latency := time.Since(s.started)
+	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
+	s.mu.Unlock()
+	return s, nil
+}
+
 func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, *queryState) error) error {
 	ctx := r.Context()
 
@@ -249,7 +292,6 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	}
 
 	cl := clientFromRequest(r, "/api", key.Subject)
-	src := cl.String()
 	srcLabel := prometheus.Labels{"source": key.Subject}
 
 	query := r.FormValue("query")
@@ -273,56 +315,22 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	// We encode a URL that contains _only_ the q parameter.
 	q := url.Values{"q": []string{query}}.Encode() + "&literal=" + literal
 
-	queryid := queryID(q)
-
-	metricInflightQueries.With(srcLabel).Inc()
-	defer metricInflightQueries.With(srcLabel).Dec()
-	log.Printf("api(%q, %q, %q)\n", queryid, src, q)
-
-	if err := validateQuery("?" + q); err != nil {
-		logRejected(cl, q, err)
-		metricErroredQueries.With(srcLabel).Inc()
-		return httpError(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
-	}
-
-	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
+	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q)
 	if err != nil {
-		metricErroredQueries.With(srcLabel).Inc()
-		if errors.Is(err, errTooManyQueries) {
-			return httpError(http.StatusTooManyRequests, err)
+		if !errors.Is(err, context.Canceled) {
+			metricErroredQueries.With(srcLabel).Inc()
 		}
-		return fmt.Errorf("Could not start query: %v", err)
-	}
-
-	select {
-	case <-s.done:
-	case <-ctx.Done():
-		return ctx.Err()
+		return err
 	}
 	s.mu.Lock()
-	errs := s.errors
-	s.mu.Unlock()
-	if len(errs) > 0 {
-		metricErroredQueries.With(srcLabel).Inc()
-		return httpError(http.StatusInternalServerError, fmt.Errorf("search failed: %v", errs[0]))
-	}
-
-	metricSuccessfulQueries.With(srcLabel).Inc()
-
-	log.Printf("[%s] serving API results\n", queryid)
-
-	s.mu.Lock()
-	latency := time.Since(s.started)
-	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
-
 	filesTotal := 0
 	for _, total := range s.filesTotal {
 		filesTotal += total
 	}
 	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
-	startJsonResponse(w)
 	s.mu.Unlock()
 
+	startJsonResponse(w)
 	if err := writeResults(w, s); err != nil {
 		return err
 	}
@@ -345,6 +353,7 @@ func (o *Opts) serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error 
 			SecureCookie: apiOpts.SecureCookie(),
 		},
 	}
+	mux.Handle("GET /grep", httpErrorWrapper(a.grep))
 	// OPTIONS requests are used for preflight.
 	mux.Handle("GET /api/v1/search", httpErrorWrapper(a.search))
 	mux.Handle("OPTIONS /api/v1/search", httpErrorWrapper(a.search))

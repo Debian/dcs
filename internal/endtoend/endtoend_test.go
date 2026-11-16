@@ -239,4 +239,57 @@ func TestEndToEnd(t *testing.T) {
 		})
 
 	})
+
+	t.Run("grep", func(t *testing.T) {
+		urlPrefix := "https://" + instance.Addr
+
+		t.Run("WithoutKey", func(t *testing.T) {
+			req, err := http.NewRequest("GET", urlPrefix+"/grep", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := instance.HTTPClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if got, want := resp.StatusCode, http.StatusForbidden; got != want {
+				b, _ := io.ReadAll(resp.Body)
+				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
+					resp.Status,
+					strings.TrimSpace(string(b)),
+					want)
+			}
+		})
+
+		t.Run("GET", func(t *testing.T) {
+			req, err := http.NewRequest("GET", urlPrefix+"/grep?q=i3Font", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("x-dcs-apikey", apikey)
+			resp, err := instance.HTTPClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if got, want := resp.StatusCode, http.StatusOK; got != want {
+				b, _ := io.ReadAll(resp.Body)
+				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
+					resp.Status,
+					strings.TrimSpace(string(b)),
+					want)
+			}
+
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			results := string(b)
+			want := `i3-wm_4.5.1-2/include/libi3.h:287: i3Font load_font(const char *pattern, const bool fallback);`
+			if !strings.Contains(results, want) {
+				t.Fatalf("search result %+v not found in results %+v", want, results)
+			}
+		})
+	})
 }
