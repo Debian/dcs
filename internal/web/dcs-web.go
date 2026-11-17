@@ -18,6 +18,7 @@ import (
 	"regexp"
 	"regexp/syntax"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,6 +108,10 @@ func validateQuery(query string) error {
 		return err
 	}
 
+	if hasNewline(re) {
+		return fmt.Errorf("files are searched line-by-line, so a newline can never match")
+	}
+
 	if strings.Contains(q, "   ") ||
 		strings.Contains(re.String(), "   ") {
 		// Regexp queries might be simplified into a positional query.
@@ -130,6 +135,13 @@ func validateQuery(query string) error {
 		return fmt.Errorf("Empty index query. See https://codesearch.debian.net/faq#emptyindex")
 	}
 	return nil
+}
+
+func hasNewline(re *syntax.Regexp) bool {
+	if re.Op == syntax.OpLiteral && slices.Contains(re.Rune, '\n') {
+		return true
+	}
+	return slices.ContainsFunc(re.Sub, hasNewline)
 }
 
 func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) error {
