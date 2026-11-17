@@ -212,15 +212,6 @@ func writePerPackageSearchResults(w io.Writer, s *queryState) error {
 	return nil
 }
 
-func httpErrorWrapper(h func(http.ResponseWriter, *http.Request) error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := h(w, r); err != nil && err != context.Canceled {
-			handleError(w, err)
-			log.Println(err)
-		}
-	})
-}
-
 type apiserver struct {
 	opts    *Opts
 	decoder *apikeys.Decoder
@@ -353,11 +344,11 @@ func (o *Opts) serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error 
 			SecureCookie: apiOpts.SecureCookie(),
 		},
 	}
-	mux.Handle("GET /grep", httpErrorWrapper(a.grep))
+	mux.Handle("GET /grep", errorHandler(a.grep))
 	// OPTIONS requests are used for preflight.
-	mux.Handle("GET /api/v1/search", httpErrorWrapper(a.search))
-	mux.Handle("OPTIONS /api/v1/search", httpErrorWrapper(a.search))
-	mux.Handle("GET /api/v1/searchperpackage", httpErrorWrapper(a.searchperpackage))
-	mux.Handle("OPTIONS /api/v1/searchperpackage", httpErrorWrapper(a.searchperpackage))
+	mux.Handle("GET /api/v1/search", errorHandler(a.search))
+	mux.Handle("OPTIONS /api/v1/search", errorHandler(a.search))
+	mux.Handle("GET /api/v1/searchperpackage", errorHandler(a.searchperpackage))
+	mux.Handle("OPTIONS /api/v1/searchperpackage", errorHandler(a.searchperpackage))
 	return nil
 }

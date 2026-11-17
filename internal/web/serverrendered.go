@@ -125,7 +125,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 
 	var buffer bytes.Buffer
 	if err := s.writePerPkgResults(page, &buffer, w, r); err != nil {
-		handleError(w, err)
+		handleError(w, r, err)
 		return
 	}
 
@@ -299,7 +299,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 
 	var buffer bytes.Buffer
 	if err := s.writeResults(page, &buffer, w, r); err != nil {
-		handleError(w, err)
+		handleError(w, r, err)
 		return
 	}
 

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"log"
 	"net/http"
 )
 
@@ -18,7 +19,7 @@ func httpError(code int, err error) error {
 	return &httpErr{code, err}
 }
 
-func handleError(w http.ResponseWriter, err error) {
+func handleError(w http.ResponseWriter, r *http.Request, err error) {
 	if err == nil {
 		return
 	}
@@ -32,12 +33,14 @@ func handleError(w http.ResponseWriter, err error) {
 		unwrapped = he.err
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Del("Expires")
+	log.Printf("%s: HTTP %d %s", r.URL.Path, code, unwrapped)
 	http.Error(w, unwrapped.Error(), code)
 }
 
 func errorHandler(h func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := h(w, r)
-		handleError(w, err)
+		handleError(w, r, err)
 	})
 }

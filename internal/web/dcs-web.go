@@ -296,7 +296,7 @@ func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = s.writePerPkgResults(page, w, w, r)
 	}
-	handleError(w, err)
+	handleError(w, r, err)
 }
 
 func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
