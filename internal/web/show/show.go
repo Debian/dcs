@@ -38,7 +38,7 @@ func ShowPlain(backends []common.Backend) http.Handler {
 func readFile(backends []common.Backend, filename string) ([]byte, error) {
 	pkg, _, ok := strings.Cut(filename, "/")
 	if !ok {
-		return nil, fmt.Errorf("Filename does not contain a package")
+		return nil, httperr.Error(http.StatusBadRequest, fmt.Errorf("Filename does not contain a package"))
 	}
 	shard := backends[shardmapping.TaskIdxForPackage(pkg, len(backends))]
 	resp, err := shard.ReadFile(context.Background(), filename)
