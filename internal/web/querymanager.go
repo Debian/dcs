@@ -30,6 +30,7 @@ import (
 	"unsafe"
 
 	"github.com/Debian/dcs/internal/frequency"
+	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/Debian/dcs/internal/stringpool"
 	"github.com/Debian/dcs/internal/web/common"
@@ -715,8 +716,10 @@ type queryStats struct {
 	FilesProcessed []int
 }
 
-func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
+func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) error {
+	if err := r.ParseForm(); err != nil {
+		return httperr.Error(http.StatusBadRequest, errors.New("Could not parse form data"))
+	}
 	if cancel := r.PostFormValue("cancel"); cancel != "" {
 		if s, ok := o.lookupQuery(cancel); ok {
 			s.mu.Lock()
@@ -728,7 +731,7 @@ func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		http.Redirect(w, r, "/queryz", http.StatusFound)
-		return
+		return nil
 	}
 
 	o.queriesMu.RLock()
@@ -762,12 +765,9 @@ func (o *Opts) QueryzHandler(w http.ResponseWriter, r *http.Request) {
 		return stats[i].Started.After(stats[j].Started)
 	})
 
-	if err := common.Templates.ExecuteTemplate(w, "queryz.html", map[string]any{
+	return common.Templates.ExecuteTemplate(w, "queryz.html", map[string]any{
 		"queries": stats,
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	})
 }
 
 // Caller needs to hold s.clientsMu
@@ -1261,33 +1261,29 @@ func (o *Opts) storeProgress(s *queryState, backendidx int, progress *sourceback
 	})
 }
 
-func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) error {
 	matches := perPackagePathRe.FindStringSubmatch(r.URL.Path)
 	if matches == nil || len(matches) != 3 {
 		matches = redirectPathRe.FindStringSubmatch(r.URL.Path)
 		if len(matches) < 3 {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
+			return httperr.Error(http.StatusBadRequest, errors.New("Bad request"))
 		}
 		pageSuffix := "&page=" + matches[2]
 		if matches[2] == "0" {
 			pageSuffix = ""
 		}
 		http.Redirect(w, r, "/search?q="+matches[1]+pageSuffix+"&perpkg=1", http.StatusFound)
-		return
+		return nil
 	}
 
 	queryid := matches[1]
 	pagenr, err := strconv.Atoi(matches[2])
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not convert %q into a number: %v", matches[2], err), http.StatusBadRequest)
-		return
+		return httperr.Error(http.StatusBadRequest, fmt.Errorf("Could not convert %q into a number: %v", matches[2], err))
 	}
 	s, ok := o.lookupQuery(queryid)
 	if !ok {
-		w.Header().Set("Cache-Control", "no-store")
-		http.Error(w, "No such query.", http.StatusNotFound)
-		return
+		return httperr.Error(http.StatusNotFound, errors.New("No such query."))
 	}
 	select {
 	case <-s.done:
@@ -1295,9 +1291,7 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 	case <-r.Context().Done():
 	}
 	if !s.completed() {
-		log.Printf("[%s] query not yet finished, cannot produce per-package results\n", queryid)
-		http.Error(w, "Query not finished yet.", http.StatusInternalServerError)
-		return
+		return fmt.Errorf("Query not finished yet.")
 	}
 
 	// For compatibility with old versions, we serve the files that are
@@ -1306,4 +1300,5 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 	// long expired from any caches.
 	name := filepath.Join(o.QueryResultsPath, queryid, fmt.Sprintf("perpackage_2_page_%d.json", pagenr))
 	http.ServeFile(w, r, name)
+	return nil
 }

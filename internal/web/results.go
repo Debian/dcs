@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/Debian/dcs/internal/httperr"
 )
 
 func startJsonResponse(w http.ResponseWriter) {
@@ -26,7 +28,7 @@ func (s *queryState) writeResults(page int, results io.Writer, w http.ResponseWr
 	s.mu.Unlock()
 	start := page * resultsPerPage
 	if page < 0 || start > pointers.Len() {
-		return httpError(http.StatusNotFound, fmt.Errorf("No such page."))
+		return httperr.Error(http.StatusNotFound, fmt.Errorf("No such page."))
 	}
 	end := min((page+1)*resultsPerPage, pointers.Len())
 
@@ -52,7 +54,7 @@ func (s *queryState) writePerPkgResults(page int, results io.Writer, w http.Resp
 
 	start := page * packagesPerPage
 	if page < 0 || start > len(packages) {
-		return httpError(http.StatusNotFound, fmt.Errorf("No such page."))
+		return httperr.Error(http.StatusNotFound, fmt.Errorf("No such page."))
 	}
 	end := min((page+1)*packagesPerPage, len(packages))
 

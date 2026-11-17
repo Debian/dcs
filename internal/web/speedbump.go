@@ -3,9 +3,11 @@ package web
 import (
 	"errors"
 	"net/http"
+
+	"github.com/Debian/dcs/internal/httperr"
 )
 
-func (o *Opts) SpeedbumpHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) SpeedbumpHandler(w http.ResponseWriter, r *http.Request) error {
 	// For valid speedbump continuation tokens,
 	// start the query and redirect to attach to it.
 	q := r.PostFormValue("q")
@@ -15,17 +17,16 @@ func (o *Opts) SpeedbumpHandler(w http.ResponseWriter, r *http.Request) {
 		// Otherwise (e.g. for expired continuation tokens),
 		// redirect to the search handler to start from scratch.
 		http.Redirect(w, r, "/search?"+q, http.StatusSeeOther)
-		return
+		return nil
 	}
 
 	cl := clientFromRequest(r, "/speedbump", "")
 	if _, _, err := o.maybeStartQuery(r.Context(), queryID(q), cl, q); err != nil {
 		if errors.Is(err, errTooManyQueries) {
-			http.Error(w, err.Error(), http.StatusTooManyRequests)
-			return
+			return httperr.Error(http.StatusTooManyRequests, err)
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	http.Redirect(w, r, "/search?"+q+"&exhaustive=1", http.StatusSeeOther)
+	return nil
 }

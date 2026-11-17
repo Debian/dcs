@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/Debian/dcs/internal/apikeys"
 	"github.com/Debian/dcs/internal/grpcutil"
+	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/index"
 	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/static"
@@ -127,7 +129,7 @@ func validateQuery(query string) error {
 	return nil
 }
 
-func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	query := r.FormValue("q")
 	if query == "" {
@@ -157,9 +159,8 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		if _, err := fmt.Fprintf(w, "id: %d\ndata: %s\n\n", 0, string(b)); err != nil {
 			log.Printf("[%s] aborting, could not write: %v\n", src, err)
-			return
 		}
-		return
+		return nil
 	}
 
 	exhaustive := r.FormValue("exhaustive") == "1"
@@ -177,9 +178,8 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		if _, err := fmt.Fprintf(w, "id: %d\ndata: %s\n\n", 0, string(b)); err != nil {
 			log.Printf("[%s] aborting, could not write: %v\n", src, err)
-			return
 		}
-		return
+		return nil
 	}
 
 	// Create an apache common log format entry.
@@ -198,8 +198,10 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		message, sequence, ok := s.getEvent(lastseen)
 		if !ok {
+			// The event stream has started, so we can no longer
+			// return HTTP errors. Log+return instead.
 			log.Printf("[%s] query no longer exists", src)
-			return
+			return nil
 		}
 		lastseen = sequence
 		// This message was obsoleted by a more recent one, e.g. a more
@@ -211,8 +213,10 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if _, err := fmt.Fprintf(w, "id: %d\ndata: %s\n\n", sequence, message.data); err != nil {
+			// The event stream has started, so we can no longer
+			// return HTTP errors. Log+return instead.
 			log.Printf("[%s] aborting, could not write: %v\n", src, err)
-			return
+			return nil
 		}
 		if flusher, ok := w.(http.Flusher); ok {
 			flusher.Flush()
@@ -224,9 +228,11 @@ func (o *Opts) EventsHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		fmt.Fprintln(w, "No content")
 	}
+
+	return nil
 }
 
-func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) error {
 	// TODO: ideally, this would also start the search in the background to avoid waiting for the round-trip to the client.
 
 	// Try to match /page_n.json or /perpackage_2_page_n.json
@@ -238,23 +244,20 @@ func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		if matches == nil || len(matches) != 3 {
 			matches = redirectPathRe.FindStringSubmatch(r.URL.Path)
 			if len(matches) < 3 {
-				http.Error(w, "Bad request", http.StatusBadRequest)
-				return
+				return httperr.Error(http.StatusBadRequest, errors.New("Bad request"))
 			}
 			pageSuffix := "&page=" + matches[2]
 			if matches[2] == "0" {
 				pageSuffix = ""
 			}
 			http.Redirect(w, r, "/search?q="+matches[1]+pageSuffix, http.StatusFound)
-			return
+			return nil
 		}
 
 		queryid := matches[1]
 		s, ok := o.lookupQuery(queryid)
 		if !ok {
-			w.Header().Set("Cache-Control", "no-store")
-			http.Error(w, "No such query.", http.StatusNotFound)
-			return
+			return httperr.Error(http.StatusNotFound, errors.New("No such query."))
 		}
 		s.mu.Lock()
 		packages := s.allPackagesSorted
@@ -267,36 +270,31 @@ func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) {
 		switch matches[2] {
 		case "json":
 			if err := json.NewEncoder(w).Encode(struct{ Packages []string }{packages}); err != nil {
-				http.Error(w, fmt.Sprintf("Could not encode packages: %v", err), http.StatusInternalServerError)
+				return fmt.Errorf("Could not encode packages: %v", err)
 			}
 		case "txt":
 			if _, err := w.Write([]byte(strings.Join(packages, "\n") + "\n")); err != nil {
-				http.Error(w, fmt.Sprintf("Could not write packages: %v", err), http.StatusInternalServerError)
+				return fmt.Errorf("Could not write packages: %v", err)
 			}
 		}
-		return
+		return nil
 	}
 
 	queryid := matches[1]
 	page, err := strconv.Atoi(matches[3])
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Could not convert %q into a number: %v", matches[3], err), http.StatusBadRequest)
-		return
+		return httperr.Error(http.StatusBadRequest, fmt.Errorf("Could not convert %q into a number: %v", matches[3], err))
 	}
 	perpackage := (matches[2] == "perpackage_2_")
 	s, ok := o.lookupQuery(queryid)
 	if !ok {
-		w.Header().Set("Cache-Control", "no-store")
-		http.Error(w, "No such query.", http.StatusNotFound)
-		return
+		return httperr.Error(http.StatusNotFound, errors.New("No such query."))
 	}
 
-	if !perpackage {
-		err = s.writeResults(page, w, w, r)
-	} else {
-		err = s.writePerPkgResults(page, w, w, r)
+	if perpackage {
+		return s.writePerPkgResults(page, w, w, r)
 	}
-	handleError(w, r, err)
+	return s.writeResults(page, w, w, r)
 }
 
 func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
@@ -470,54 +468,49 @@ func (o *Opts) Main(ln net.Listener) error {
 	health.StartChecking(o.UseSourcesDebianNet)
 
 	mux := o.Mux
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		if r.URL.Path == "/" {
-			if err := common.Templates.ExecuteTemplate(w, "index.html", map[string]any{
+			return common.Templates.ExecuteTemplate(w, "index.html", map[string]any{
 				"criticalcss": common.CriticalCss,
 				"version":     version.Read(),
 				"host":        r.Host,
-			}); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
-			return
+			})
 		}
 		// Check if a static file was requested with full name
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if _, err := fs.Stat(static.FS, name); err == nil {
 			serveStatic(w, r, name)
-			return
+			return nil
 		}
 
 		// Or maybe /faq, which resolves to /faq.html
 		name = name + ".html"
 		if _, err := fs.Stat(static.FS, name); err == nil {
 			serveStatic(w, r, name)
-			return
+			return nil
 		}
 
 		http.NotFound(w, r)
-	})
-	mux.HandleFunc("GET /show", show.Show(o.backends, o.UseSourcesDebianNet))
-	mux.HandleFunc("GET /results/", o.ResultsHandler)
-	mux.HandleFunc("GET /perpackage-results/", o.PerPackageResultsHandler)
+		return nil // avoid log spam from 404s
+	}))
+	mux.Handle("GET /show", show.Show(o.backends, o.UseSourcesDebianNet))
+	mux.Handle("GET /results/", httperr.ErrorHandler(o.ResultsHandler))
+	mux.Handle("GET /perpackage-results/", httperr.ErrorHandler(o.PerPackageResultsHandler))
 	mux.HandleFunc("POST /track", Track)
-	mux.HandleFunc("GET /search", o.Search)
-	mux.HandleFunc("GET /events/", o.EventsHandler)
-	mux.HandleFunc("POST /speedbump", o.SpeedbumpHandler)
+	mux.Handle("GET /search", httperr.ErrorHandler(o.Search))
+	mux.Handle("GET /events/", httperr.ErrorHandler(o.EventsHandler))
+	mux.Handle("POST /speedbump", httperr.ErrorHandler(o.SpeedbumpHandler))
 
 	// Used by the service worker.
-	mux.HandleFunc("GET /placeholder.html", func(w http.ResponseWriter, r *http.Request) {
-		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
+	mux.Handle("GET /placeholder.html", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		return common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
 			"host":        r.Host,
 			"q":           "%q%",
 			"literal":     true,
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
+		})
+	}))
 
 	apiOpts := apikeys.Options{
 		HashKey:      hashKey,
@@ -569,8 +562,8 @@ func (o *Opts) Main(ln net.Listener) error {
 		debugMux.Handle("GET /metrics", promhttp.Handler())
 		debugMux.Handle("GET /debug/", http.DefaultServeMux)
 		debugMux.Handle("POST /debug/", http.DefaultServeMux)
-		debugMux.HandleFunc("GET /queryz", o.QueryzHandler)
-		debugMux.HandleFunc("POST /queryz", o.QueryzHandler)
+		debugMux.Handle("GET /queryz", httperr.ErrorHandler(o.QueryzHandler))
+		debugMux.Handle("POST /queryz", httperr.ErrorHandler(o.QueryzHandler))
 		go func() {
 			log.Fatal(http.ListenAndServe(o.ListenAddressDebug, debugMux))
 		}()

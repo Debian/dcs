@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Debian/dcs/internal/httperr"
 	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/version"
 	"github.com/Debian/dcs/internal/web/common"
@@ -118,15 +119,14 @@ func (s *queryState) readPackagesFile() []string {
 	return packages[:end]
 }
 
-func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, page int) {
+func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, page int) error {
 	s.mu.Lock()
 	speedbump := s.speedbump
 	s.mu.Unlock()
 
 	var buffer bytes.Buffer
 	if err := s.writePerPkgResults(page, &buffer, w, r); err != nil {
-		handleError(w, r, err)
-		return
+		return err
 	}
 
 	type perPackageResults struct {
@@ -137,10 +137,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 
 	var results []perPackageResults
 	if err := json.NewDecoder(&buffer).Decode(&results); err != nil {
-		http.Error(w,
-			fmt.Sprintf("Could not parse results from disk: %v", err),
-			http.StatusInternalServerError)
-		return
+		return fmt.Errorf("Could not parse results from disk: %v", err)
 	}
 
 	for idx, pp := range results {
@@ -189,7 +186,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 	baseurl.RawQuery = basequery.Encode()
 	filterurl := baseurl.String()
 
-	if err := common.Templates.ExecuteTemplate(w, "perpackage-results.html", map[string]any{
+	return common.Templates.ExecuteTemplate(w, "perpackage-results.html", map[string]any{
 		"criticalcss": common.CriticalCss,
 		"results":     results,
 		"filterurl":   filterurl,
@@ -201,10 +198,7 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 		"host":        r.Host,
 		"version":     version.Read(),
 		"speedbump":   speedbump,
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	})
 }
 
 // q= search term
@@ -214,19 +208,17 @@ func renderPerPackage(w http.ResponseWriter, r *http.Request, s *queryState, pag
 //
 // wait=1 to wait (up to 10s) before showing a page,
 // instead of showing a placeholder that reloads.
-func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
+func (o *Opts) Search(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Could not parse form data", http.StatusInternalServerError)
-		return
+		return httperr.Error(http.StatusBadRequest, errors.New("Could not parse form data"))
 	}
 
 	cl := clientFromRequest(r, "/search", "")
 	src := cl.String()
 	query := r.Form.Get("q")
 	if query == "" {
-		http.Error(w, "Empty query", http.StatusNotFound)
-		return
+		return httperr.Error(http.StatusNotFound, errors.New("Empty query"))
 	}
 	literal := r.Form.Get("literal")
 	if literal != "1" {
@@ -242,28 +234,23 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
-		http.Error(w, "Invalid page parameter", http.StatusBadRequest)
-		return
+		return httperr.Error(http.StatusBadRequest, errors.New("Invalid page parameter"))
 	}
 
 	log.Printf("server-render(%q, %q)\n", src, q)
 
 	if err := validateQuery("?" + q); err != nil {
 		logRejected(cl, q, err)
-		http.Error(w, fmt.Sprintf("Invalid query: %v", err), http.StatusBadRequest)
-		return
+		return httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
 	}
 
 	exhaustive := r.FormValue("exhaustive") == "1"
 	s, _, err := o.maybeStartQuerySpeedbumped(ctx, cl, q, exhaustive)
 	if err != nil {
-		log.Printf("[%s] could not start query: %v\n", src, err)
 		if errors.Is(err, errTooManyQueries) {
-			http.Error(w, err.Error(), http.StatusTooManyRequests)
-		} else {
-			http.Error(w, fmt.Sprintf("Could not start query: %v", err), http.StatusInternalServerError)
+			return httperr.Error(http.StatusTooManyRequests, err)
 		}
-		return
+		return fmt.Errorf("Could not start query: %v", err)
 	}
 	if r.Form.Get("wait") == "1" {
 		select {
@@ -284,31 +271,25 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 			"host":        r.Host,
 			"version":     version.Read(),
 		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err
 		}
-		return
+		return nil
 	}
 
 	log.Printf("[%s] server-rendering page %d\n", s.queryid, page)
 
 	if r.Form.Get("perpkg") == "1" {
-		renderPerPackage(w, r, s, page)
-		return
+		return renderPerPackage(w, r, s, page)
 	}
 
 	var buffer bytes.Buffer
 	if err := s.writeResults(page, &buffer, w, r); err != nil {
-		handleError(w, r, err)
-		return
+		return err
 	}
 
 	var results []dcsregexp.Match
 	if err := json.NewDecoder(&buffer).Decode(&results); err != nil {
-		http.Error(w,
-			fmt.Sprintf("Could not parse results from disk: %v", err),
-			http.StatusInternalServerError)
-		return
+		return fmt.Errorf("Could not parse results from disk: %v", err)
 	}
 
 	halfrendered := make([]halfRenderedResult, len(results))
@@ -356,7 +337,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 	baseurl.RawQuery = basequery.Encode()
 	filterurl := baseurl.String()
 
-	if err := common.Templates.ExecuteTemplate(w, "results.html", map[string]any{
+	return common.Templates.ExecuteTemplate(w, "results.html", map[string]any{
 		"criticalcss": common.CriticalCss,
 		"perpkgurl":   perpkgurl,
 		"filterurl":   filterurl,
@@ -369,8 +350,5 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) {
 		"page":        page,
 		"host":        r.Host,
 		"version":     version.Read(),
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	})
 }

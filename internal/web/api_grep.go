@@ -2,7 +2,6 @@ package web
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/protobuf/proto"
@@ -103,20 +103,20 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 
 	key, err := a.decoder.Decode(r.Header.Get("x-dcs-apikey"))
 	if err != nil {
-		return httpError(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
+		return httperr.Error(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
 	}
 
 	cl := clientFromRequest(r, "/grep", key.Subject)
 	srcLabel := prometheus.Labels{"source": key.Subject}
 	defer func() {
-		if err != nil && !errors.Is(err, context.Canceled) {
+		if err != nil && ctx.Err() == nil {
 			metricErroredQueries.With(srcLabel).Inc()
 		}
 	}()
 
 	req, err := validateParameters(r)
 	if err != nil {
-		return httpError(http.StatusBadRequest, fmt.Errorf("%v. %s", err, grepUsage))
+		return httperr.Error(http.StatusBadRequest, fmt.Errorf("%v. %s", err, grepUsage))
 	}
 
 	// We encode a URL that contains _only_ the q (and literal) parameter.

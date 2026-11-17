@@ -14,6 +14,7 @@ import (
 
 	"github.com/Debian/dcs/internal/api"
 	"github.com/Debian/dcs/internal/apikeys"
+	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/mmap"
 	"github.com/Debian/dcs/internal/proto/sourcebackendpb"
 	"github.com/prometheus/client_golang/prometheus"
@@ -226,13 +227,13 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 
 	if err := validateQuery("?" + q); err != nil {
 		logRejected(cl, q, err)
-		return nil, httpError(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
+		return nil, httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
 	}
 
 	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
 	if err != nil {
 		if errors.Is(err, errTooManyQueries) {
-			return nil, httpError(http.StatusTooManyRequests, err)
+			return nil, httperr.Error(http.StatusTooManyRequests, err)
 		}
 		return nil, fmt.Errorf("Could not start query: %v", err)
 	}
@@ -278,20 +279,20 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	key, err := a.decoder.Decode(r.Header.Get("x-dcs-apikey"))
 	if err != nil {
-		return httpError(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
+		return httperr.Error(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
 	}
 
 	cl := clientFromRequest(r, "/api", key.Subject)
 	srcLabel := prometheus.Labels{"source": key.Subject}
 	defer func() {
-		if err != nil && !errors.Is(err, context.Canceled) {
+		if err != nil && ctx.Err() == nil {
 			metricErroredQueries.With(srcLabel).Inc()
 		}
 	}()
 
 	query := r.FormValue("query")
 	if query == "" {
-		return httpError(http.StatusBadRequest, errors.New("no query parameter specified"))
+		return httperr.Error(http.StatusBadRequest, errors.New("no query parameter specified"))
 	}
 
 	literal := "0"
@@ -343,11 +344,11 @@ func (o *Opts) serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error 
 			SecureCookie: apiOpts.SecureCookie(),
 		},
 	}
-	mux.Handle("GET /grep", errorHandler(a.grep))
+	mux.Handle("GET /grep", httperr.ErrorHandler(a.grep))
 	// OPTIONS requests are used for preflight.
-	mux.Handle("GET /api/v1/search", errorHandler(a.search))
-	mux.Handle("OPTIONS /api/v1/search", errorHandler(a.search))
-	mux.Handle("GET /api/v1/searchperpackage", errorHandler(a.searchperpackage))
-	mux.Handle("OPTIONS /api/v1/searchperpackage", errorHandler(a.searchperpackage))
+	mux.Handle("GET /api/v1/search", httperr.ErrorHandler(a.search))
+	mux.Handle("OPTIONS /api/v1/search", httperr.ErrorHandler(a.search))
+	mux.Handle("GET /api/v1/searchperpackage", httperr.ErrorHandler(a.searchperpackage))
+	mux.Handle("OPTIONS /api/v1/searchperpackage", httperr.ErrorHandler(a.searchperpackage))
 	return nil
 }

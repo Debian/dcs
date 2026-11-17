@@ -10,19 +10,19 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/shardmapping"
 	"github.com/Debian/dcs/internal/web/common"
 	"github.com/Debian/dcs/internal/web/health"
 )
 
-func Show(backends []common.Backend, useSourcesDebianNet bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func Show(backends []common.Backend, useSourcesDebianNet bool) http.Handler {
+	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		query := r.URL
 		filename := query.Query().Get("file")
 		line64, err := strconv.ParseInt(query.Query().Get("line"), 10, 0)
 		if err != nil {
-			log.Printf("%v\n", err)
-			return
+			return httperr.Error(http.StatusBadRequest, err)
 		}
 		line := int(line64)
 		log.Printf("Showing file %s, line %d\n", filename, line)
@@ -37,20 +37,18 @@ func Show(backends []common.Backend, useSourcesDebianNet bool) http.HandlerFunc 
 			destination := u.String()
 			log.Printf("SDN is healthy. Redirecting to %s\n", destination)
 			http.Redirect(w, r, destination, 302)
-			return
+			return nil
 		}
 
 		before, _, ok := strings.Cut(filename, "/")
 		if !ok {
-			http.Error(w, "Filename does not contain a package", http.StatusInternalServerError)
-			return
+			return fmt.Errorf("Filename does not contain a package")
 		}
 		pkg := before
 		shard := backends[shardmapping.TaskIdxForPackage(pkg, len(backends))]
 		resp, err := shard.ReadFile(context.Background(), filename)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err
 		}
 
 		// NB: contents is untrusted as it can contain the contents of any file
@@ -70,15 +68,12 @@ func Show(backends []common.Backend, useSourcesDebianNet bool) http.HandlerFunc 
 			lineNumbers[idx] = idx + 1
 		}
 
-		err = common.Templates.ExecuteTemplate(w, "show.html", map[string]any{
+		return common.Templates.ExecuteTemplate(w, "show.html", map[string]any{
 			"line":     line,
 			"lines":    lines,
 			"numbers":  lineNumbers,
 			"lnrwidth": len(highestLineNr),
 			"filename": filename,
 		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
+	})
 }

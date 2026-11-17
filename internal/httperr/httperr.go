@@ -1,7 +1,6 @@
-package web
+package httperr
 
 import (
-	"context"
 	"log"
 	"net/http"
 	"strings"
@@ -16,7 +15,7 @@ func (h *httpErr) Error() string {
 	return h.err.Error()
 }
 
-func httpError(code int, err error) error {
+func Error(code int, err error) error {
 	return &httpErr{code, err}
 }
 
@@ -24,7 +23,7 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 	if err == nil {
 		return
 	}
-	if err == context.Canceled {
+	if r.Context().Err() != nil {
 		return // client canceled the request
 	}
 	code := http.StatusInternalServerError
@@ -43,7 +42,7 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, unwrapped.Error(), code)
 }
 
-func errorHandler(h func(http.ResponseWriter, *http.Request) error) http.Handler {
+func ErrorHandler(h func(http.ResponseWriter, *http.Request) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := h(w, r)
 		handleError(w, r, err)

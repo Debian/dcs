@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/version"
 	"github.com/Debian/dcs/internal/web/common"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -60,15 +61,6 @@ type gitLabUserInfo struct {
 
 	// Names of the groups the user is a member of, e.g. ["go-team", "i3-team"].
 	Groups []string `json:"groups"`
-}
-
-func httpErrorWrapper(h func(http.ResponseWriter, *http.Request) error) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := h(w, r); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			log.Println(err)
-		}
-	})
 }
 
 type Key struct {
@@ -175,27 +167,24 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 	}
 
 	const cookieName = "dcs-session"
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		var session session
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			if err := cookies.Decode("dcs-session", cookie.Value, &session); err != nil {
 				log.Printf("could not decode cookie: %v", err)
 			}
 		}
-		if err := common.Templates.ExecuteTemplate(w, "apikeys.html", map[string]any{
+		return common.Templates.ExecuteTemplate(w, "apikeys.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"version":     version.Read(),
 			"host":        r.Host,
 			"userinfo":    session.GetUserInfo(),
 			"keyfilename": session.KeyFilename(),
 			"apikey":      session.GetAPIKey(),
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
+		})
+	}))
 
-	mux.HandleFunc("GET /logout", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /logout", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		cookie := &http.Cookie{
 			Name:     cookieName,
 			Value:    "", // clear
@@ -205,9 +194,10 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		cookie.Secure = strings.HasPrefix(opts.RedirectURL, "https://")
 		http.SetCookie(w, cookie)
 		http.Redirect(w, r, opts.Prefix+"/", http.StatusTemporaryRedirect)
-	})
+		return nil
+	}))
 
-	mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /login", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		// To prevent CSRF attacks, state needs to contain a unique and
 		// non-guessable value associated with each authentication request.  We
 		// use the securecookie package to encrypt and later authenticate the
@@ -216,14 +206,14 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 			LoginRequest: time.Now().Unix(),
 		})
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err
 		}
 		url := oauth2Config.AuthCodeURL(state)
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-	})
+		return nil
+	}))
 
-	mux.HandleFunc("GET /download/", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("GET /download/", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		var session session
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			if err := cookies.Decode("dcs-session", cookie.Value, &session); err != nil {
@@ -233,15 +223,16 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		nickname := session.GetUserInfo().Nickname
 		if nickname == "" {
 			http.Redirect(w, r, opts.Prefix+"/", http.StatusTemporaryRedirect)
-			return
+			return nil
 		}
 		w.Header().Set("Content-Disposition", `attachment; filename="`+session.KeyFilename()+`"`)
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		io.WriteString(w, session.GetAPIKey()+"\n")
-	})
+		return nil
+	}))
 
-	mux.Handle("GET /redirect_uri", httpErrorWrapper(func(w http.ResponseWriter, r *http.Request) error {
+	mux.Handle("GET /redirect_uri", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		ctx := r.Context()
 
 		var st state
