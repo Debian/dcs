@@ -26,6 +26,10 @@ func ShowPlain(backends []common.Backend) http.Handler {
 		}
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		// Once uploaded to Debian, files cannot be changed.
+		// Set the cache header to reflect file contents are immutable
+		// and can be cached indefinitely.
+		w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
 		_, err = w.Write(resp)
 		return err
 	})
