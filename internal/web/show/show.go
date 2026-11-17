@@ -57,6 +57,9 @@ func Show(backends []common.Backend, useSourcesDebianNet bool) http.Handler {
 	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		query := r.URL
 		filename := query.Query().Get("file")
+		if filename == "" {
+			return httperr.Error(http.StatusBadRequest, fmt.Errorf("usage: /show/pkg_version/path/to/file"))
+		}
 		line64, err := strconv.ParseInt(query.Query().Get("line"), 10, 0)
 		if err != nil {
 			return httperr.Error(http.StatusBadRequest, err)
