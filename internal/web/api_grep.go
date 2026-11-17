@@ -26,6 +26,11 @@ keyword filters inside q:
 examples:
   /grep?q=load_font(+package:i3-wm
   /grep?regexp=1&q=%28load%7Cset%29_font
+notes:
+  Literal search is case-sensitive.
+  For case-insensitive search, use e.g. ?regexp=1&q=(?i)term
+  Files are searched line by line,
+  meaning ^ and $ match line start and line end.
 `
 
 type grepRequest struct {
