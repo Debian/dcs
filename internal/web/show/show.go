@@ -3,7 +3,9 @@ package show
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -43,6 +45,9 @@ func readFile(backends []common.Backend, filename string) ([]byte, error) {
 	shard := backends[shardmapping.TaskIdxForPackage(pkg, len(backends))]
 	resp, err := shard.ReadFile(context.Background(), filename)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, httperr.Error(http.StatusNotFound, fmt.Errorf("file not found: %s", filename))
+		}
 		return nil, err
 	}
 	return resp, nil
