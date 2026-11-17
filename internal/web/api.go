@@ -314,11 +314,13 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return err
 	}
 	s.mu.Lock()
-	filesTotal := 0
+	candidatesTotal := 0
 	for _, total := range s.filesTotal {
-		filesTotal += total
+		candidatesTotal += total
 	}
-	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
+	w.Header().Set("X-Codesearch-Candidates", strconv.Itoa(candidatesTotal))
+	w.Header().Set("X-Codesearch-Results", strconv.Itoa(s.numResults))
+	w.Header().Set("X-Codesearch-Packages", strconv.Itoa(len(s.allPackagesSorted)))
 	s.mu.Unlock()
 
 	startJsonResponse(w)

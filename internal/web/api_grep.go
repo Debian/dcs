@@ -137,11 +137,13 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	}
 
 	s.mu.Lock()
-	filesTotal := 0
+	candidatesTotal := 0
 	for _, total := range s.filesTotal {
-		filesTotal += total
+		candidatesTotal += total
 	}
-	w.Header().Set("X-Codesearch-FilesTotal", strconv.Itoa(filesTotal))
+	w.Header().Set("X-Codesearch-Candidates", strconv.Itoa(candidatesTotal))
+	w.Header().Set("X-Codesearch-Results", strconv.Itoa(s.numResults))
+	w.Header().Set("X-Codesearch-Packages", strconv.Itoa(len(s.allPackagesSorted)))
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
