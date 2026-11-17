@@ -79,6 +79,9 @@ func validateQuery(query string) error {
 	}
 	rewritten := search.RewriteQuery(*fakeUrl)
 	q := rewritten.Query().Get("q")
+	if q == "" {
+		return fmt.Errorf("no search term specified (keyword filters like package: only narrow a search)")
+	}
 	log.Printf("rewritten query = %q\n", rewritten.String())
 	literal := rewritten.Query().Get("literal") == "1"
 

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	start = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file)):(\S+)\s+`)
+	start = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file)):(\S+)(?:\s+|$)`)
 	end   = regexp.MustCompile(`(?i)\s+(-?(?:filetype|package|pkg|path|file)):(\S+)\s*$`)
 )
 
