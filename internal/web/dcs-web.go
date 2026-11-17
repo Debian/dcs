@@ -494,6 +494,7 @@ func (o *Opts) Main(ln net.Listener) error {
 		return nil // avoid log spam from 404s
 	}))
 	mux.Handle("GET /show", show.Show(o.backends, o.UseSourcesDebianNet))
+	mux.Handle("GET /show/{file...}", show.ShowPlain(o.backends))
 	mux.Handle("GET /results/", httperr.ErrorHandler(o.ResultsHandler))
 	mux.Handle("GET /perpackage-results/", httperr.ErrorHandler(o.PerPackageResultsHandler))
 	mux.HandleFunc("POST /track", Track)

@@ -16,6 +16,34 @@ import (
 	"github.com/Debian/dcs/internal/web/health"
 )
 
+func ShowPlain(backends []common.Backend) http.Handler {
+	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		filename := r.PathValue("file")
+		log.Printf("Showing file %s", filename)
+		resp, err := readFile(backends, filename)
+		if err != nil {
+			return err
+		}
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		_, err = w.Write(resp)
+		return err
+	})
+}
+
+func readFile(backends []common.Backend, filename string) ([]byte, error) {
+	pkg, _, ok := strings.Cut(filename, "/")
+	if !ok {
+		return nil, fmt.Errorf("Filename does not contain a package")
+	}
+	shard := backends[shardmapping.TaskIdxForPackage(pkg, len(backends))]
+	resp, err := shard.ReadFile(context.Background(), filename)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func Show(backends []common.Backend, useSourcesDebianNet bool) http.Handler {
 	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		query := r.URL
@@ -40,13 +68,7 @@ func Show(backends []common.Backend, useSourcesDebianNet bool) http.Handler {
 			return nil
 		}
 
-		before, _, ok := strings.Cut(filename, "/")
-		if !ok {
-			return fmt.Errorf("Filename does not contain a package")
-		}
-		pkg := before
-		shard := backends[shardmapping.TaskIdxForPackage(pkg, len(backends))]
-		resp, err := shard.ReadFile(context.Background(), filename)
+		resp, err := readFile(backends, filename)
 		if err != nil {
 			return err
 		}
@@ -64,7 +86,7 @@ func Show(backends []common.Backend, useSourcesDebianNet bool) http.Handler {
 		// Since Go templates don’t offer any way to use {{$idx+1}}, we need to
 		// pre-calculate line numbers starting from 1 here.
 		lineNumbers := make([]int, len(lines))
-		for idx, _ := range lines {
+		for idx := range lines {
 			lineNumbers[idx] = idx + 1
 		}
 
