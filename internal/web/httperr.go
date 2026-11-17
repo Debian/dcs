@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type httpErr struct {
@@ -34,7 +35,11 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Del("Expires")
-	log.Printf("%s: HTTP %d %s", r.URL.Path, code, unwrapped)
+	// The first line contains the error,
+	// all following lines are usage text.
+	// We log only the first line.
+	firstLine, _, _ := strings.Cut(unwrapped.Error(), "\n")
+	log.Printf("%s: HTTP %d %s", r.URL.Path, code, firstLine)
 	http.Error(w, unwrapped.Error(), code)
 }
 

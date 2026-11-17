@@ -98,23 +98,25 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 	return req, nil
 }
 
-func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) error {
+func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	ctx := r.Context()
 
 	key, err := a.decoder.Decode(r.Header.Get("x-dcs-apikey"))
 	if err != nil {
-		http.Error(w, "invalid x-dcs-apikey header", http.StatusForbidden)
-		return nil
+		return httpError(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
 	}
 
 	cl := clientFromRequest(r, "/grep", key.Subject)
 	srcLabel := prometheus.Labels{"source": key.Subject}
+	defer func() {
+		if err != nil && !errors.Is(err, context.Canceled) {
+			metricErroredQueries.With(srcLabel).Inc()
+		}
+	}()
 
 	req, err := validateParameters(r)
 	if err != nil {
-		metricErroredQueries.With(srcLabel).Inc()
-		http.Error(w, err.Error()+". "+grepUsage, http.StatusBadRequest)
-		return nil
+		return httpError(http.StatusBadRequest, fmt.Errorf("%v. %s", err, grepUsage))
 	}
 
 	// We encode a URL that contains _only_ the q (and literal) parameter.
@@ -126,9 +128,6 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) error {
 
 	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q)
 	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			metricErroredQueries.With(srcLabel).Inc()
-		}
 		return err
 	}
 

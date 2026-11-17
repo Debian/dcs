@@ -260,7 +260,7 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 	return s, nil
 }
 
-func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, *queryState) error) error {
+func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, *queryState) error) (err error) {
 	ctx := r.Context()
 
 	// Cross-Origin API requests are allowed. Like all other API requests,
@@ -278,18 +278,20 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	key, err := a.decoder.Decode(r.Header.Get("x-dcs-apikey"))
 	if err != nil {
-		http.Error(w, "invalid x-dcs-apikey header", http.StatusForbidden)
-		return nil
+		return httpError(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
 	}
 
 	cl := clientFromRequest(r, "/api", key.Subject)
 	srcLabel := prometheus.Labels{"source": key.Subject}
+	defer func() {
+		if err != nil && !errors.Is(err, context.Canceled) {
+			metricErroredQueries.With(srcLabel).Inc()
+		}
+	}()
 
 	query := r.FormValue("query")
 	if query == "" {
-		metricErroredQueries.With(srcLabel).Inc()
-		http.Error(w, "no query parameter specified", http.StatusBadRequest)
-		return nil
+		return httpError(http.StatusBadRequest, errors.New("no query parameter specified"))
 	}
 
 	literal := "0"
@@ -308,9 +310,6 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q)
 	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			metricErroredQueries.With(srcLabel).Inc()
-		}
 		return err
 	}
 	s.mu.Lock()
