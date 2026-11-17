@@ -34,6 +34,11 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Del("Expires")
+	if code == http.StatusTooManyRequests {
+		// Tell clients to wait 10s,
+		// which matches the speedbump duration.
+		w.Header().Set("Retry-After", "10")
+	}
 	// The first line contains the error,
 	// all following lines are usage text.
 	// We log only the first line.
