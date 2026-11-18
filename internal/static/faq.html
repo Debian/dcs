@@ -78,6 +78,11 @@
 </p>
 
 <p>
+  This affects the API, too: Both <code>/grep</code> and the OpenAPI at
+  <code>/api</code> send a continuation token and expect a retry.
+</p>
+
+<p>
   See also <a href="#throttled">Q: I am being throttled! How can I run many queries efficiently?</a>.
 </p>
 
@@ -149,7 +154,25 @@ was uploaded.
 <h2>I want to use the code search service in my own project, is there an official API?</h2>
 
 <p>
-  Yes! See <a href="https://codesearch.debian.net/apikeys/">Debian Code Search API keys</a>.
+  Yes, there are two APIs!
+  <ul>
+    <li>
+      <a href="/grep"><code>/grep</code></a> answers in plain text,
+      for use with <code>curl</code> in scripts, or for coding agents.
+    </li>
+    <li>
+      <a href="/apikeys/">OpenAPI REST API</a> for programmatic usage,
+      i.e. when you want to import a generated client module.
+    </li>
+  </ul>
+</p>
+
+<p>
+  A personal API key (takes only a moment to download at
+  <a href="https://codesearch.debian.net/apikeys/">Debian Code Search API keys</a>)
+  gives you limits of your own instead of sharing them
+  with others on your IP address / network, see also
+  <a href="#throttled">Q: I am being throttled!</a>.
 </p>
 
 <p>
