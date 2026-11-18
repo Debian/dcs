@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	start = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file)):(\S+)(?:\s+|$)`)
-	end   = regexp.MustCompile(`(?i)\s+(-?(?:filetype|package|pkg|path|file)):(\S+)\s*$`)
+	start = regexp.MustCompile(`(?i)^\s*(-?(?:filetype|package|pkg|path|file|filename)):(\S+)(?:\s+|$)`)
+	end   = regexp.MustCompile(`(?i)\s+(-?(?:filetype|package|pkg|path|file|filename)):(\S+)\s*$`)
 )
 
 func rewriteFilters(query url.Values, filtersRe *regexp.Regexp) url.Values {
@@ -29,7 +29,11 @@ func rewriteFilters(query url.Values, filtersRe *regexp.Regexp) url.Values {
 		filter = strings.Replace(filter, "pkg", "package", 1)
 		if filter == "file" {
 			filter = "path"
+		} else if filter == "filename" {
+			filter = "path"
 		} else if filter == "-file" {
+			filter = "npath"
+		} else if filter == "-filename" {
 			filter = "npath"
 		} else if strings.HasPrefix(filter, "-") {
 			filter = "n" + filter[1:]
