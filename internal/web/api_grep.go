@@ -24,7 +24,7 @@ const grepUsage = `usage: /grep?q=search+term
 
 keyword filters inside q:
   package:REGEXP  or -package to negate
-  path:REGEXP     or -path to negate
+  path:REGEXP     path within the package (e.g. ^debian/), -path to negate
   filetype:c      or go, python, …
 
 examples:

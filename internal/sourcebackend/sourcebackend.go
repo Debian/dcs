@@ -73,7 +73,8 @@ func FilterByKeywords(req *sourcebackendpb.SearchRequest, files []ranking.Result
 
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
-			if pathRegexp.MatchString(file.Path, true, true) == -1 {
+			inPkgPath := file.Path[strings.IndexByte(file.Path, '/')+1:]
+			if pathRegexp.MatchString(inPkgPath, true, true) == -1 {
 				continue
 			}
 
@@ -91,7 +92,8 @@ func FilterByKeywords(req *sourcebackendpb.SearchRequest, files []ranking.Result
 
 		filtered := make(ranking.ResultPaths, 0, len(files))
 		for _, file := range files {
-			if pathRegexp.MatchString(file.Path, true, true) != -1 {
+			inPkgPath := file.Path[strings.IndexByte(file.Path, '/')+1:]
+			if pathRegexp.MatchString(inPkgPath, true, true) != -1 {
 				continue
 			}
 
