@@ -16,9 +16,10 @@ import (
 )
 
 const grepUsage = `usage: /grep?q=search+term
-  q=        what to search for: a literal string, URL-encoded
-  regexp=1  search q as a regular expression (RE2 syntax)
-  limit=N   print the N best matches (default: 25)
+  q=         what to search for: a literal string, URL-encoded
+  regexp=1   search q as a regular expression (RE2 syntax)
+  limit=N    print the N best matches (default: 25)
+  context=2  print 2 (or 1, default: 0) context lines
 keyword filters inside q:
   package:REGEXP  or -package to negate
   path:REGEXP     or -path to negate
@@ -37,6 +38,7 @@ type grepRequest struct {
 	q       string
 	literal bool
 	limit   int
+	context int // default 0, else 1 or 2 (max)
 }
 
 func synonymFor0(s string) bool {
@@ -85,6 +87,14 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 		}
 	}
 
+	if c := r.FormValue("context"); c != "" {
+		n, err := strconv.Atoi(c)
+		if err != nil || n < 0 || n > 2 {
+			return nil, errors.New("invalid context parameter (supported: 0, 1 or 2 lines of context)")
+		}
+		req.context = n
+	}
+
 	// Return an error on unknown parameters
 	// instead of silently accepting them
 	// to provide guardrails to users (and their agents).
@@ -93,7 +103,8 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 		case "q",
 			"limit",
 			"literal",
-			"regexp":
+			"regexp",
+			"context":
 			// Valid query parameters, handled above.
 		default:
 			return nil, fmt.Errorf("unexpected query parameter %q", param)
@@ -147,14 +158,14 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if err := writeGrepResults(w, s, req.limit); err != nil {
+	if err := writeGrepResults(w, s, req.limit, req.context); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeGrepResults(w http.ResponseWriter, s *queryState, limit int) error {
+func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) error {
 	perBackend, err := perBackendFromState(s)
 	if err != nil {
 		return err
@@ -184,6 +195,7 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit int) error {
 	fmt.Fprintln(bw, status)
 	var msg sourcebackendpb.SearchReply
 	example := "" // path of the best match
+	var lastfile string
 	for ptr, err := range resultPointers.All() {
 		if err != nil {
 			return err
@@ -203,9 +215,47 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit int) error {
 		if example == "" {
 			example = m.Path
 		}
-		_, err := fmt.Fprintf(bw, "%s:%d: %s\n", m.Path, m.Line, m.Context)
+		if context == 0 {
+			// No context requested: just print the line and we are done
+			if _, err := fmt.Fprintf(bw, "%s:%d: %s\n", m.Path, m.Line, m.Context); err != nil {
+				return err
+			}
+			continue
+		}
+		// Long output format (with context lines) requested.
+		if lastfile == m.Path {
+			if _, err := fmt.Fprintf(bw, "--\n"); err != nil {
+				return err
+			}
+		} else {
+			if _, err := fmt.Fprintf(bw, "\n%s\n", m.Path); err != nil {
+				return err
+			}
+		}
+		lastfile = m.Path
+		if context >= 2 && m.Ctxp2 != "" {
+			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line-2, m.Ctxp2); err != nil {
+				return err
+			}
+		}
+		if context >= 1 && m.Ctxp1 != "" {
+			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line-1, m.Ctxp1); err != nil {
+				return err
+			}
+		}
+		_, err := fmt.Fprintf(bw, "%d: %s\n", m.Line, m.Context)
 		if err != nil {
 			return err
+		}
+		if context >= 1 && m.Ctxn1 != "" {
+			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line+1, m.Ctxn1); err != nil {
+				return err
+			}
+		}
+		if context >= 2 && m.Ctxn2 != "" {
+			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line+2, m.Ctxn2); err != nil {
+				return err
+			}
 		}
 	}
 	// Include a footer after the search results,
