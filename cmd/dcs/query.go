@@ -31,10 +31,8 @@ func query(args []string) error {
 	fset.BoolVar(&insecure, "insecure", false, "skip TLS certificate verification")
 	var apikey string
 	fset.StringVar(&apikey, "apikey",
-		// API key for codesearch.debian.net for subject
-		// “program!github.com/Debian/dcs/cmd/dcs”:
-		"MTU5OTI5NzQzN3xDU1d4UE0yZllVUk9TVXRfdmxicEhIdUxiU3YzTkxGRjZNRl90WUc4bUg1OVdqNU9CM3RQaXFsa0xaRGdZRlZPSWNCZG1QNGZ3ZUNEcXp2SGdocVlEc1dkQmxRSUh0dmZoM0xKazRrPXx5ED9o0r-7uawKvV_K0Fb4QdbHsTV1qfY0XYFrl_904g==",
-		"Debian Code Search API key to use, see https://codesearch.debian.net/apikeys/ for more details. Please get an API key if you are doing automated queries.")
+		"",
+		"Personal Debian Code Search API key to use, see https://codesearch.debian.net/apikeys/ for more details. Please get an API key if you are doing automated queries.")
 	if err := fset.Parse(args); err != nil {
 		return err
 	}
@@ -44,6 +42,9 @@ func query(args []string) error {
 
 	queryParams := url.Values{}
 	queryParams.Set("query", strings.Join(fset.Args(), " "))
+	if continuationToken != "" {
+		queryParams.Set("continuation_token", continuationToken)
+	}
 	u := strings.TrimSuffix(target, "/") + "/api/v1/search?" + queryParams.Encode()
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
