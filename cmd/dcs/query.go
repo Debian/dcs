@@ -25,6 +25,8 @@ func query(args []string) error {
 	fset.Usage = usage(fset, queryHelp)
 	var target string
 	fset.StringVar(&target, "target", "https://codesearch.debian.net", "Debian Code Search instance to query")
+	var continuationToken string
+	fset.StringVar(&continuationToken, "really_search", "", "Continuation token for expensive queries, see http://codesearch.debian.net/faq#speedbump")
 	var insecure bool
 	fset.BoolVar(&insecure, "insecure", false, "skip TLS certificate verification")
 	var apikey string
@@ -67,6 +69,10 @@ func query(args []string) error {
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected HTTP status: %v (body: %s)", resp.Status, strings.TrimSpace(string(b)))
+	}
+	if reason := resp.Header.Get("X-Codesearch-Speedbump"); reason != "" {
+		continuationToken := resp.Header.Get("X-Codesearch-Continuation-Token")
+		log.Printf("results are incomplete (expensive query: %s), repeat with --really_search=%s to search all files if you really meant it", reason, continuationToken)
 	}
 	var results []struct {
 		Path    string `json:"path"`
