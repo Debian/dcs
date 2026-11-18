@@ -56,11 +56,13 @@ func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
 		(*suffixes)[".cpp"] = 0.75
 		(*suffixes)[".h"] = 0.75
 	case "c++":
+		(*suffixes)[".cc"] = 0.75
 		(*suffixes)[".cpp"] = 0.75
 		(*suffixes)[".cxx"] = 0.75
 		(*suffixes)[".hpp"] = 0.75
 		(*suffixes)[".hxx"] = 0.75
 		(*suffixes)[".h"] = 0.75
+		(*suffixes)[".hh"] = 0.75
 		// Some people write C++ in .c files
 		(*suffixes)[".c"] = 0.55
 	case "perl":
