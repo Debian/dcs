@@ -16,17 +16,21 @@ import (
 )
 
 const grepUsage = `usage: /grep?q=search+term
-  q=         what to search for: a literal string, URL-encoded
-  regexp=1   search q as a regular expression (RE2 syntax)
-  limit=N    print the N best matches (default: 25)
-  context=2  print 2 (or 1, default: 0) context lines
+  q=            what to search for: a literal string, URL-encoded
+  regexp=1      search q as a regular expression (RE2 syntax)
+  limit=N       print the N best matches (default: 25)
+  context=2     print 2 (or 1, default: 0) context lines
+  perpackage=1  print the 2 best matches of the best N packages
+
 keyword filters inside q:
   package:REGEXP  or -package to negate
   path:REGEXP     or -path to negate
   filetype:c      or go, python, …
+
 examples:
   /grep?q=load_font(+package:i3-wm
   /grep?regexp=1&q=%28load%7Cset%29_font
+
 notes:
   Literal search is case-sensitive.
   For case-insensitive search, use e.g. ?regexp=1&q=(?i)term
@@ -35,10 +39,11 @@ notes:
 `
 
 type grepRequest struct {
-	q       string
-	literal bool
-	limit   int
-	context int // default 0, else 1 or 2 (max)
+	q          string
+	literal    bool
+	limit      int
+	context    int // default 0, else 1 or 2 (max)
+	perPackage bool
 }
 
 func synonymFor0(s string) bool {
@@ -51,9 +56,10 @@ func synonymFor1(s string) bool {
 
 func validateParameters(r *http.Request) (*grepRequest, error) {
 	req := &grepRequest{
-		q:       r.FormValue("q"),
-		literal: true, // default to literal mode
-		limit:   25,
+		q:          r.FormValue("q"),
+		literal:    true, // default to literal mode
+		limit:      25,
+		perPackage: synonymFor1(r.FormValue("perpackage")),
 	}
 	if req.q == "" {
 		return nil, errors.New("no search term specified")
@@ -101,6 +107,7 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 	for param := range r.URL.Query() {
 		switch param {
 		case "q",
+			"perpackage",
 			"limit",
 			"literal",
 			"regexp",
@@ -158,14 +165,14 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if err := writeGrepResults(w, s, req.limit, req.context); err != nil {
+	if err := writeGrepResults(w, s, req); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) error {
+func writeGrepResults(w http.ResponseWriter, s *queryState, req *grepRequest) error {
 	perBackend, err := perBackendFromState(s)
 	if err != nil {
 		return err
@@ -186,8 +193,23 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) 
 	status := fmt.Sprintf("# %d results in %d packages (searched %.2f GB in %.2fs)",
 		s.numResults, len(s.allPackagesSorted), readGB, seconds)
 	more := "" // ends up in the footer
-	if s.numResults > limit {
-		status += fmt.Sprintf("; showing %d", limit)
+	if req.perPackage {
+		pkgs := s.allPackagesSorted
+		if len(pkgs) > req.limit {
+			status += fmt.Sprintf("; showing %d packages", req.limit)
+			more = "# For more packages, add e.g. &limit=100 to the URL.\n"
+			pkgs = pkgs[:req.limit]
+		}
+		var byPkg memPointers
+		for _, pkg := range pkgs {
+			byPkg = append(byPkg, s.resultPointersByPkg[pkg]...)
+		}
+		resultPointers = byPkg
+		// Turn req.limit from the package limit into a result limit
+		// for the loop below (otherwise we lose results).
+		req.limit = len(byPkg)
+	} else if s.numResults > req.limit {
+		status += fmt.Sprintf("; showing %d", req.limit)
 		more = "# For more results, add e.g. &limit=100 to the URL.\n"
 	}
 	s.mu.Unlock()
@@ -196,6 +218,7 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) 
 	var msg sourcebackendpb.SearchReply
 	example := "" // path of the best match
 	var lastfile string
+	var lastpkg string
 	for ptr, err := range resultPointers.All() {
 		if err != nil {
 			return err
@@ -207,15 +230,27 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) 
 		if msg.Type != sourcebackendpb.SearchReply_MATCH {
 			continue
 		}
-		if limit == 0 {
+		if req.limit == 0 {
 			break
 		}
-		limit--
+		req.limit--
 		m := msg.Match
 		if example == "" {
 			example = m.Path
 		}
-		if context == 0 {
+		if req.perPackage {
+			if pkg, _, _ := strings.Cut(m.Package, "_"); pkg != lastpkg {
+				var results int
+				for _, bstate := range s.perBackend {
+					results += bstate.allPackages[m.Package]
+				}
+				if _, err := fmt.Fprintf(bw, "\n# package %s (results: %d)\n", pkg, results); err != nil {
+					return err
+				}
+				lastpkg = pkg
+			}
+		}
+		if req.context == 0 {
 			// No context requested: just print the line and we are done
 			if _, err := fmt.Fprintf(bw, "%s:%d: %s\n", m.Path, m.Line, m.Context); err != nil {
 				return err
@@ -233,12 +268,12 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) 
 			}
 		}
 		lastfile = m.Path
-		if context >= 2 && m.Ctxp2 != "" {
+		if req.context >= 2 && m.Ctxp2 != "" {
 			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line-2, m.Ctxp2); err != nil {
 				return err
 			}
 		}
-		if context >= 1 && m.Ctxp1 != "" {
+		if req.context >= 1 && m.Ctxp1 != "" {
 			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line-1, m.Ctxp1); err != nil {
 				return err
 			}
@@ -247,12 +282,12 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, limit, context int) 
 		if err != nil {
 			return err
 		}
-		if context >= 1 && m.Ctxn1 != "" {
+		if req.context >= 1 && m.Ctxn1 != "" {
 			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line+1, m.Ctxn1); err != nil {
 				return err
 			}
 		}
-		if context >= 2 && m.Ctxn2 != "" {
+		if req.context >= 2 && m.Ctxn2 != "" {
 			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line+2, m.Ctxn2); err != nil {
 				return err
 			}

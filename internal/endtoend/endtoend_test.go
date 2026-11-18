@@ -262,8 +262,10 @@ func TestEndToEnd(t *testing.T) {
 			}
 		})
 
-		t.Run("GET", func(t *testing.T) {
-			req, err := http.NewRequest("GET", urlPrefix+"/grep?q=i3Font", nil)
+		// query requests the URL u and returns the (plain-text) body.
+		query := func(t *testing.T, u string) string {
+			t.Helper()
+			req, err := http.NewRequest("GET", u, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -285,7 +287,20 @@ func TestEndToEnd(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			results := string(b)
+			return string(b)
+		}
+
+		// Note: For the “i3Font” search term, only these two matches
+		// have a ranking of 1 and are hence guaranteed to be in all
+		// search results (including per-package search results):
+		//
+		// - i3-wm_4.5.1-2/libi3/font.c:139
+		// - i3-wm_4.5.1-2/include/libi3.h:287
+		//
+		// (Both lines start with “i3Font”, hence the good ranking.)
+
+		t.Run("GET", func(t *testing.T) {
+			results := query(t, urlPrefix+"/grep?q=i3Font")
 			want := `i3-wm_4.5.1-2/include/libi3.h:287: i3Font load_font(const char *pattern, const bool fallback);`
 			if !strings.Contains(results, want) {
 				t.Fatalf("search result %+v not found in results %+v", want, results)
@@ -293,29 +308,33 @@ func TestEndToEnd(t *testing.T) {
 		})
 
 		t.Run("context lines", func(t *testing.T) {
-			req, err := http.NewRequest("GET", urlPrefix+"/grep?q=i3Font&context=2", nil)
-			if err != nil {
-				t.Fatal(err)
+			results := query(t, urlPrefix+"/grep?q=i3Font&context=2")
+			want := `
+i3-wm_4.5.1-2/libi3/font.c
+137-  *
+138-  */
+139: i3Font load_font(const char *pattern, const bool fallback) {
+140-     i3Font font;
+141-     font.type = FONT_TYPE_NONE;
+`
+			if !strings.Contains(results, want) {
+				t.Fatalf("search result %+v not found in results %+v", want, results)
 			}
-			req.Header.Set("x-dcs-apikey", apikey)
-			resp, err := instance.HTTPClient.Do(req)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer resp.Body.Close()
-			if got, want := resp.StatusCode, http.StatusOK; got != want {
-				b, _ := io.ReadAll(resp.Body)
-				t.Fatalf("unexpected HTTP status code: got %v (%s), want %v",
-					resp.Status,
-					strings.TrimSpace(string(b)),
-					want)
-			}
+		})
 
-			b, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatal(err)
+		t.Run("perpackage results", func(t *testing.T) {
+			results := query(t, urlPrefix+"/grep?q=i3Font&perpackage=1")
+			want := `
+# package i3-wm (results: 17)
+i3-wm_4.5.1-2/libi3/font.c:139: i3Font load_font(const char *pattern, const bool fallback) {
+`
+			if !strings.Contains(results, want) {
+				t.Fatalf("search result %+v not found in results %+v", want, results)
 			}
-			results := string(b)
+		})
+
+		t.Run("perpackage results, with context lines", func(t *testing.T) {
+			results := query(t, urlPrefix+"/grep?q=i3Font&context=2&perpackage=1")
 			want := `
 i3-wm_4.5.1-2/libi3/font.c
 137-  *

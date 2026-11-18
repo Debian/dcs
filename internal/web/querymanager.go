@@ -178,7 +178,7 @@ type perBackendState struct {
 	tempFile *os.File
 
 	packagePool *stringpool.StringPool
-	allPackages map[string]bool
+	allPackages map[string]int
 	stats       *sourcebackendpb.SearchStats
 
 	tempFileMu     sync.Mutex
@@ -530,7 +530,7 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 			packagePool:    stringpool.NewStringPool(),
 			tempFile:       f,
 			tempFileWriter: bufio.NewWriterSize(f, 65536),
-			allPackages:    make(map[string]bool),
+			allPackages:    make(map[string]int),
 		}
 	}
 
@@ -848,7 +848,7 @@ func (s *queryState) storeResult(backendidx int, bstate *perBackendState, offset
 		s.mu.Lock()
 	}
 
-	bstate.allPackages[result.Package] = true
+	bstate.allPackages[result.Package]++
 	err := s.resultWriter.Add(resultPointer{
 		backendidx: uint32(backendidx),
 		ranking:    result.Ranking,
@@ -1138,7 +1138,7 @@ func (o *Opts) writeToDisk(s *queryState) error {
 	// For each full package (i3-wm_4.8-1), store only the newest version.
 	packageVersions := make(map[string]version.Version)
 	for _, bstate := range s.perBackend {
-		for pkg, _ := range bstate.allPackages {
+		for pkg := range bstate.allPackages {
 			underscore := strings.Index(pkg, "_")
 			name := pkg[:underscore]
 			ver, err := version.Parse(pkg[underscore+1:])
