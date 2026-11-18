@@ -93,6 +93,9 @@ var ByFiletype = map[string]map[string]float32{
 	"java": {
 		".java": 0.75,
 	},
+	"kotlin": {
+		".kt": 0.75,
+	},
 	"ruby": {
 		".rb": 0.75,
 	},
@@ -114,8 +117,33 @@ var ByFiletype = map[string]map[string]float32{
 	"javascript": {
 		".js": 0.75,
 	},
+	"typescript": {
+		".ts":  0.75,
+		".tsx": 0.75, // TypeScript + JSX (React)
+	},
 	"json": {
 		".json": 0.75,
+	},
+	"lisp": {
+		".lisp": 0.75,
+		".el":   0.75, // Emacs Lisp
+		".scm":  0.75, // Scheme
+	},
+	"rust": {
+		".rs": 0.75,
+	},
+	"zig": {
+		".zig": 0.75,
+	},
+	"haskell": {
+		".hs": 0.75,
+	},
+	"ocaml": {
+		".ml": 0.75,
+	},
+	"markdown": {
+		".md":       0.75,
+		".markdown": 0.75,
 	},
 }
 
