@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -31,6 +32,7 @@ import (
 	"github.com/Debian/dcs/internal/grpcutil"
 	"github.com/Debian/dcs/internal/httperr"
 	"github.com/Debian/dcs/internal/index"
+	"github.com/Debian/dcs/internal/ranking"
 	dcsregexp "github.com/Debian/dcs/internal/regexp"
 	"github.com/Debian/dcs/internal/static"
 	_ "github.com/Debian/dcs/internal/varz"
@@ -95,6 +97,16 @@ func validateQuery(query string) error {
 		for _, expr := range rewritten.Query()[keyword] {
 			if _, err := dcsregexp.Compile(expr); err != nil {
 				return fmt.Errorf("compiling keyword %s regexp %q: %v", keyword, expr, err)
+			}
+		}
+	}
+	for _, keyword := range []string{
+		"filetype",
+		"nfiletype",
+	} {
+		for _, ft := range rewritten.Query()[keyword] {
+			if _, ok := ranking.ByFiletype[ft]; !ok {
+				return fmt.Errorf("unknown filetype %q. Use one of %s or use path:\\.ext$ to filter by extension", ft, slices.Sorted(maps.Keys(ranking.ByFiletype)))
 			}
 		}
 	}
