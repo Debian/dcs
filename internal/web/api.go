@@ -218,7 +218,7 @@ type apiserver struct {
 	decoder *apikeys.Decoder
 }
 
-func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prometheus.Labels, q string) (*queryState, error) {
+func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prometheus.Labels, q, continuationToken string) (*queryState, error) {
 	queryid := queryID(q)
 
 	metricInflightQueries.With(srcLabel).Inc()
@@ -230,7 +230,29 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 		return nil, httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
 	}
 
-	s, _, err := a.opts.maybeStartQuery(ctx, queryid, cl, q)
+	var s *queryState
+	var err error
+	if continuationToken != "" {
+		// For valid speedbump continuation tokens,
+		// start the query in exhaustive mode.
+		var signed string
+		if err := a.opts.speedbumpCookie.Decode("speedbump", continuationToken, &signed); err != nil || signed != q {
+			// Otherwise (e.g. for expired continuation tokens),
+			// tell the user they need to start from scratch.
+			return nil, httperr.Error(http.StatusBadRequest, fmt.Errorf("invalid or expired continuation_token, please start over"))
+		}
+		s, _, err = a.opts.maybeStartQuery(ctx, queryid, cl, q)
+	} else {
+		// No continuation token specified (initial attempt):
+		if anonymousKey(cl.apiKey) {
+			// TODO: Remove this exemption once the tools
+			// are updated to expose the speedbump properly.
+			s, _, err = a.opts.maybeStartQuery(ctx, queryid, cl, q)
+		} else {
+			s, _, err = a.opts.maybeStartQuerySpeedbumped(ctx, cl, q, false)
+		}
+	}
+
 	if err != nil {
 		if errors.Is(err, errTooManyQueries) {
 			return nil, httperr.Error(http.StatusTooManyRequests, err)
@@ -309,7 +331,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	// We encode a URL that contains _only_ the q parameter.
 	q := url.Values{"q": []string{query}}.Encode() + "&literal=" + literal
 
-	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q)
+	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q, r.FormValue("continuation_token"))
 	if err != nil {
 		return err
 	}
@@ -321,6 +343,10 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	w.Header().Set("X-Codesearch-Candidates", strconv.Itoa(candidatesTotal))
 	w.Header().Set("X-Codesearch-Results", strconv.Itoa(s.numResults))
 	w.Header().Set("X-Codesearch-Packages", strconv.Itoa(len(s.allPackagesSorted)))
+	if s.speedbump != nil {
+		w.Header().Set("X-Codesearch-Speedbump", s.speedbump.Message)
+		w.Header().Set("X-Codesearch-Continuation-Token", s.speedbump.ContinuationToken)
+	}
 	s.mu.Unlock()
 
 	startJsonResponse(w)

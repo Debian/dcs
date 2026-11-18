@@ -115,6 +115,10 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 			"regexp",
 			"context":
 			// Valid query parameters, handled above.
+
+		case "continuation_token":
+			// Validated in runAndWaitFor.
+
 		default:
 			return nil, fmt.Errorf("unexpected query parameter %q", param)
 		}
@@ -151,7 +155,7 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	}
 	q := url.Values{"q": []string{req.q}}.Encode() + "&literal=" + literal
 
-	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q)
+	s, err := a.runAndWaitFor(ctx, cl, srcLabel, q, r.FormValue("continuation_token"))
 	if err != nil {
 		return err
 	}
@@ -167,14 +171,14 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	if err := writeGrepResults(w, s, req); err != nil {
+	if err := writeGrepResults(w, r, s, req); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeGrepResults(w http.ResponseWriter, s *queryState, req *grepRequest) error {
+func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req *grepRequest) error {
 	perBackend, err := perBackendFromState(s)
 	if err != nil {
 		return err
@@ -214,6 +218,13 @@ func writeGrepResults(w http.ResponseWriter, s *queryState, req *grepRequest) er
 		status += fmt.Sprintf("; showing %d", req.limit)
 		more = "# For more results, add e.g. &limit=100 to the URL.\n"
 	}
+	if s.speedbump != nil {
+		status += "; incomplete (see footer)"
+		more += "# This query was expensive! Did you mean to run it fully?\n"
+		more += fmt.Sprintf("# Reason: %s\n", s.speedbump.Message)
+		more += fmt.Sprintf("# To search all files: /grep?%s&continuation_token=%s\n", r.URL.RawQuery, url.QueryEscape(s.speedbump.ContinuationToken))
+	}
+
 	s.mu.Unlock()
 	bw := bufio.NewWriter(w)
 	fmt.Fprintln(bw, status)
