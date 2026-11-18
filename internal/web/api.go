@@ -256,6 +256,7 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 
 	if err != nil {
 		if errors.Is(err, errTooManyQueries) {
+			err = maybeNudgeToApikey(cl.personalKey(), err)
 			return nil, httperr.Error(http.StatusTooManyRequests, err)
 		}
 		return nil, fmt.Errorf("Could not start query: %v", err)
@@ -282,6 +283,13 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 	metricQueryLatency.With(srcLabel).Observe(float64(latency.Milliseconds()))
 	s.mu.Unlock()
 	return s, nil
+}
+
+func maybeNudgeToApikey(personalKey bool, err error) error {
+	if personalKey {
+		return err // no nudge needed
+	}
+	return fmt.Errorf("%w. With a personal API key, you get a limit of your own, see /apikeys/", err)
 }
 
 func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, *queryState) error) (err error) {
