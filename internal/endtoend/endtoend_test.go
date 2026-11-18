@@ -131,11 +131,12 @@ func TestEndToEnd(t *testing.T) {
 			// TODO: verify CORS headers are present
 		})
 
-		t.Run("WithoutKey", func(t *testing.T) {
+		t.Run("InvalidKey", func(t *testing.T) {
 			req, err := http.NewRequest("GET", urlPrefix+"/v1/search", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
+			req.Header.Set("x-dcs-apikey", "invalid-key")
 			resp, err := instance.HTTPClient.Do(req)
 			if err != nil {
 				t.Fatal(err)
@@ -243,11 +244,12 @@ func TestEndToEnd(t *testing.T) {
 	t.Run("grep", func(t *testing.T) {
 		urlPrefix := "https://" + instance.Addr
 
-		t.Run("WithoutKey", func(t *testing.T) {
+		t.Run("InvalidKey", func(t *testing.T) {
 			req, err := http.NewRequest("GET", urlPrefix+"/grep", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
+			req.Header.Set("x-dcs-apikey", "invalid-key")
 			resp, err := instance.HTTPClient.Do(req)
 			if err != nil {
 				t.Fatal(err)

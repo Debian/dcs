@@ -35,9 +35,16 @@ type client struct {
 	apiKey    string // apikeys.Key.Subject, empty for anonymous requests
 }
 
+// personalKey reports whether the request came from a personal API key
+// (self-service created via /apikeys/, or manually allocated).
+func (c client) personalKey() bool {
+	return c.apiKey != "" && !anonymousKey(c.apiKey)
+}
+
 func (c client) owner() string {
-	if c.apiKey != "" && !anonymousKey(c.apiKey) {
-		return c.apiKey
+	if c.personalKey() {
+		// A personal key grants more searches from the same IP.
+		return c.apiKey + "@" + c.ip
 	}
 	// For now, treat each anonymous IP as one owner.
 	// We might make this stricter for certain IP ranges or ASNs.
@@ -45,9 +52,15 @@ func (c client) owner() string {
 }
 
 func (c client) resultsOwner() string {
-	if c.apiKey != "" && !anonymousKey(c.apiKey) {
-		return c.apiKey
+	network := c.network()
+	if c.personalKey() {
+		// A personal key gets its own owner slots on the same network.
+		return c.apiKey + "@" + network
 	}
+	return network
+}
+
+func (c client) network() string {
 	addr, err := netip.ParseAddr(c.ip)
 	if err != nil {
 		return c.ip

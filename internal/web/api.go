@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -286,8 +287,7 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults func(io.Writer, *queryState) error) (err error) {
 	ctx := r.Context()
 
-	// Cross-Origin API requests are allowed. Like all other API requests,
-	// they too must set a valid x-dcs-apikey header.
+	// Cross-Origin API requests are allowed.
 	w.Header().Set("Allow", "OPTIONS, GET")
 	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
@@ -299,13 +299,17 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 		return nil
 	}
 
-	key, err := a.decoder.Decode(r.Header.Get("x-dcs-apikey"))
-	if err != nil {
-		return httperr.Error(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
+	var subject string
+	if apikey := r.Header.Get("x-dcs-apikey"); apikey != "" {
+		key, err := a.decoder.Decode(apikey)
+		if err != nil {
+			return httperr.Error(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
+		}
+		subject = key.Subject
 	}
 
-	cl := clientFromRequest(r, "/api", key.Subject)
-	srcLabel := prometheus.Labels{"source": key.Subject}
+	cl := clientFromRequest(r, "/api", subject)
+	srcLabel := prometheus.Labels{"source": cmp.Or(subject, "anonymous")}
 	defer func() {
 		if err != nil && ctx.Err() == nil {
 			metricErroredQueries.With(srcLabel).Inc()

@@ -2,6 +2,7 @@ package web
 
 import (
 	"bufio"
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -130,13 +131,17 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 	ctx := r.Context()
 
-	key, err := a.decoder.Decode(r.Header.Get("x-dcs-apikey"))
-	if err != nil {
-		return httperr.Error(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
+	var subject string
+	if apikey := r.Header.Get("x-dcs-apikey"); apikey != "" {
+		key, err := a.decoder.Decode(apikey)
+		if err != nil {
+			return httperr.Error(http.StatusForbidden, errors.New("invalid x-dcs-apikey header"))
+		}
+		subject = key.Subject
 	}
 
-	cl := clientFromRequest(r, "/grep", key.Subject)
-	srcLabel := prometheus.Labels{"source": key.Subject}
+	cl := clientFromRequest(r, "/grep", subject)
+	srcLabel := prometheus.Labels{"source": cmp.Or(subject, "anonymous")}
 	defer func() {
 		if err != nil && ctx.Err() == nil {
 			metricErroredQueries.With(srcLabel).Inc()
