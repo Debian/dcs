@@ -23,13 +23,15 @@ const grepUsage = `usage: /grep?q=search+term
   perpackage=1  print the 2 best matches of the best N packages
 
 keyword filters inside q:
-  package:REGEXP  or -package to negate
+  package:REGEXP  name without version (e.g. ^i3-wm$), -package to negate
   path:REGEXP     path within the package (e.g. ^debian/), -path to negate
   filetype:c      or go, python, …
 
 examples:
   /grep?q=load_font(+package:i3-wm
   /grep?regexp=1&q=%28load%7Cset%29_font
+  To read a file, use /show/ with a path from the results,
+  e.g. /show/i3-wm_4.25.1-1/libi3/font.c
 
 notes:
   Literal search is case-sensitive.
