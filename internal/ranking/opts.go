@@ -2,6 +2,8 @@
 
 package ranking
 
+import "maps"
+
 type RankingOpts struct {
 	// Map of file suffix (e.g. ".c") ranking. This is filled in based on the
 	// filetype= parameter (which is extracted from the query string).
@@ -41,65 +43,80 @@ type RankingOpts struct {
 	Weighted bool
 }
 
-func addSuffixesForFiletype(suffixes *map[string]float32, filetype string) {
-	switch filetype {
-	case "c":
-		(*suffixes)[".c"] = 0.75
-		(*suffixes)[".h"] = 0.75
-	case "objc":
-		(*suffixes)[".m"] = 0.75
-		(*suffixes)[".h"] = 0.75
-		(*suffixes)[".c"] = 0.75
-	case "objc++":
-		(*suffixes)[".mm"] = 0.75
-		(*suffixes)[".cc"] = 0.75
-		(*suffixes)[".cpp"] = 0.75
-		(*suffixes)[".h"] = 0.75
-	case "c++":
-		(*suffixes)[".cc"] = 0.75
-		(*suffixes)[".cpp"] = 0.75
-		(*suffixes)[".cxx"] = 0.75
-		(*suffixes)[".hpp"] = 0.75
-		(*suffixes)[".hxx"] = 0.75
-		(*suffixes)[".h"] = 0.75
-		(*suffixes)[".hh"] = 0.75
+var ByFiletype = map[string]map[string]float32{
+	"c": {
+		".c": 0.75,
+		".h": 0.75,
+	},
+	"objc": {
+		".m": 0.75,
+		".h": 0.75,
+		".c": 0.75,
+	},
+	"objc++": {
+		".mm":  0.75,
+		".cc":  0.75,
+		".cpp": 0.75,
+		".h":   0.75,
+	},
+	"c++": {
+		".cc":  0.75,
+		".cpp": 0.75,
+		".cxx": 0.75,
+		".hpp": 0.75,
+		".hxx": 0.75,
+		".h":   0.75,
+		".hh":  0.75,
 		// Some people write C++ in .c files
-		(*suffixes)[".c"] = 0.55
-	case "perl":
-		// perl scripts
-		(*suffixes)[".pl"] = 0.75
-		// perl modules
-		(*suffixes)[".pm"] = 0.75
+		".c": 0.55,
+	},
+	"perl": {
 		// test-cases, preferred because they usually make for good examples
-		(*suffixes)[".t"] = 0.80
-	case "php":
-		(*suffixes)[".php"] = 0.75
-	case "python":
-		(*suffixes)[".py"] = 0.75
-	case "go":
-		fallthrough
-	case "golang":
-		(*suffixes)[".go"] = 0.75
-	case "java":
-		(*suffixes)[".java"] = 0.75
-	case "ruby":
-		(*suffixes)[".rb"] = 0.75
-	case "shell":
-		(*suffixes)[".sh"] = 0.75
-		(*suffixes)[".bash"] = 0.75
-		(*suffixes)[".zsh"] = 0.75
-	case "vala":
-		(*suffixes)[".vala"] = 0.75
-		(*suffixes)[".vapi"] = 0.75
-	case "erlang":
-		(*suffixes)[".erl"] = 0.75
-	case "js":
-		fallthrough
-	case "javascript":
-		(*suffixes)[".js"] = 0.75
-	case "json":
-		(*suffixes)[".json"] = 0.75
-	}
+		".t": 0.80,
+		// perl scripts
+		".pl": 0.75,
+		// perl modules
+		".pm": 0.75,
+	},
+	"php": {
+		".php": 0.75,
+	},
+	"python": {
+		".py": 0.75,
+	},
+	"go": {
+		".go": 0.75,
+	},
+	"golang": {
+		".go": 0.75,
+	},
+	"java": {
+		".java": 0.75,
+	},
+	"ruby": {
+		".rb": 0.75,
+	},
+	"shell": {
+		".sh":   0.75,
+		".bash": 0.75,
+		".zsh":  0.75,
+	},
+	"vala": {
+		".vala": 0.75,
+		".vapi": 0.75,
+	},
+	"erlang": {
+		".erl": 0.75,
+	},
+	"js": {
+		".js": 0.75,
+	},
+	"javascript": {
+		".js": 0.75,
+	},
+	"json": {
+		".json": 0.75,
+	},
 }
 
 func RankingOptsFromFiletypes(filetypes, nfiletypes []string) RankingOpts {
@@ -109,10 +126,10 @@ func RankingOptsFromFiletypes(filetypes, nfiletypes []string) RankingOpts {
 		Nsuffixes: make(map[string]float32),
 	}
 	for _, t := range filetypes {
-		addSuffixesForFiletype(&result.Suffixes, t)
+		maps.Copy(result.Suffixes, ByFiletype[t])
 	}
 	for _, t := range nfiletypes {
-		addSuffixesForFiletype(&result.Nsuffixes, t)
+		maps.Copy(result.Nsuffixes, ByFiletype[t])
 	}
 	return result
 }
