@@ -1,6 +1,6 @@
 swagger: "2.0"
 info:
-  description: "OpenAPI for https://codesearch.debian.net/"
+  description: "JSON API for https://codesearch.debian.net/\n\nFor shell scripts and coding agents, the plain-text endpoint https://codesearch.debian.net/grep is typically easier to use and should be preferred: grep-like output, a result limit, no key needed. Request https://codesearch.debian.net/grep without parameters for usage."
   version: "1.4.0"
   title: "Debian Code Search"
   contact:
@@ -53,8 +53,9 @@ paths:
             items:
               $ref: "#/definitions/SearchResult"
         "403":
-          description: "The x-dcs-apikey header was either not set at all, or contained an invalid (no longer valid?) API key. Please see https://codesearch.debian.net/apikeys/ for obtaining a key."
+          description: "The x-dcs-apikey header contained an invalid (no longer valid?) API key. Please see https://codesearch.debian.net/apikeys/ for obtaining a key. Keys are optional, for anonymous queries, do not set the x-dcs-apikey header."
       security:
+      - {}
       - api_key: []
   /searchperpackage:
     get:
@@ -76,14 +77,16 @@ paths:
             items:
               $ref: "#/definitions/PackageSearchResult"
         "403":
-          description: "The x-dcs-apikey header was either not set at all, or contained an invalid (no longer valid?) API key. Please see https://codesearch.debian.net/apikeys/ for obtaining a key."
+          description: "The x-dcs-apikey header contained an invalid (no longer valid?) API key. Please see https://codesearch.debian.net/apikeys/ for obtaining a key. Keys are optional, for anonymous queries, do not set the x-dcs-apikey header."
       security:
+      - {}
       - api_key: []
 securityDefinitions:
   api_key:
     type: "apiKey"
     name: "x-dcs-apikey"
     in: "header"
+    description: "Optional. Without a key, you share resource limits with other anonymous users. Get a personal key at https://codesearch.debian.net/apikeys/"
 definitions:
   SearchResult:
     type: "object"
@@ -92,7 +95,7 @@ definitions:
     - "path"
     - "line"
     - "context"
-    description: "A search result matching the specified query. You can use sources.debian.org to view the file contents. See https://github.com/Debian/dcs/blob/master/cmd/dcs-web/show/show.go for how to construct a sources.debian.org URL from a search result."
+    description: "A search result matching the specified query. You can use https://codesearch.debian.net/show/<path> to view the file contents."
     properties:
       package:
         type: "string"

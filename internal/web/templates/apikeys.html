@@ -182,11 +182,7 @@ ul.comfy li, ol.comfy li {
       </li>
 
       <li>
-	<a href="https://redocly.github.io/redoc/?url=https://codesearch.debian.net/openapi.yaml">the ReDoc online documentation browser</a>
-      </li>
-
-      <li>
-	<a href="https://mrin9.github.io/OpenAPI-Viewer/#/load/https%3A%2F%2Fcodesearch.debian.net%2Fopenapi.json">the MrinDoc online documentation browser</a>
+	<a href="https://redocly.github.io/redoc/?url=https://codesearch.debian.net/openapi2.yaml">the ReDoc online documentation browser</a>
       </li>
 
       <li>
@@ -218,7 +214,7 @@ ul.comfy li, ol.comfy li {
   <script>
     window.onload = function() {
 	const ui = SwaggerUIBundle({
-            url: "https://codesearch.debian.net/openapi2.json",
+            url: "https://codesearch.debian.net/openapi2.yaml",
             "dom_id": "#swagger-ui",
             deepLinking: true,
             presets: [
@@ -257,39 +253,15 @@ ul.comfy li, ol.comfy li {
     </tr>
     <tr>
       <td>YAML</td>
-      <td>OpenAPI 3</td>
-      <td><code>https://codesearch.debian.net/openapi.yaml</code></td>
-      <td>Preferred</td>
-    </tr>
-    <tr>
-      <td>JSON</td>
-      <td>OpenAPI 3</td>
-      <td><code>https://codesearch.debian.net/openapi.json</code></td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>YAML</td>
       <td>OpenAPI 2</td>
       <td><code>https://codesearch.debian.net/openapi2.yaml</code></td>
       <td>Canonical</td>
     </tr>
-
-    <tr>
-      <td>JSON</td>
-      <td>OpenAPI 2</td>
-      <td><code>https://codesearch.debian.net/openapi2.json</code></td>
-      <td></td>
-    </tr>
   </table>
 
   <p>
-    For new developments, if supported in your environment, prefer using
-    OpenAPI 3 in either YAML (hand-written) or JSON (automatically converted).
-  </p>
-
-  <p>
     OpenAPI 2
-    is <a href="https://github.com/Debian/dcs/blob/master/static/openapi2.yaml">our
+    is <a href="https://github.com/Debian/dcs/blob/main/internal/static/openapi2.yaml">our
     canonical spec</a> because one can derive OpenAPI 3 from it, but the other
     way around is not possible. As of September 2020, it is worthwhile to keep
     OpenAPI 2 around because some tools offer broader compatibility with it.
