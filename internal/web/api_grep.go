@@ -343,7 +343,7 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 	if more != "" {
 		bw.WriteString(more)
 	}
-	if example == "" {
+	if s.numResults == 0 {
 		// No results. Explain how to broaden.
 		bw.WriteString("# Try broadening your query, or use ?regexp=1&q=(?i)... for case-insensitive search.\n")
 	} else {
