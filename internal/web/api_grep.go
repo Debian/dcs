@@ -289,9 +289,7 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 				for _, bstate := range s.perBackend {
 					results += bstate.allPackages[m.Package]
 				}
-				if _, err := fmt.Fprintf(bw, "\n# package %s (results: %d)\n", pkg, results); err != nil {
-					return err
-				}
+				fmt.Fprintf(bw, "\n# package %s (results: %d)\n", pkg, results)
 				lastpkg = pkg
 			}
 		}
@@ -304,38 +302,28 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 		}
 		// Long output format (with context lines) requested.
 		if lastfile == m.Path {
-			if _, err := fmt.Fprintf(bw, "--\n"); err != nil {
-				return err
-			}
+			fmt.Fprintf(bw, "--\n")
 		} else {
-			if _, err := fmt.Fprintf(bw, "\n%s\n", m.Path); err != nil {
-				return err
-			}
+			fmt.Fprintf(bw, "\n%s\n", m.Path)
 		}
 		lastfile = m.Path
 		if req.context >= 2 && m.Ctxp2 != "" {
-			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line-2, m.Ctxp2); err != nil {
-				return err
-			}
+			fmt.Fprintf(bw, "%d- %s\n", m.Line-2, m.Ctxp2)
 		}
 		if req.context >= 1 && m.Ctxp1 != "" {
-			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line-1, m.Ctxp1); err != nil {
-				return err
-			}
+			fmt.Fprintf(bw, "%d- %s\n", m.Line-1, m.Ctxp1)
 		}
-		_, err := fmt.Fprintf(bw, "%d: %s\n", m.Line, m.Context)
-		if err != nil {
-			return err
-		}
+		fmt.Fprintf(bw, "%d: %s\n", m.Line, m.Context)
 		if req.context >= 1 && m.Ctxn1 != "" {
-			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line+1, m.Ctxn1); err != nil {
-				return err
-			}
+			fmt.Fprintf(bw, "%d- %s\n", m.Line+1, m.Ctxn1)
 		}
 		if req.context >= 2 && m.Ctxn2 != "" {
-			if _, err := fmt.Fprintf(bw, "%d- %s\n", m.Line+2, m.Ctxn2); err != nil {
-				return err
-			}
+			fmt.Fprintf(bw, "%d- %s\n", m.Line+2, m.Ctxn2)
+		}
+		// See if any of the fmt.Fprintf calls above failed,
+		// without triggering a flush.
+		if _, err := bw.Write(nil); err != nil {
+			return err
 		}
 	}
 	// Include a footer after the search results,
