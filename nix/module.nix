@@ -178,20 +178,11 @@ let
   };
 
   caddyConfig = ''
-    # Serve static files like research papers or OpenAPI specs.
+    # Serve static files like research papers.
     root * ${config.services.dcs.package}/share/static
 
     encode zstd gzip {
       minimum_length 20
-    }
-
-    # Browser-based tools load the OpenAPI spec cross-origin, e.g.
-    # https://editor.swagger.io/?url=https://codesearch.debian.net/openapi2.yaml
-    # A plain GET needs no preflight, so allowing the origin is enough.
-    @openapi path_regexp openapi ^/openapi2?\.(yaml|json)$
-    handle @openapi {
-      header Access-Control-Allow-Origin "*"
-      file_server
     }
 
     handle /research/* {

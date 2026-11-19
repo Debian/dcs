@@ -504,6 +504,12 @@ func (o *Opts) Main(ln net.Listener) error {
 		// Check if a static file was requested with full name
 		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
 		if _, err := fs.Stat(static.FS, name); err == nil {
+			if name == "openapi2.yaml" {
+				// Browser-based tools load the OpenAPI spec cross-origin, e.g.
+				// https://editor.swagger.io/?url=https://codesearch.debian.net/openapi2.yaml
+				// A plain GET needs no preflight, so allowing the origin is enough.
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			}
 			serveStatic(w, r, name)
 			return nil
 		}
