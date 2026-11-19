@@ -325,10 +325,16 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 	if more != "" {
 		bw.WriteString(more)
 	}
-	bw.WriteString("# To narrow, add package:REGEXP, path:REGEXP or filetype:c to q.\n")
-	bw.WriteString("# (Prefix - to negate, e.g. -package:linux)\n")
-	if example != "" {
-		fmt.Fprintf(bw, "# To read a file: /show/%s\n", example)
+	if example == "" {
+		// No results. Explain how to broaden.
+		bw.WriteString("# Try broadening your query, or use ?regexp=1&q=(?i)... for case-insensitive search.\n")
+	} else {
+		// At least one result. Explain how to narrow.
+		bw.WriteString("# To narrow, add package:REGEXP, path:REGEXP or filetype:c to q.\n")
+		bw.WriteString("# (Prefix - to negate, e.g. -package:linux)\n")
+		if example != "" {
+			fmt.Fprintf(bw, "# To read a file: /show/%s\n", example)
+		}
 	}
 	return bw.Flush()
 }
