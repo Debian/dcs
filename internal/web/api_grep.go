@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -19,7 +20,7 @@ import (
 const grepUsage = `usage: /grep?q=search+term
   q=            what to search for: a literal string, URL-encoded
   regexp=1      search q as a regular expression (RE2 syntax)
-  limit=N       print the N best matches (default: 25)
+  limit=N       print the N best matches (-1 for unlimited, default: 25)
   context=2     print 2 (or 1, default: 0) context lines
   perpackage=1  print the 2 best matches of the best N packages
 
@@ -71,8 +72,13 @@ func validateParameters(r *http.Request) (*grepRequest, error) {
 	if limitStr := r.FormValue("limit"); limitStr != "" {
 		var err error
 		req.limit, err = strconv.Atoi(limitStr)
-		if err != nil || req.limit < 1 || req.limit > 1000 {
+		if err != nil {
 			return nil, errors.New("invalid limit parameter")
+		}
+		if req.limit < 0 {
+			// Negative values are inconvenient in writeGrepResults,
+			// so map “unlimited” to MaxInt instead.
+			req.limit = math.MaxInt
 		}
 	}
 

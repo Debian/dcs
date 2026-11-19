@@ -245,7 +245,8 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 		s, _, err = a.opts.maybeStartQuery(ctx, queryid, cl, q)
 	} else {
 		// No continuation token specified (initial attempt):
-		if anonymousKey(cl.apiKey) {
+		if cl.entry != "/grep" && anonymousKey(cl.apiKey) {
+			// Keep old tools like codesearch-cli working as-is.
 			// TODO: Remove this exemption once the tools
 			// are updated to expose the speedbump properly.
 			s, _, err = a.opts.maybeStartQuery(ctx, queryid, cl, q)
