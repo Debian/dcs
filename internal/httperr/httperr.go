@@ -33,7 +33,6 @@ func handleError(w http.ResponseWriter, r *http.Request, err error) {
 		unwrapped = he.err
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Del("Expires")
 	if code == http.StatusTooManyRequests {
 		// Tell clients to wait 10s,
 		// which matches the speedbump duration.

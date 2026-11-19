@@ -333,7 +333,6 @@ func serveStatic(w http.ResponseWriter, r *http.Request, name string) {
 		// Cache for 30 days, as recommended on
 		// https://developer.chrome.com/docs/performance/insights/cache
 		w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
-		w.Header().Set("Expires", time.Now().Add(7*24*time.Hour).Format(http.TimeFormat))
 	} else {
 		// Cache for 1 hour.
 		w.Header().Set("Cache-Control", "public, max-age=3600")

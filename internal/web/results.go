@@ -16,10 +16,8 @@ func startJsonResponse(w http.ResponseWriter) {
 	// nginx and the client(s).
 	utc := time.Now().UTC()
 	cacheSince := utc.Format(http.TimeFormat)
-	cacheUntil := utc.Add(1 * time.Hour).Format(http.TimeFormat)
 	w.Header().Set("Cache-Control", "max-age=3600, public")
 	w.Header().Set("Last-Modified", cacheSince)
-	w.Header().Set("Expires", cacheUntil)
 }
 
 func (s *queryState) writeResults(page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
