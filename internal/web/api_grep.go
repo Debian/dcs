@@ -25,7 +25,7 @@ const grepUsage = `usage: /grep?q=search+term
   context=2     print 2 (or 1, default: 0) context lines
   perpackage=1  print the 2 best matches of the best limit=N packages
 
-keyword filters inside q (always RE2 regexps, still need a search term):
+keyword filters inside q (REGEXP are RE2, q still needs a search term):
   package:REGEXP  name without version (e.g. ^i3-wm$), -package to negate
   path:REGEXP     path within the package (e.g. ^debian/), -path to negate
   filetype:c      or go, python, …
