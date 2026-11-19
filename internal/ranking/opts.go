@@ -2,7 +2,10 @@
 
 package ranking
 
-import "maps"
+import (
+	"maps"
+	"slices"
+)
 
 type RankingOpts struct {
 	// Map of file suffix (e.g. ".c") ranking. This is filled in based on the
@@ -43,7 +46,31 @@ type RankingOpts struct {
 	Weighted bool
 }
 
-var ByFiletype = map[string]map[string]float32{
+func FileTypes() []string {
+	return slices.Sorted(maps.Keys(byFiletype))
+}
+
+func ByFiletype(ft string) (map[string]float32, bool) {
+	if canonical, ok := filetypeAliases[ft]; ok {
+		ft = canonical
+	}
+	suffixes, ok := byFiletype[ft]
+	return suffixes, ok
+}
+
+var filetypeAliases = map[string]string{
+	"cpp":    "c++",
+	"golang": "go",
+	"js":     "javascript",
+	"md":     "markdown",
+	"py":     "python",
+	"rb":     "ruby",
+	"rs":     "rust",
+	"sh":     "shell",
+	"ts":     "typescript",
+}
+
+var byFiletype = map[string]map[string]float32{
 	"c": {
 		".c": 0.75,
 		".h": 0.75,
@@ -87,9 +114,6 @@ var ByFiletype = map[string]map[string]float32{
 	"go": {
 		".go": 0.75,
 	},
-	"golang": {
-		".go": 0.75,
-	},
 	"java": {
 		".java": 0.75,
 	},
@@ -110,9 +134,6 @@ var ByFiletype = map[string]map[string]float32{
 	},
 	"erlang": {
 		".erl": 0.75,
-	},
-	"js": {
-		".js": 0.75,
 	},
 	"javascript": {
 		".js": 0.75,
@@ -154,10 +175,12 @@ func RankingOptsFromFiletypes(filetypes, nfiletypes []string) RankingOpts {
 		Nsuffixes: make(map[string]float32),
 	}
 	for _, t := range filetypes {
-		maps.Copy(result.Suffixes, ByFiletype[t])
+		suffixes, _ := ByFiletype(t)
+		maps.Copy(result.Suffixes, suffixes)
 	}
 	for _, t := range nfiletypes {
-		maps.Copy(result.Nsuffixes, ByFiletype[t])
+		suffixes, _ := ByFiletype(t)
+		maps.Copy(result.Nsuffixes, suffixes)
 	}
 	return result
 }

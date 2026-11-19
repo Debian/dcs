@@ -8,7 +8,6 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
-	"maps"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -105,8 +104,8 @@ func validateQuery(query string) error {
 		"nfiletype",
 	} {
 		for _, ft := range rewritten.Query()[keyword] {
-			if _, ok := ranking.ByFiletype[ft]; !ok {
-				return fmt.Errorf("unknown filetype %q. Use one of %s or use path:\\.ext$ to filter by extension", ft, slices.Sorted(maps.Keys(ranking.ByFiletype)))
+			if _, ok := ranking.ByFiletype(ft); !ok {
+				return fmt.Errorf("unknown filetype %q. Use one of %s or use path:\\.ext$ to filter by extension", ft, ranking.FileTypes())
 			}
 		}
 	}
