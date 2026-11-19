@@ -143,7 +143,7 @@ func validateQuery(query string) error {
 	indexQuery := index.RegexpQuery(compiled.Syntax)
 	log.Printf("trigram = %v, sub = %v", indexQuery.Trigram, indexQuery.Sub)
 	if len(indexQuery.Trigram) == 0 && len(indexQuery.Sub) == 0 {
-		return fmt.Errorf("Empty index query. See https://codesearch.debian.net/faq#emptyindex")
+		return fmt.Errorf("Empty index query: the trigram index requires at least 3 consecutive literal characters. See also https://codesearch.debian.net/faq#emptyindex")
 	}
 	return nil
 }
