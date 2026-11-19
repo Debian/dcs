@@ -1158,7 +1158,6 @@ func (o *Opts) writeToDisk(s *queryState) error {
 	}
 
 	packages := slices.Sorted(maps.Keys(packageVersions))
-	// TODO: sort by ranking as soon as we store the best ranking with each package. (at the moment it’s alphabetical)
 	s.allPackagesSorted = packages
 	s.mu.Unlock()
 
@@ -1179,6 +1178,7 @@ func (o *Opts) writeToDisk(s *queryState) error {
 	// Now save the results into their package-specific files.
 	byPkgSortingStarted := time.Now()
 	bypkg := make(map[string][]resultPointer)
+	ranked := make([]string, 0, len(packages))
 	for pointer, err := range sorted.All() {
 		if err != nil {
 			return err
@@ -1191,6 +1191,11 @@ func (o *Opts) writeToDisk(s *queryState) error {
 			continue
 		}
 		pkgresults := bypkg[name]
+		if len(pkgresults) == 0 {
+			// Keep track of every encountered package
+			// (in sort order), to update allPackagesSorted.
+			ranked = append(ranked, name)
+		}
 		if len(pkgresults) >= resultsPerPackage {
 			continue
 		}
@@ -1203,6 +1208,7 @@ func (o *Opts) writeToDisk(s *queryState) error {
 	s.resultPointers = sorted
 	s.resultPointersByPkg = bypkg
 	s.resultPages = pages
+	s.allPackagesSorted = ranked
 	s.mu.Unlock()
 
 	s.sendPaginationUpdate()
