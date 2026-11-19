@@ -22,16 +22,16 @@ const grepUsage = `usage: /grep?q=search+term
   regexp=1      search q as a regular expression (RE2 syntax)
   limit=N       print the N best matches (-1 for unlimited, default: 25)
   context=2     print 2 (or 1, default: 0) context lines
-  perpackage=1  print the 2 best matches of the best N packages
+  perpackage=1  print the 2 best matches of the best limit=N packages
 
-keyword filters inside q:
+keyword filters inside q (always RE2 regexps, still need a search term):
   package:REGEXP  name without version (e.g. ^i3-wm$), -package to negate
   path:REGEXP     path within the package (e.g. ^debian/), -path to negate
   filetype:c      or go, python, …
 
 examples:
   /grep?q=load_font(+package:i3-wm
-  /grep?regexp=1&q=%28load%7Cset%29_font
+  /grep?regexp=1&q=%28load%7Cset%29_font+filetype:c
   To read a file, use /show/ with a path from the results,
   e.g. /show/i3-wm_4.25.1-1/libi3/font.c
 
@@ -40,6 +40,9 @@ notes:
   For case-insensitive search, use e.g. ?regexp=1&q=(?i)term
   Files are searched line by line,
   meaning ^ and $ match line start and line end.
+  Queries need at least 3 consecutive characters (one trigram).
+  Exact totals are in the first line and headers
+  (query with limit=0 to get counts only, no results).
 `
 
 type grepRequest struct {
