@@ -217,7 +217,11 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 		pkgs := s.allPackagesSorted
 		if len(pkgs) > req.limit {
 			status += fmt.Sprintf("; showing %d packages", req.limit)
-			more = "# For more packages, add e.g. &limit=100 to the URL.\n"
+			if req.limit == 0 {
+				more = "# To show results, add e.g. &limit=100 to the URL.\n"
+			} else {
+				more = fmt.Sprintf("# For more packages, add e.g. &limit=%d to the URL.\n", req.limit*2)
+			}
 			pkgs = pkgs[:req.limit]
 		}
 		var byPkg memPointers
@@ -230,7 +234,11 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 		req.limit = len(byPkg)
 	} else if s.numResults > req.limit {
 		status += fmt.Sprintf("; showing %d", req.limit)
-		more = "# For more results, add e.g. &limit=100 to the URL.\n"
+		if req.limit == 0 {
+			more = "# To show results, add e.g. &limit=100 to the URL.\n"
+		} else {
+			more = fmt.Sprintf("# For more results, add e.g. &limit=%d to the URL.\n", req.limit*2)
+		}
 	}
 	if s.speedbump != nil {
 		status += "; incomplete (see footer)"
