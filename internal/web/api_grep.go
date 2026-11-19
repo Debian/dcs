@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -156,6 +157,15 @@ func (a *apiserver) grep(w http.ResponseWriter, r *http.Request) (err error) {
 			metricErroredQueries.With(srcLabel).Inc()
 		}
 	}()
+
+	if r.URL.RawQuery == "" {
+		// No query parameters? Print usage.
+		// Return HTTP status code 200 so that coding agent tools
+		// display the full response (usage) instead of an error.
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		_, err := io.WriteString(w, grepUsage)
+		return err
+	}
 
 	req, err := validateParameters(r)
 	if err != nil {
