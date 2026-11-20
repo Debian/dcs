@@ -388,6 +388,13 @@ func (o *Opts) serveAPIOnMux(mux *http.ServeMux, apiOpts apikeys.Options) error 
 		},
 	}
 	mux.Handle("GET /grep", httperr.ErrorHandler(a.grep))
+	apiUsage := httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		io.WriteString(w, "For scripts, bots and coding agents: /grep is the (recommended, preferred) plain-text API.\n")
+		io.WriteString(w, "See /openapi2.yaml for OpenAPI (REST)\n")
+		return nil
+	})
+	mux.Handle("GET /api", apiUsage)
+	mux.Handle("GET /api/", apiUsage)
 	// OPTIONS requests are used for preflight.
 	mux.Handle("GET /api/v1/search", httperr.ErrorHandler(a.search))
 	mux.Handle("OPTIONS /api/v1/search", httperr.ErrorHandler(a.search))
