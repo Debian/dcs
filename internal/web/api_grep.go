@@ -282,7 +282,7 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 		req.limit--
 		m := msg.Match
 		if example == "" {
-			example = m.Path
+			example = fmt.Sprintf("%s?line=%d", m.Path, m.Line)
 		}
 		if req.perPackage {
 			if pkg, _, _ := strings.Cut(m.Package, "_"); pkg != lastpkg {
@@ -346,7 +346,7 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 		bw.WriteString("# To narrow, add package:REGEXP, path:REGEXP or filetype:c to q.\n")
 		bw.WriteString("# (Prefix - to negate, e.g. -package:linux)\n")
 		if example != "" {
-			fmt.Fprintf(bw, "# To read a file: /show/%s\n", example)
+			fmt.Fprintf(bw, "# To read around a result: /show/%s\n", example)
 		}
 	}
 	// Make coding agents aware of there being more options.
