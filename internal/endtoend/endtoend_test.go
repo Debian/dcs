@@ -349,5 +349,19 @@ i3-wm_4.5.1-2/libi3/font.c
 				t.Fatalf("search result %+v not found in results %+v", want, results)
 			}
 		})
+
+		t.Run("/show, with line number", func(t *testing.T) {
+			results := query(t, urlPrefix+"/show/i3-wm_4.5.1-2/libi3/font.c?line=139&context=2")
+			want := `# i3-wm_4.5.1-2/libi3/font.c line 139 (+context) of 483
+137-  *
+138-  */
+139: i3Font load_font(const char *pattern, const bool fallback) {
+140-     i3Font font;
+141-     font.type = FONT_TYPE_NONE;
+`
+			if !strings.Contains(results, want) {
+				t.Fatalf("search result %+v not found in results %+v", want, results)
+			}
+		})
 	})
 }

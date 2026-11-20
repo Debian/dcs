@@ -2,9 +2,11 @@
 package show
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"net/http"
@@ -19,12 +21,64 @@ import (
 )
 
 const showUsage = `usage: /show/package_version/path/to/file?line=139
-  line=         print 10 lines around this line
+  line=k     print line k of the file, with context=n lines
+  line=k-l   print lines k to l of the file, with context=n lines
+  context=n  print n (default: 10) context lines around the matching line(s)
 
 examples:
-  /show/i3-wm_4.25.1-1/libi3/font.c
-  /show/i3-wm_4.25.1-1/libi3/font.c?line=139
+  /show/i3-wm_4.5.1-1/libi3/font.c
+  /show/i3-wm_4.5.1-1/libi3/font.c?line=139
+  /show/i3-wm_4.5.1-1/libi3/font.c?line=130-140
+  /show/i3-wm_4.5.1-1/libi3/font.c?line=139&context=0
 `
+
+type showRequest struct {
+	lineFrom int
+	lineTo   int
+	context  int
+}
+
+func validateParameters(r *http.Request) (*showRequest, error) {
+	req := &showRequest{
+		context: 10, // show 10 lines before/after the requested by default
+	}
+	if lineStr := r.FormValue("line"); lineStr != "" {
+		var err error
+		if from, to, isRange := strings.Cut(lineStr, "-"); isRange {
+			req.lineFrom, err = strconv.Atoi(from)
+			if err != nil {
+				return nil, errors.New("invalid line= parameter")
+			}
+			req.lineTo, err = strconv.Atoi(to)
+			if err != nil {
+				return nil, errors.New("invalid line= parameter")
+			}
+		} else {
+			req.lineFrom, err = strconv.Atoi(from)
+			if err != nil {
+				return nil, errors.New("invalid line= parameter")
+			}
+			req.lineTo = req.lineFrom
+		}
+		if req.lineFrom < 1 {
+			return nil, errors.New("invalid line= parameter (< 1)")
+		}
+		if req.lineTo < req.lineFrom {
+			return nil, errors.New("invalid line= range (to < from)")
+		}
+	}
+	if contextStr := r.FormValue("context"); contextStr != "" {
+		n, err := strconv.Atoi(contextStr)
+		if err != nil || n < 0 {
+			return nil, errors.New("invalid context= parameter")
+		}
+		if req.lineFrom == 0 {
+			return nil, errors.New("context= requires line=")
+		}
+		req.context = n
+	}
+	return req, nil
+}
 
 func ShowPlain(backends []common.Backend) http.Handler {
 	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
@@ -36,7 +90,14 @@ func ShowPlain(backends []common.Backend) http.Handler {
 			return err
 		}
 		for param := range r.URL.Query() {
+			if param == "line" || param == "context" {
+				continue
+			}
 			return httperr.Error(http.StatusBadRequest, fmt.Errorf("unexpected query parameter %q. %s", param, showUsage))
+		}
+		req, err := validateParameters(r)
+		if err != nil {
+			return httperr.Error(http.StatusBadRequest, fmt.Errorf("%v. %s", err, showUsage))
 		}
 		log.Printf("Showing file %s", filename)
 		resp, err := readFile(backends, filename)
@@ -49,7 +110,38 @@ func ShowPlain(backends []common.Backend) http.Handler {
 		// Set the cache header to reflect file contents are immutable
 		// and can be cached indefinitely.
 		w.Header().Set("Cache-Control", "public, max-age=2592000, immutable")
-		_, err = w.Write(resp)
+		if req.lineFrom == 0 {
+			// Easy case: return the entire file.
+			_, err = w.Write(resp)
+			return err
+		}
+		// Return only a portion of the file, around the requested line (range).
+		// We do one pass over the file and collect the matching+context lines,
+		// then validate the request (when we know the number of lines)
+		// and add the header.
+		var buf bytes.Buffer
+		n := 0
+		resp = bytes.TrimSuffix(resp, []byte{'\n'})
+		for line := range bytes.SplitSeq(resp, []byte{'\n'}) {
+			n++
+			if n < req.lineFrom-req.context || n-req.context > req.lineTo {
+				continue
+			}
+			sep := "-" // context
+			if n >= req.lineFrom && n <= req.lineTo {
+				sep = ":" // match
+			}
+			fmt.Fprintf(&buf, "%d%s %s\n", n, sep, line)
+		}
+		if req.lineFrom > n {
+			return httperr.Error(http.StatusBadRequest, fmt.Errorf("invalid line= parameter: %s has only %d lines. %s", filename, n, showUsage))
+		}
+		if req.lineTo != req.lineFrom {
+			fmt.Fprintf(w, "# %s lines %d-%d (+context) of %d\n", filename, req.lineFrom, min(req.lineTo, n), n)
+		} else {
+			fmt.Fprintf(w, "# %s line %d (+context) of %d\n", filename, req.lineFrom, n)
+		}
+		_, err = io.Copy(w, &buf)
 		return err
 	})
 }
