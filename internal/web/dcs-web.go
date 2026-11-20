@@ -285,6 +285,11 @@ func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) error {
 		if !ok {
 			return httperr.Error(http.StatusNotFound, errors.New("No such query."))
 		}
+		select {
+		case <-s.done:
+		case <-r.Context().Done():
+			return r.Context().Err()
+		}
 		s.mu.Lock()
 		packages := s.allPackagesSorted
 		s.mu.Unlock()
@@ -315,6 +320,11 @@ func (o *Opts) ResultsHandler(w http.ResponseWriter, r *http.Request) error {
 	s, ok := o.lookupQuery(queryid)
 	if !ok {
 		return httperr.Error(http.StatusNotFound, errors.New("No such query."))
+	}
+	select {
+	case <-s.done:
+	case <-r.Context().Done():
+		return r.Context().Err()
 	}
 
 	if perpackage {
