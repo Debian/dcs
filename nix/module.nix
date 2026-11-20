@@ -185,12 +185,21 @@ let
       minimum_length 20
     }
 
+    # Nix store files have mtime=1970-01-01 00:00:01,
+    # so Caddy suppresses ETag while still sending Last-Modified: 1970,
+    # causing If-Modified-Since to always return 304.
+    # Drop Last-Modified and set Cache-Control explicitly.
     handle /research/* {
+      request_header -If-Modified-Since
+      header -Last-Modified
+      header Cache-Control "public, max-age=86400"
       file_server browse
     }
-
     handle_errors 5xx {
+      request_header -If-Modified-Since
       rewrite * /50x.html
+      header -Last-Modified
+      header Cache-Control "no-store"
       file_server
     }
 
