@@ -29,6 +29,12 @@ examples:
 func ShowPlain(backends []common.Backend) http.Handler {
 	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		filename := r.PathValue("file")
+		if filename == "" {
+			// At /show/, return the usage message with HTTP 200.
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			_, err := w.Write([]byte(showUsage))
+			return err
+		}
 		for param := range r.URL.Query() {
 			return httperr.Error(http.StatusBadRequest, fmt.Errorf("unexpected query parameter %q. %s", param, showUsage))
 		}
