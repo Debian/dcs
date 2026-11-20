@@ -169,6 +169,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 
 	const cookieName = "dcs-session"
 	mux.Handle("GET /", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		w.Header().Set("Cache-Control", "private, no-store")
 		var session session
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			if err := cookies.Decode("dcs-session", cookie.Value, &session); err != nil {
@@ -215,6 +216,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 	}))
 
 	mux.Handle("GET /download/", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
+		w.Header().Set("Cache-Control", "private, no-store")
 		var session session
 		if cookie, err := r.Cookie(cookieName); err == nil {
 			if err := cookies.Decode("dcs-session", cookie.Value, &session); err != nil {
