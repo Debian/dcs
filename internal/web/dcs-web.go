@@ -523,6 +523,7 @@ func (o *Opts) Main(ln net.Listener) error {
 			return nil
 		}
 
+		w.Header().Set("Cache-Control", "no-store")
 		http.NotFound(w, r)
 		return nil // avoid log spam from 404s
 	}))
