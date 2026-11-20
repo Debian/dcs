@@ -192,7 +192,10 @@ let
     handle /research/* {
       request_header -If-Modified-Since
       header -Last-Modified
-      header Cache-Control "public, max-age=86400"
+      header {
+         Cache-Control "public, max-age=86400"
+         match status 2xx
+      }
       file_server browse
     }
     handle_errors 5xx {
