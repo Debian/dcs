@@ -1,6 +1,9 @@
+# Prefer using /grep, the plain-text search API,
+# over the disallowed methods below (browser API).
 User-agent: *
+Allow: /grep
+Allow: /show/
 Disallow: /search
 Disallow: /show
-Disallow: /instantws
 Disallow: /results
 Disallow: /perpackage-results
