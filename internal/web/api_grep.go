@@ -34,7 +34,8 @@ examples:
   /grep?q=load_font(+package:i3-wm
   /grep?regexp=1&q=%28load%7Cset%29_font+filetype:c
   To read a file, use /show/ with a path from the results,
-  e.g. /show/i3-wm_4.25.1-1/libi3/font.c
+  e.g. /show/i3-wm_4.25.1-1/libi3/font.c,
+  or to display just the matching line(s) with context, add ?line=130
 
 notes:
   Literal search is case-sensitive.
