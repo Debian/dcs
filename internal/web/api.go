@@ -302,6 +302,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
 	w.Header().Set("Access-Control-Allow-Headers", "x-dcs-apikey, Content-Type")
+	w.Header().Set("Access-Control-Expose-Headers", "X-Codesearch-Candidates, X-Codesearch-Results, X-Codesearch-Packages, X-Codesearch-Speedbump, X-Codesearch-Continuation-Token, Retry-After")
 	w.Header().Set("Access-Control-Max-Age", "86400")
 
 	if r.Method == "OPTIONS" {
