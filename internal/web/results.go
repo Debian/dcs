@@ -5,19 +5,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Debian/dcs/internal/httperr"
 )
 
 func startJsonResponse(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
-	// Set cache time for one hour. The files will ideally get cached both by
-	// nginx and the client(s).
-	utc := time.Now().UTC()
-	cacheSince := utc.Format(http.TimeFormat)
 	w.Header().Set("Cache-Control", "max-age=3600, public")
-	w.Header().Set("Last-Modified", cacheSince)
 }
 
 func (s *queryState) writeResults(page int, results io.Writer, w http.ResponseWriter, r *http.Request) error {
