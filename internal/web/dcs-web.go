@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"regexp/syntax"
 	"runtime"
@@ -451,6 +452,18 @@ func (o *Opts) Main(ln net.Listener) error {
 	}
 
 	o.queries = make(map[string]*queryState)
+
+	// Clean up result directories from previous processes,
+	// which cannot be served anyway (their o.queries was lost).
+	stale, err := os.ReadDir(o.QueryResultsPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, entry := range stale {
+		if err := os.RemoveAll(filepath.Join(o.QueryResultsPath, entry.Name())); err != nil {
+			log.Printf("removing stale query results failed: %v", err)
+		}
+	}
 
 	if o.HashKeyPath == "" {
 		return fmt.Errorf("-securecookie_hash_key is required. Use e.g. %x", securecookie.GenerateRandomKey(32))
