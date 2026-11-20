@@ -299,7 +299,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	// Cross-Origin API requests are allowed.
 	w.Header().Set("Allow", "OPTIONS, GET")
-	w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET")
 	w.Header().Set("Access-Control-Allow-Headers", "x-dcs-apikey, Content-Type")
 	w.Header().Set("Access-Control-Max-Age", "86400")
