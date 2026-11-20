@@ -52,7 +52,15 @@ func (c client) owner() string {
 }
 
 func (c client) resultsOwner() string {
-	network := c.network()
+	// For IPv4 addresses, we map each address to
+	// its containing network (CIDR /16 granularity).
+	// This is a good compromise between effectiveness
+	// (grouping individual IP addresses to their owner)
+	// and over-matching unrelated IP addresses.
+	const bits4 = 16
+	// For IPv6, look at the entire /48 network.
+	const bits6 = 48
+	network := c.network(bits4, bits6)
 	if c.personalKey() {
 		// A personal key gets its own owner slots on the same network.
 		return c.apiKey + "@" + network
@@ -60,21 +68,16 @@ func (c client) resultsOwner() string {
 	return network
 }
 
-func (c client) network() string {
+func (c client) network(bits4, bits6 int) string {
 	addr, err := netip.ParseAddr(c.ip)
 	if err != nil {
 		return c.ip
 	}
 	// addr might be an IPv6 address containing a mapped IPv4
 	addr = addr.Unmap()
-	// For IPv4 addresses, we map each address to
-	// its containing network (CIDR /16 granularity).
-	// This is a good compromise between effectiveness
-	// (grouping individual IP addresses to their owner)
-	// and over-matching unrelated IP addresses.
-	bits := 16
+	bits := bits4
 	if addr.Is6() {
-		bits = 48 // for IPv6, look at the entire /48 network
+		bits = bits6
 	}
 	prefix, err := addr.Prefix(bits)
 	if err != nil {
