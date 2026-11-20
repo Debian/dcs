@@ -42,13 +42,17 @@ func (c client) personalKey() bool {
 }
 
 func (c client) owner() string {
+	// For IPv4, one IP address is one device (often many).
+	const bits4 = 32
+	// For IPv6, one /64 represents one device (SLAAC).
+	const bits6 = 64
+	network := c.network(bits4, bits6)
 	if c.personalKey() {
 		// A personal key grants more searches from the same IP.
-		return c.apiKey + "@" + c.ip
+		return c.apiKey + "@" + network
 	}
-	// For now, treat each anonymous IP as one owner.
 	// We might make this stricter for certain IP ranges or ASNs.
-	return c.ip
+	return network
 }
 
 func (c client) resultsOwner() string {
