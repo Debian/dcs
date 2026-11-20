@@ -247,7 +247,8 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) error {
 	exhaustive := r.FormValue("exhaustive") == "1"
 	s, _, err := o.maybeStartQuerySpeedbumped(ctx, cl, q, exhaustive)
 	if err != nil {
-		if errors.Is(err, errTooManyQueries) {
+		if errors.Is(err, errTooManyConcurrentQueries) ||
+			errors.Is(err, errTooManyQueriesPerSecond) {
 			return httperr.Error(http.StatusTooManyRequests, err)
 		}
 		return fmt.Errorf("Could not start query: %v", err)

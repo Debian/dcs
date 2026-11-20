@@ -22,7 +22,8 @@ func (o *Opts) SpeedbumpHandler(w http.ResponseWriter, r *http.Request) error {
 
 	cl := clientFromRequest(r, "/speedbump", "")
 	if _, _, err := o.maybeStartQuery(r.Context(), queryID(q), cl, q); err != nil {
-		if errors.Is(err, errTooManyQueries) {
+		if errors.Is(err, errTooManyConcurrentQueries) ||
+			errors.Is(err, errTooManyQueriesPerSecond) {
 			return httperr.Error(http.StatusTooManyRequests, err)
 		}
 		return err

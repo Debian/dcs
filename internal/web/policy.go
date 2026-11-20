@@ -44,6 +44,12 @@ type AdmissionPolicy struct {
 	//
 	// Further queries are rejected with HTTP 429 (Too Many Requests).
 	MaxConcurrentPerOwner int `toml:"max_concurrent_per_owner"`
+
+	// MaxQPSPerOwner limits how many queries per second
+	// each owner is allowed to start (with any API entrypoint).
+	//
+	// 0 means unlimited (not recommended!).
+	MaxQPSPerOwner int `toml:"max_qps_per_owner"`
 }
 
 type ResultsPolicy struct {
@@ -70,6 +76,7 @@ func defaultPolicy() *Policy {
 		Admission: AdmissionPolicy{
 			MaxConcurrent:         8,
 			MaxConcurrentPerOwner: 2,
+			MaxQPSPerOwner:        1,
 		},
 		Results: ResultsPolicy{
 			KeepMax:         300,

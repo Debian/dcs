@@ -256,7 +256,8 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 	}
 
 	if err != nil {
-		if errors.Is(err, errTooManyQueries) {
+		if errors.Is(err, errTooManyConcurrentQueries) ||
+			errors.Is(err, errTooManyQueriesPerSecond) {
 			err = maybeNudgeToApikey(cl.personalKey(), err)
 			return nil, httperr.Error(http.StatusTooManyRequests, err)
 		}

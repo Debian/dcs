@@ -430,7 +430,9 @@ func queryID(q string) string {
 	return fmt.Sprintf("%x", h.Sum64())
 }
 
-var errTooManyQueries = errors.New("too many concurrent queries, see https://codesearch.debian.net/faq#throttled")
+var errTooManyConcurrentQueries = errors.New("too many concurrent queries, see https://codesearch.debian.net/faq#throttled")
+
+var errTooManyQueriesPerSecond = errors.New("too many queries per second, see https://codesearch.debian.net/faq#throttled")
 
 const speedbumpSuffix = "&speedbump=1"
 
@@ -463,6 +465,25 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		return s, true, nil
 	}
 
+	if limit := o.policy.Admission.MaxQPSPerOwner; limit > 0 {
+		now := time.Now().Unix()
+		o.ownersMu.Lock()
+		if now != o.startsAt {
+			// A second has passed, replace ownersStarts
+			// with a fresh map to reset the limit.
+			o.ownersStarts = make(map[string]int)
+			o.startsAt = now
+		}
+		o.ownersStarts[cl.owner()]++
+		tooMany := o.ownersStarts[cl.owner()] > limit
+		o.ownersMu.Unlock()
+		if tooMany {
+			// Reject with HTTP 429 (Too Many Requests).
+			logRejected(cl, query, errTooManyQueriesPerSecond)
+			return nil, false, errTooManyQueriesPerSecond
+		}
+	}
+
 	releaseOwner := func() {}
 	if o.maxQuerySem != nil {
 		// Reject queries from this owner if this owner
@@ -471,8 +492,8 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 		if !owner.sem.TryAcquire(1) {
 			unref()
 			// Reject with HTTP 429 (Too Many Requests).
-			logRejected(cl, query, errTooManyQueries)
-			return nil, false, errTooManyQueries
+			logRejected(cl, query, errTooManyConcurrentQueries)
+			return nil, false, errTooManyConcurrentQueries
 		}
 		releaseOwner = func() {
 			owner.sem.Release(1)

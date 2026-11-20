@@ -372,8 +372,10 @@ type Opts struct {
 	maxQueryWaiting atomic.Int32        // queries waiting for maxQuerySem
 	running         atomic.Int32        // queries currently running
 
-	ownersMu sync.Mutex
-	owners   map[string]*ownerSlot // see AdmissionPolicy.MaxConcurrentPerOwner
+	ownersMu     sync.Mutex
+	owners       map[string]*ownerSlot // see AdmissionPolicy.MaxConcurrentPerOwner
+	ownersStarts map[string]int        // see AdmissionPolicy.MaxQPSPerOwner
+	startsAt     int64                 // every second, replace ownersStarts
 
 	queriesMu sync.RWMutex
 	queries   map[string]*queryState
