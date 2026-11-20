@@ -1302,30 +1302,6 @@ func (o *Opts) PerPackageResultsHandler(w http.ResponseWriter, r *http.Request) 
 		http.Redirect(w, r, "/search?q="+matches[1]+pageSuffix+"&perpkg=1", http.StatusFound)
 		return nil
 	}
-
-	queryid := matches[1]
-	pagenr, err := strconv.Atoi(matches[2])
-	if err != nil {
-		return httperr.Error(http.StatusBadRequest, fmt.Errorf("Could not convert %q into a number: %v", matches[2], err))
-	}
-	s, ok := o.lookupQuery(queryid)
-	if !ok {
-		return httperr.Error(http.StatusNotFound, errors.New("No such query."))
-	}
-	select {
-	case <-s.done:
-	case <-time.After(60 * time.Second):
-	case <-r.Context().Done():
-	}
-	if !s.completed() {
-		return fmt.Errorf("Query not finished yet.")
-	}
-
-	// For compatibility with old versions, we serve the files that are
-	// directly served by nginx as well by now.
-	// This can be removed after 2015-06-01, when all old clients should be
-	// long expired from any caches.
-	name := filepath.Join(o.QueryResultsPath, queryid, fmt.Sprintf("perpackage_2_page_%d.json", pagenr))
-	http.ServeFile(w, r, name)
-	return nil
+	// dcs-web no longer writes perpackage_2_page_*.json files.
+	return httperr.Error(http.StatusGone, errors.New("Use /api/v1/searchperpackage or /grep instead."))
 }
