@@ -262,7 +262,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) error {
 	}
 	if !s.completed() {
 		// Prevent caching, as the placeholder is temporary.
-		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Cache-Control", "no-store")
 		if err := common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
 			"criticalcss": common.CriticalCss,
 			"q":           r.Form.Get("q"),
