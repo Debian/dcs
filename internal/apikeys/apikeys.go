@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Debian/dcs/internal/httperr"
@@ -232,6 +233,7 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		return nil
 	}))
 
+	var lastLogin atomic.Int64 // stores time.Now().Unix()
 	mux.Handle("GET /redirect_uri", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		ctx := r.Context()
 
@@ -242,6 +244,14 @@ func ServeOnMux(mux *http.ServeMux, opts Options) error {
 		if time.Since(time.Unix(st.LoginRequest, 0)) > 5*time.Minute {
 			return fmt.Errorf("/login state expired, please start over")
 		}
+
+		// Rate-limit logins, because each verification is a request to salsa.
+		if now := time.Now().Unix(); lastLogin.Swap(now) == now {
+			return httperr.Error(http.StatusTooManyRequests, fmt.Errorf("too many concurrent logins, please try again in a few seconds"))
+		}
+		// Further restrict each login attempt to 10s.
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 
 		code := r.FormValue("code")
 		token, err := oauth2Config.Exchange(ctx, code)
