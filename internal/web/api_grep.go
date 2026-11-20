@@ -343,5 +343,7 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 			fmt.Fprintf(bw, "# To read a file: /show/%s\n", example)
 		}
 	}
+	// Make coding agents aware of there being more options.
+	bw.WriteString("# Options: &regexp=1 &perpackage=1 &context=2 &limit=0 (usage: /grep)\n")
 	return bw.Flush()
 }
