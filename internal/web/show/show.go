@@ -18,9 +18,20 @@ import (
 	"github.com/Debian/dcs/internal/web/health"
 )
 
+const showUsage = `usage: /show/package_version/path/to/file?line=139
+  line=         print 10 lines around this line
+
+examples:
+  /show/i3-wm_4.25.1-1/libi3/font.c
+  /show/i3-wm_4.25.1-1/libi3/font.c?line=139
+`
+
 func ShowPlain(backends []common.Backend) http.Handler {
 	return httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
 		filename := r.PathValue("file")
+		for param := range r.URL.Query() {
+			return httperr.Error(http.StatusBadRequest, fmt.Errorf("unexpected query parameter %q. %s", param, showUsage))
+		}
 		log.Printf("Showing file %s", filename)
 		resp, err := readFile(backends, filename)
 		if err != nil {
