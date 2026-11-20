@@ -541,17 +541,6 @@ func (o *Opts) Main(ln net.Listener) error {
 	mux.Handle("GET /events/", httperr.ErrorHandler(o.EventsHandler))
 	mux.Handle("POST /speedbump", httperr.ErrorHandler(o.SpeedbumpHandler))
 
-	// Used by the service worker.
-	mux.Handle("GET /placeholder.html", httperr.ErrorHandler(func(w http.ResponseWriter, r *http.Request) error {
-		return common.Templates.ExecuteTemplate(w, "placeholder.html", map[string]any{
-			"criticalcss": common.CriticalCss,
-			"version":     version.Read(),
-			"host":        r.Host,
-			"q":           "%q%",
-			"literal":     true,
-		})
-	}))
-
 	apiOpts := apikeys.Options{
 		HashKey:      hashKey,
 		BlockKey:     blockKey,
