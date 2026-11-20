@@ -334,6 +334,12 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 	}
 	if s.numResults == 0 {
 		// No results. Explain how to broaden.
+		if q := s.request.Query; req.literal && looksLikeRegexp(q) {
+			// Seems like this might have been a regexp query,
+			// which was accidentally run in literal mode.
+			fmt.Fprintf(bw, "# q was searched as a literal string: %s\n", q)
+			bw.WriteString("# Add &regexp=1 to search it as a regular expression.\n")
+		}
 		bw.WriteString("# Try broadening your query, or use ?regexp=1&q=(?i)... for case-insensitive search.\n")
 	} else {
 		// At least one result. Explain how to narrow.
@@ -346,4 +352,10 @@ func writeGrepResults(w http.ResponseWriter, r *http.Request, s *queryState, req
 	// Make coding agents aware of there being more options.
 	bw.WriteString("# Options: &regexp=1 &perpackage=1 &context=2 &limit=0 (usage: /grep)\n")
 	return bw.Flush()
+}
+
+func looksLikeRegexp(q string) bool {
+	return strings.ContainsAny(q, `^$|\`) ||
+		strings.Contains(q, "(?") ||
+		strings.Contains(q, ".*")
 }
