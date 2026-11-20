@@ -369,6 +369,9 @@ func (o *Opts) startQuery(querystate *queryState) (*queryState, bool) {
 		}
 		// Prepare for reusing the query slot by releasing resources.
 		releaseQueryLocked(s)
+		if err := os.RemoveAll(s.resultWriter.dir); err != nil {
+			log.Printf("[%s] deleting query results: %v", s.queryid, err)
+		}
 	} else {
 		// See if we need to garbage collect old queries. This is unnecessary when
 		// the query is expired, as we can just re-use the previous slot.
@@ -511,8 +514,8 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 	// in the code below (and above), but for that we need to carefully test it.
 	o.ensureEnoughSpaceAvailable()
 
-	dir := filepath.Join(o.QueryResultsPath, queryid)
-	if err := os.MkdirAll(dir, os.FileMode(0755)); err != nil {
+	dir, err := os.MkdirTemp(o.QueryResultsPath, queryid+".")
+	if err != nil {
 		return nil, false, fmt.Errorf("could not create %q: %w", dir, err)
 	}
 
@@ -571,6 +574,12 @@ func (o *Opts) maybeStartQuery(ctx context.Context, queryid string, cl client, q
 	log.Printf("[%s] querying for %+v\n", queryid, searchRequest)
 	if existing, ok := o.startQuery(querystate); ok {
 		// Another goroutine must have raced us since we called lookupQuery().
+		for _, state := range querystate.perBackend {
+			state.tempFile.Close()
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			log.Printf("[%s] deleting query results: %v", existing.queryid, err)
+		}
 		logReused(existing, cl)
 		return existing, true, nil
 	}
