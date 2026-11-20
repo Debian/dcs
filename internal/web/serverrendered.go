@@ -218,7 +218,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) error {
 	src := cl.String()
 	query := r.Form.Get("q")
 	if query == "" {
-		return httperr.Error(http.StatusNotFound, errors.New("Empty query"))
+		return httperr.Error(http.StatusNotFound, errors.New("Empty query (see /grep for usage)"))
 	}
 	literal := r.Form.Get("literal")
 	if literal != "1" {
@@ -241,7 +241,7 @@ func (o *Opts) Search(w http.ResponseWriter, r *http.Request) error {
 
 	if err := validateQuery("?" + q); err != nil {
 		logRejected(cl, q, err)
-		return httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
+		return httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v (see /grep for usage)", err))
 	}
 
 	exhaustive := r.FormValue("exhaustive") == "1"

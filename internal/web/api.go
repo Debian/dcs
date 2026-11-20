@@ -228,7 +228,7 @@ func (a *apiserver) runAndWaitFor(ctx context.Context, cl client, srcLabel prome
 
 	if err := validateQuery("?" + q); err != nil {
 		logRejected(cl, q, err)
-		return nil, httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v", err))
+		return nil, httperr.Error(http.StatusBadRequest, fmt.Errorf("Invalid query: %v (see /grep for usage)", err))
 	}
 
 	var s *queryState
@@ -329,7 +329,7 @@ func (a *apiserver) common(w http.ResponseWriter, r *http.Request, writeResults 
 
 	query := r.FormValue("query")
 	if query == "" {
-		return httperr.Error(http.StatusBadRequest, errors.New("no query parameter specified"))
+		return httperr.Error(http.StatusBadRequest, errors.New("no query parameter specified (see /grep for usage)"))
 	}
 
 	literal := "0"
