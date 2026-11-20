@@ -524,6 +524,11 @@ func (o *Opts) Main(ln net.Listener) error {
 		http.NotFound(w, r)
 		return nil // avoid log spam from 404s
 	}))
+	// Ensure that automated users get a redirect to the canonical OpenAPI spec,
+	// which is the only available version (openapi2.yaml) as of November 2026.
+	for _, old := range []string{"/openapi.yaml", "/openapi.json", "/openapi2.json"} {
+		mux.Handle("GET "+old, http.RedirectHandler("/openapi2.yaml", http.StatusFound))
+	}
 	mux.Handle("GET /show", show.Show(o.backends, o.UseSourcesDebianNet))
 	mux.Handle("GET /show/{file...}", show.ShowPlain(o.backends))
 	mux.Handle("GET /results/", httperr.ErrorHandler(o.ResultsHandler))
