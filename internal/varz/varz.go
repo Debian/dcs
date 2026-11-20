@@ -3,21 +3,13 @@ package varz
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
 	"strings"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
-)
-
-var (
-	availFS = flag.String("varz_avail_fs",
-		"/srv/dcs",
-		"If non-empty, /varz will contain the number of available bytes on the specified filesystem")
 )
 
 const (
@@ -35,24 +27,6 @@ var (
 			var m runtime.MemStats
 			runtime.ReadMemStats(&m)
 			return float64(m.Alloc)
-		},
-	)
-
-	availFSGauge = prometheus.NewGaugeFunc(
-		prometheus.GaugeOpts{
-			Name: "avail_fs_bytes",
-			Help: "Number of available bytes on -varz_avail_fs.",
-		},
-		func() float64 {
-			if *availFS != "" {
-				var stat syscall.Statfs_t
-				if err := syscall.Statfs(*availFS, &stat); err != nil {
-					log.Printf("Could not stat filesystem for %q: %v\n", *availFS, err)
-				} else {
-					return float64(stat.Bavail * uint64(stat.Bsize))
-				}
-			}
-			return 0
 		},
 	)
 )
@@ -123,7 +97,6 @@ func (ct diskStatsMetric) Collect(ch chan<- prometheus.Metric) {
 
 func init() {
 	prometheus.MustRegister(memAllocBytesGauge)
-	prometheus.MustRegister(availFSGauge)
 
 	prometheus.MustRegister(&cpuTimeMetric{
 		desc: prometheus.NewDesc("process_cpu_nsec",
